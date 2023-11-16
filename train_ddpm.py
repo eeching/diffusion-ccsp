@@ -8,7 +8,7 @@ from os.path import join, isdir
 import argparse
 
 from datasets import GraphDataset
-from data_transforms import pre_transform
+from networks.data_transforms import pre_transform
 from train_utils import create_trainer, get_args
 
 if not isdir('data'):
@@ -41,8 +41,14 @@ if __name__ == '__main__':
     python train_ddpm.py -input_mode qualitative -timesteps 1000 -EBM HMC -samples_per_step 4 -step_sizes '1 * self.betas ** 1.5'
     """
 
+    # train_ddpm(
+    #     get_args(input_mode='qualitative', timesteps=1000, model='Diffusion-CCSP',
+    #              EBM='False', samples_per_step=3, use_wandb=True),
+    #     debug=False, visualize=False, data_only=False
+    # )
+
     train_ddpm(
         get_args(input_mode='qualitative', timesteps=1000, model='Diffusion-CCSP',
-                 EBM='False', samples_per_step=3, use_wandb=True),
-        debug=False, visualize=False, data_only=False
+                 EBM='False', samples_per_step=3),
+        debug=True, visualize=True, data_only=False
     )

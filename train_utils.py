@@ -11,8 +11,8 @@ from torch_geometric.loader import DataLoader
 from datasets import GraphDataset, RENDER_PATH
 from networks.ddpm import Trainer, GaussianDiffusion
 from networks.denoise_fn import ConstraintDiffuser, ComposedEBMDenoiseFn
-from data_transforms import pre_transform
-from data_utils import print_tensor
+from networks.data_transforms import pre_transform
+from envs.data_utils import print_tensor
 
 
 def wandb_init(config, project_name='grid_offset_mp4'):
@@ -195,7 +195,7 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
 
     train_name_extra = args.train_name
     run_id = args.run_id
-    ebm_variations = args.ev
+    # ebm_variations = args.ev
     train_proj = args.train_proj
     train_task = args.train_task
     test_tasks = args.test_tasks
@@ -213,8 +213,8 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         train_name = f'm={EBM}_t={timesteps}'
     if train_name_extra != '' and train_name_extra != train_name:
         train_name += f'_{train_name_extra}'
-    if train_proj == 'hmc':
-        train_name = f'm={EBM}_ev={ebm_variations}'
+    # if train_proj == 'hmc':
+    #     train_name = f'm={EBM}_ev={ebm_variations}'
 
     config = dict(
         train_batch_size=128,
@@ -284,7 +284,7 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
                                     pretrained=pretrained, normalize=normalize, energy_wrapper=energy_wrapper,
                                     model=model, verbose=verbose).cuda()
     if EBM and denoise_fn.energy_wrapper:
-        denoise_fn = ComposedEBMDenoiseFn(denoise_fn, ebm_per_steps, ebm_variations)
+        denoise_fn = ComposedEBMDenoiseFn(denoise_fn, ebm_per_steps)
     diffusion = GaussianDiffusion(denoise_fn, timesteps=timesteps, EBM=EBM,
                                   samples_per_step=samples_per_step, step_sizes=step_sizes).cuda()
 

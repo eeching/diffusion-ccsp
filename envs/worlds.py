@@ -12,6 +12,7 @@ import trimesh
 from pprint import pprint
 import matplotlib.pyplot as plt
 import numpy as np
+import pdb
 
 from mesh_utils import CLOUD, create_tray, create_grid_meshes, Rotation2D, \
     get_color, fit_shape_in_bounds, transform_by_constraints, RENDER_PATH, \
@@ -645,6 +646,9 @@ class RandomSplitWorld(ShapeSettingWorld):
         gen = get_tray_splitting_gen(num_samples=2, min_num_regions=min_num_objects,
                                      max_num_regions=max_num_objects, max_depth=max_depth)
         regions = next(gen(self.w, self.l))
+
+        start_idx = np.random.randint(0, len(regions)-1)
+        regions = [regions[start_idx],regions[start_idx+1]]
         meshes = regions_to_meshes(regions, self.w, self.l, self.h, min_offset_perc=min_offset_perc)
         self.tiles.extend(meshes)
 

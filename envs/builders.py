@@ -16,7 +16,8 @@ def get_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6,
             yield box
 
         else:
-            if rand() < 0.5:
+            # if rand() < 0.5:
+            if rand() < 1:
                 axis = 0
             else:
                 axis = 1

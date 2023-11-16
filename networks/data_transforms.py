@@ -3,9 +3,9 @@ from torch_geometric.data import Data
 import numpy as np
 from os.path import join, isfile
 
-from data_utils import print_tensor, get_one_hot, r, get_grasp_side_from_grasp, \
+from envs.data_utils import print_tensor, get_one_hot, r, get_grasp_side_from_grasp, \
     get_ont_hot_grasp_side
-from denoise_fn import robot_constraints, puzzle_constraints, \
+from networks.denoise_fn import robot_constraints, puzzle_constraints, \
     stability_constraints, qualitative_constraints, robot_qualitative_constraints
 
 
