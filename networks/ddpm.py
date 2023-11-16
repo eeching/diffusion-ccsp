@@ -277,7 +277,7 @@ class GaussianDiffusion(nn.Module):
         if self.EBM:
 
             def gradient_function(x, batch, t):
-                gradient = -self.denoise_fn(x, batch, t, eval=True) \
+                gradient = - self.denoise_fn(x, batch, t, eval=True) \
                            * self._sqrt_recipm1_alphas_cumprod_custom[t]
                 # print('gradient_function', x.shape, gradient.shape)
                 return gradient

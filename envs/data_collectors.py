@@ -181,6 +181,7 @@ class DataCollector(object):
             print(class_weights)
         print('saved', dataset_dir)
 
+
 def get_data_collection_args(world_name='RandomSplitWorld', input_mode='diffuse_pairwise',
                              num_worlds=10, verbose=False, num_shakes=1, data_type='train',
                              min_num_objects=2, max_num_objects=5, pngs=False, jsons=False,
@@ -210,7 +211,7 @@ def get_data_collection_args(world_name='RandomSplitWorld', input_mode='diffuse_
     parser.add_argument('-pngs', action='store_true')
     parser.add_argument('-jsons', action='store_true')
     parser.add_argument('-del_if_exists', action='store_true')
-    
+
     parser.add_argument('-verbose', action='store_true', default=verbose)
     args = parser.parse_args()
 
@@ -315,8 +316,3 @@ if __name__ == '__main__':
         os.mkdir(RENDER_PATH)
 
     main()
-
-
-
-
-

@@ -17,11 +17,10 @@ Project page: [Diffusion-CCSP](https://diffusion-ccsp.github.io/)
     pip install -r requirements.txt
     ```
 
-* Source environment variables before running codes.
+* Source environment variables before running codes (includes `conda activate diffusion-ccsp`).
 
     ```shell
     source setup.sh
-    conda activate diffusion-ccsp
     ```
 
 * Compile IK for Franka Panda if want to collect and test robot planning.
@@ -30,19 +29,38 @@ Project page: [Diffusion-CCSP](https://diffusion-ccsp.github.io/)
     (cd pybullet_engine/ikfast/franka_panda; python setup.py)
     ```
 
+## Download data and pre-trained models
+
+By default, download for task `RandomSplitQualitativeWorld`. Download into `data/`, `logs/`, and `wandb/` folder
+
+```shell
+python download_data_checkpoints.py
+```
+
+## Solving CCSP
+
+```shell
+python solve_csp.py
+```
+
 ## Data Collection
 
 ### Task 1-2: 2D Tasks
 
-```shell
-## for the first time
-mkdir data
+Generate data into `data/` folder
 
-## collect data into `data/` folder, .png and .json files will be in `render/` folder
-python envs/data_collectors.py \
-  -world_name 'RandomSplitWorld' \
-  -num_worlds 10 -grid_size 0.5 -pngs -jsons
+```shell
+python envs/data_collectors.py -world_name 'RandomSplitQualitativeWorld' -data_type 'train' -num_worlds 100
+python envs/data_collectors.py -world_name 'RandomSplitQualitativeWorld' -data_type 'test' -num_worlds 10 -pngs -jsons
 ```
+
+<details><summary>Some frequently used flags</summary>
+
+* `-world_name = RandomSplitWorld | TriangularRandomSplitWorld | RandomSplitQualitativeWorld`: generates different geometric splitting datasets
+* `-num_worlds`: number of data 
+* `-pngs | -jsons`: .png and .json files will be in `render/{dataset_name}` folder
+
+</details>
 
 ### Task 3-4: 3D & Robot Data
 
@@ -59,17 +77,6 @@ python 5-panda-stability-data.py
 ```shell
 python train_ddpm.py -timesteps 1000 -EBM 'ULA+'
 ```
-
-## Solving CCSP
-
-```shell
-python solve_csp.py
-```
-
-## TODO
-
-- [ ] Upload data and checkpoints for evaluation
-- [ ] Upload packing model data
 
 ## Citation
 

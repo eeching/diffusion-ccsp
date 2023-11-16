@@ -66,7 +66,6 @@ class ComposedEBMDenoiseFn(nn.Module):
         self.ebm_per_steps = ebm_per_steps
 
         self.energy_wrapper = True
-        # self.ev = [-1 if e == 'f' else 1 for e in ebm_variations] ## zf / ff
 
     def neg_logp_unnorm(self, poses_in, batch, t, **kwargs):
         # poses_in.requires_grad_(True)
@@ -283,7 +282,6 @@ class ConstraintDiffuser(torch.nn.Module):
             self.shuffled = {}  ## because of dataset problem
 
         self.ebm_per_steps = 1
-        # self.ev = (-1, None)
 
         ## for composing with a different domain
         self.pose_encoder_2 = None
