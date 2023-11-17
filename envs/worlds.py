@@ -14,22 +14,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pdb
 
-from mesh_utils import CLOUD, create_tray, create_grid_meshes, Rotation2D, \
+from envs.mesh_utils import CLOUD, create_tray, create_grid_meshes, Rotation2D, \
     get_color, fit_shape_in_bounds, transform_by_constraints, RENDER_PATH, \
     add_shape, regions_to_meshes, BLACK, R, get_color_name, triangles_to_meshes, \
     reorganize_points, CLOUD, RAINBOW_COLORS, get_area, is_inside, save_mesh, \
     reorganize_points_2, RAINBOW_COLOR_NAMES
-from data_utils import get_grid_index, get_grid_offset, save_graph_data, get_grids_offsets, \
+from envs.data_utils import get_grid_index, get_grid_offset, save_graph_data, get_grids_offsets, \
     print_line, compute_pairwise_collisions, apply_grid_mask, print_tensor, grid_offset_to_pose, r, \
     compute_world_constraints, expand_unordered_constraints
-from render_utils import export_gif
-from builders import get_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen
+from envs.render_utils import export_gif
+from envs.builders import get_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen
 
 
 def get_world_class(world_name):
     from inspect import getmembers, isclass
     import sys
-    import robot_worlds
+    import envs.robot_worlds as robot_worlds
     current_module = sys.modules[__name__]
     results = [a[1] for a in getmembers(current_module) + getmembers(robot_worlds)
                if isclass(a[1]) and a[0] == world_name]
@@ -100,7 +100,7 @@ class CSPWorld(object):
         pass
 
     def render(self, img_name=None, topdown=True, show_grid=False, show_axis=False, **kwargs):
-        from render_utils import show_and_save
+        from envs.render_utils import show_and_save
         if img_name is None:
             img_name = f'{self.name}.png'
         self.img_name = img_name
@@ -235,7 +235,7 @@ class CSPWorld(object):
         if 'collisions' in input_mode or 'diffuse_pairwise' in input_mode:
             world['collisions'] = self.check_collisions_in_scene(world['objects'], verbose=False)
             world = compute_pairwise_collisions(world)
-
+        
         """ save to json file for inspections """
         if json_name is not None:
             with open(json_name, 'w') as f:
@@ -243,7 +243,7 @@ class CSPWorld(object):
                     world['objects'][k]['extents'] = list(data['extents'])
                     world['objects'][k]['center'] = list(data['center'])
                 json.dump(world, fp=f, indent=3)
-        return world
+        return world # check the format of the constraints
 
     def generate_pt(self, data=None, data_path=None, verbose=False, input_mode='diffuse_pairwise',
                     return_nodes=False, **kwargs):
@@ -252,13 +252,13 @@ class CSPWorld(object):
 
         if data is None:
             data = self.generate_json(input_mode=input_mode, **kwargs)
-
+        
         nodes = []
         edge_index = []
         labels = []
         objects = [mesh['label'] for mesh in data['objects'].values() if mesh['label'] not in self.ignore_nodes]
         class_counts = {}
-
+        
         if 'grid_offset' in input_mode:
             num_grids = int(self.w / self.grid_size) * int(self.l / self.grid_size)
             class_counts = {k: 0 for k in range(num_grids)}
@@ -268,7 +268,7 @@ class CSPWorld(object):
         if verbose:
             print()
         for name, mesh in data['objects'].items():
-            name = mesh['label']
+            name = mesh['label'] # object_name, like 'tile_0'
             if name in self.ignore_nodes:
                 continue
 
@@ -326,7 +326,7 @@ class CSPWorld(object):
                 print(f"{name}: {[round(n, 3) for n in node]}\t -> {label}")
             nodes.append(node)
             labels.append(label)
-
+        
         if return_nodes:
             return np.array(nodes)
 
@@ -351,7 +351,6 @@ class CSPWorld(object):
         if input_mode in ['grid_offset_mp4', 'grid_offset_oh4']:
             if isinstance(labels[0], list):
                 labels = [label + [[-1] * 3] * (4 - len(label)) for label in labels]
-
         ## save .pt files
         if data_path is not None:
             save_graph_data(nodes, edge_index, labels, data_path)
@@ -379,7 +378,7 @@ class CSPWorld(object):
         return self.check_collisions_in_scene(**kwargs)
 
     def check_collisions_in_scene(self, objects=None, verbose=True):
-        from collisions import check_collisions_in_scene
+        from envs.collisions import check_collisions_in_scene
         if objects is None:
             objects = self.generate_json()['objects']
         collisions = check_collisions_in_scene(objects, rotations=self.rotations, verbose=verbose)
@@ -647,8 +646,8 @@ class RandomSplitWorld(ShapeSettingWorld):
                                      max_num_regions=max_num_objects, max_depth=max_depth)
         regions = next(gen(self.w, self.l))
 
-        start_idx = np.random.randint(0, len(regions)-1)
-        regions = [regions[start_idx],regions[start_idx+1]]
+        # start_idx = np.random.randint(0, len(regions)-1)
+        # regions = [regions[start_idx],regions[start_idx+1]]
         meshes = regions_to_meshes(regions, self.w, self.l, self.h, min_offset_perc=min_offset_perc)
         self.tiles.extend(meshes)
 
@@ -731,12 +730,12 @@ class RandomSplitQualitativeWorld(RandomSplitWorld):
         super().sample_scene(min_offset_perc=min_offset_perc, **kwargs)
 
     def get_current_constraints(self):
-        from denoise_fn import ignored_constraints
+        from networks.denoise_fn import ignored_constraints
         data = self.generate_json(input_mode='qualitative')
         return [tuple(d) for d in data['constraints'] if d[0] not in ignored_constraints]
 
     def check_constraints_satisfied(self, same_order=False, **kwargs):
-        from denoise_fn import ignored_constraints
+        from networks.denoise_fn import ignored_constraints
         collisions = self.check_collisions_in_scene(**kwargs)
         ## check other constraints
         if len(collisions) > 0:

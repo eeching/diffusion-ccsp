@@ -6,7 +6,7 @@ from os import listdir
 from config import RENDER_PATH, DATASET_PATH
 from collections import defaultdict
 
-from mesh_utils import RAINBOW_COLOR_NAMES
+from envs.mesh_utils import RAINBOW_COLOR_NAMES
 
 #########################################################################
 

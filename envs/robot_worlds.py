@@ -3,14 +3,14 @@ import random
 import pybullet_planning as pp
 
 
-from mesh_utils import RAINBOW_COLORS, BLACK
-from data_utils import cat_from_model_id, print_tensor, r, grasp_from_id_scale
-from render_utils import export_gif
+from envs.mesh_utils import RAINBOW_COLORS, BLACK
+from envs.data_utils import cat_from_model_id, print_tensor, r, grasp_from_id_scale
+from envs.render_utils import export_gif
 
-from mesh_utils import regions_to_meshes, assets_to_meshes, load_panda_meshes
-from builders import get_tray_splitting_gen
+from envs.mesh_utils import regions_to_meshes, assets_to_meshes, load_panda_meshes
+from envs.builders import get_tray_splitting_gen
 
-from worlds import RandomSplitWorld
+from envs.worlds import RandomSplitWorld
 
 
 class TableToBoxWorld(RandomSplitWorld):

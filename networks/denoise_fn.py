@@ -268,7 +268,7 @@ class ConstraintDiffuser(torch.nn.Module):
             self.mlps = self.initiate_denoise_fns()
 
         elif self.model == 'StructDiffusion':
-            from transformer import Transformer, PositionalEncoding
+            from networks.transformer import Transformer, PositionalEncoding
             self.max_seq_len = 8
             self.num_heads = 2
             self.num_layers = 4

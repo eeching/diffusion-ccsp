@@ -5,6 +5,7 @@ from os.path import join, dirname, abspath, isdir, isfile
 from os import listdir
 import yaml
 from pprint import pprint
+import pdb
 # sys.path.append(join(dirname(abspath(__file__)), 'envs'))
 
 from torch_geometric.loader import DataLoader
@@ -125,19 +126,23 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
         # train_task = "RandomSplitWorld(10)_train_3_split"
         # test_tasks = {i: f"RandomSplitWorld(10)_test_{i}_split" for i in range(3, 4)}
 
-        train_task = "RandomSplitWorld(20000)_train"  ## {3: 5001, 4: 5001, 5: 5001, 6: 4997}
-        test_tasks = {i: f"RandomSplitWorld(100)_test_{i}_split" for i in range(3, 9)}
+        # train_task = "RandomSplitWorld(20000)_train"  ## {3: 5001, 4: 5001, 5: 5001, 6: 4997}
+        # test_tasks = {i: f"RandomSplitWorld(100)_test_{i}_split" for i in range(3, 9)}
 
-        # --- for testing
-        # train_task = "TriangularRandomSplitWorld(7500)_train"  ## {2: 7500}
-        train_task = "TriangularRandomSplitWorld(30000)_train"  ## {2: 7500, 3: 7500, 4: 7500, 5: 7500}
-        test_tasks = {i: f"TriangularRandomSplitWorld(100)_test_{i}_split" for i in range(2, 8)}
+        args.train_task = "RandomSplitWorld(100)_train"  ## {3: 5001, 4: 5001, 5: 5001, 6: 4997}
+        args.test_tasks = {i: f"RandomSplitWorld(10)_test_{i}_split" for i in range(2, 6)}
 
-        # train_task = "TriangularRandomSplitWorld[32]_(40)_train"
-        # test_tasks = {2: f"TriangularRandomSplitWorld[32]_(10)_test_2_split"}
 
-        args.train_task = "TriangularRandomSplitWorld[64]_(30000)_diffuse_pairwise_train"  ## {2: 7500, 3: 7500, 4: 7500, 5: 7500}
-        args.test_tasks = {i: f"TriangularRandomSplitWorld[64]_(10)_diffuse_pairwise_test_{i}_split" for i in range(2, 7)}
+        # # --- for testing
+        # # train_task = "TriangularRandomSplitWorld(7500)_train"  ## {2: 7500}
+        # train_task = "TriangularRandomSplitWorld(30000)_train"  ## {2: 7500, 3: 7500, 4: 7500, 5: 7500}
+        # test_tasks = {i: f"TriangularRandomSplitWorld(100)_test_{i}_split" for i in range(2, 8)}
+
+        # # train_task = "TriangularRandomSplitWorld[32]_(40)_train"
+        # # test_tasks = {2: f"TriangularRandomSplitWorld[32]_(10)_test_2_split"}
+
+        # args.train_task = "TriangularRandomSplitWorld[64]_(30000)_diffuse_pairwise_train"  ## {2: 7500, 3: 7500, 4: 7500, 5: 7500}
+        # args.test_tasks = {i: f"TriangularRandomSplitWorld[64]_(10)_diffuse_pairwise_test_{i}_split" for i in range(2, 7)}
 
     elif args.input_mode == 'qualitative':
         args.train_proj = 'correct_norm'
@@ -150,8 +155,8 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
 
         if 'World' not in args.train_task:
             # args.train_task = "RandomSplitQualitativeWorld(20)_qualitative_train"
-            args.train_task = "RandomSplitQualitativeWorld(30000)_qualitative_train"  ## 60000
-            args.train_task = "RandomSplitQualitativeWorld(60000)_qualitative_train"
+            # args.train_task = "RandomSplitQualitativeWorld(30000)_qualitative_train"  ## 60000
+            args.train_task = "RandomSplitQualitativeWorld(100)_qualitative_train"
 
         args.test_tasks = {i: f'RandomSplitQualitativeWorld(10)_qualitative_test_{i}_split' for i in range(2, 5)}
 

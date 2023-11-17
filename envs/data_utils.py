@@ -7,6 +7,7 @@ import json
 import os
 from os.path import dirname, abspath, join, isdir
 from collections import defaultdict
+import pdb
 
 torch.set_printoptions(linewidth=1000, precision=2, sci_mode=False)
 np.set_printoptions(linewidth=1000, precision=2, floatmode="fixed")
@@ -124,6 +125,7 @@ def save_graph_data(nodes, edge_index, labels, data_path):
         labels = [0] * len(nodes)
     data = Data(x=torch.tensor(nodes, dtype=torch.float), edge_index=edge_index,
                 y=torch.tensor(np.asarray(labels), dtype=torch.float))
+    
     torch.save(data, data_path)
 
 
@@ -171,9 +173,9 @@ def world_from_pt(pt_path, world_name='ShapeSettingWorld'):
 
 
 def constraint_from_edge_attr(edge_attr, edge_index, composed_inference=False):
-    from denoise_fn import qualitative_constraints
+    from networks.denoise_fn import qualitative_constraints
     if composed_inference:
-        from denoise_fn import robot_qualitative_constraints as qualitative_constraints
+        from networks.denoise_fn import robot_qualitative_constraints as qualitative_constraints
     constraints = []
     for i in range(len(edge_attr)):
         typ = int(edge_attr[i].detach().cpu().numpy().item())
@@ -197,7 +199,7 @@ def world_from_graph(nodes, world_name='ShapeSettingWorld', **kwargs):
             node = [type_flag_1, type_flag_1, width, length, _, _] & [_, _, _, _, x, y]
             y = [(type)x3, width, length, x, y]
     """
-    from worlds import get_world_class
+    from envs.worlds import get_world_class
 
     if isinstance(nodes, torch.Tensor):
         nodes = nodes.detach().cpu().numpy()
@@ -613,7 +615,7 @@ def compute_qualitative_constraints(objects, rotations=None, debug=False, scale=
             constraints.remove(('bottom-in', x, 0))
             constraints.remove(('top-in', x, 0))
 
-    from denoise_fn import ignored_constraints
+    from networks.denoise_fn import ignored_constraints
     constraints = [c for c in constraints if c[0] not in ignored_constraints]
     # print()
     if debug:

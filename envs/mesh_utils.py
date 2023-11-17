@@ -9,7 +9,7 @@ from trimesh.viewer import windowed
 from trimesh.creation import box, cylinder, axis
 from trimesh.transformations import translation_matrix as T, rotation_matrix as R
 
-from config import *
+from envs.config import *
 
 """ project configurations """
 
@@ -201,7 +201,7 @@ def test_tray_scene(show=False, save=True, orthographic=True):
     if show:
         scene.show()
     if save:
-        from render_utils import show_and_save
+        from envs.render_utils import show_and_save
         show_and_save(scene, img_name='tray_scene.png')
     return scene
 

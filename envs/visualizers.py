@@ -4,9 +4,9 @@ import os
 from os import listdir
 from typing import Iterable, Tuple
 
-from config import *
-from worlds import TrayWorld, ShapeSettingWorld, RandomSplitWorld
-from render_utils import *
+from envs.config import *
+from envs.worlds import TrayWorld, ShapeSettingWorld, RandomSplitWorld
+from envs.render_utils import *
 
 
 class WorldVisualizer(object):

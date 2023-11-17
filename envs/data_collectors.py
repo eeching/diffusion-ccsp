@@ -7,10 +7,10 @@ import json
 import sys
 from tqdm import tqdm
 import math
-from config import *
-from worlds import TrayWorld, ShapeSettingWorld, RandomSplitWorld, get_world_class
-from render_utils import *
-from data_utils import world_from_pt
+from envs.config import *
+from envs.worlds import TrayWorld, ShapeSettingWorld, RandomSplitWorld, get_world_class
+from envs.render_utils import *
+from envs.data_utils import world_from_pt
 import argparse
 from collections import defaultdict
 import pdb
@@ -41,7 +41,6 @@ class DataCollector(object):
         name = f"{world.name}({n})"
         if len(label) > 0:
             name += f"_{label}"
-
         ## accounting for data distribution
         if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode:
             class_counts = defaultdict(int)
@@ -91,7 +90,7 @@ class DataCollector(object):
         def add_one_pt(world, data_path, png_path, newly_generated):
 
             json_name = None if not jsons else png_path.replace('.png', '.json')
-            data = world.generate_json(json_name=json_name, input_mode=input_mode)
+            data = world.generate_json(json_name=json_name, input_mode=input_mode) # getting constraints for the objects
             # if label == 'test':
             #     json_path = data_path.replace('.pt', '.json').replace(raw_dir, json_dir)
             #     with open(json_path, 'w') as f:
@@ -132,6 +131,7 @@ class DataCollector(object):
             else:
                 world = self.world_class(**self.world_args)
                 world.sample_scene(**scene_sampler_args)
+                
                 newly_generated = add_one_pt(world, data_path, png_path, newly_generated)
 
                 ## balancing the dataset for the boxes dataset
@@ -243,7 +243,7 @@ def generate_train_dataset(args=None, debug=False, save_meshes=False, same_order
     collector = DataCollector(world_class, world_args=args.world_args, scene_sampler_args=scene_sampler_args)
     collector.collect(args.num_worlds, shake_per_world=args.num_shakes, label=args.input_mode + '_train',
                       verbose=args.verbose, pngs=args.pngs, jsons=args.jsons, debug=debug,
-                      save_meshes=save_meshes, same_order=same_order)
+                      save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode)
     # collector.collect(int(args.num_worlds/10), label='test', **kwargs)
 
 
@@ -266,7 +266,7 @@ def generate_test_dataset(args=None, pngs=True, jsons=True,
         scene_sampler_args = dict(min_num_objects=i, max_num_objects=i)
         collector = DataCollector(world_class, world_args=args.world_args, scene_sampler_args=scene_sampler_args)
         collector.collect(args.num_worlds, label=f'{args.input_mode}_test_{i}_split', pngs=args.pngs, jsons=args.jsons,
-                          save_meshes=save_meshes, same_order=same_order)
+                          save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode)
 
 
 ######################## tests ############################

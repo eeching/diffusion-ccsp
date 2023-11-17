@@ -11,6 +11,7 @@ from collections import defaultdict
 import torch
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Dataset, InMemoryDataset, download_url
+import pdb
 
 from envs.data_utils import get_one_hot, print_tensor, render_world_from_graph, constraint_from_edge_attr
 from networks.data_transforms import pre_transform, robot_data_json_to_pt, stability_data_json_to_pt
