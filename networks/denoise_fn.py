@@ -23,6 +23,11 @@ qualitative_constraints = [
 ]
 robot_qualitative_constraints = robot_constraints + qualitative_constraints
 ignored_constraints = ['right-of', 'bottom-of']
+# tidy_constraints = ['aligned_bottom', 'aligned_top', 'aligned_left', 'aligned_right' 'left_of', 'right_of', 'centered', 'avoid_edge',
+#                      'not_obstructed', 'in_container', 'on_top_of', 'regular_grid', 'stacked', 'ordered']
+# v0
+tidy_constraints = ['aligned_bottom', 'aligned_top', 'in', 'center-in', 'left-in', 'right-in', 'top-in', 'bottom-in',
+    'cfree', 'h-aligned', 'v-aligned']
 
 
 def exists(x):
@@ -210,6 +215,8 @@ class ConstraintDiffuser(torch.nn.Module):
             self.constraint_sets = stability_constraints
         elif 'qualitative' in input_mode:
             self.constraint_sets = qualitative_constraints
+        elif 'tidy' in input_mode or input_mode in tidy_constraints:
+            self.constraint_sets = tidy_constraints
         else:
             self.constraint_sets = puzzle_constraints
 

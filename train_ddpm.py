@@ -48,7 +48,7 @@ if __name__ == '__main__':
     # )
 
     train_ddpm(
-        get_args(input_mode='qualitative', timesteps=1000, model='Diffusion-CCSP',
+        get_args(input_mode='aligned_bottom', timesteps=1000, model='Diffusion-CCSP',
                  EBM='False', samples_per_step=3),
         debug=True, visualize=True, data_only=False
     )

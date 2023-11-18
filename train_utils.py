@@ -11,10 +11,9 @@ import pdb
 from torch_geometric.loader import DataLoader
 from datasets import GraphDataset, RENDER_PATH
 from networks.ddpm import Trainer, GaussianDiffusion
-from networks.denoise_fn import ConstraintDiffuser, ComposedEBMDenoiseFn
+from networks.denoise_fn import ConstraintDiffuser, ComposedEBMDenoiseFn, tidy_constraints
 from networks.data_transforms import pre_transform
 from envs.data_utils import print_tensor
-
 
 def wandb_init(config, project_name='grid_offset_mp4'):
     import wandb
@@ -117,6 +116,7 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
         args.energy_wrapper = True
 
     args.test_tasks = test_tasks
+
     if args.input_mode in ['diffuse_pairwise', 'diffuse_pairwise_image']:
         if args.input_mode == 'diffuse_pairwise_image':
             args.pretrained = True
@@ -159,6 +159,16 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
             args.train_task = "RandomSplitQualitativeWorld(100)_qualitative_train"
 
         args.test_tasks = {i: f'RandomSplitQualitativeWorld(10)_qualitative_test_{i}_split' for i in range(2, 5)}
+    elif args.input_mode == 'tidy' or args.input_mode in tidy_constraints:
+        args.train_proj = 'tidy'
+        # --- for testing
+        train_task = "RandomSplitSparseWorld(2000)_aligned_bottom_train"
+        test_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_split' for i in range(2, 5)}
+
+        if 'World' not in args.train_task:
+            args.train_task = "RandomSplitSparseWorld(2000)_aligned_bottom_train"
+
+        args.test_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_split' for i in range(2, 5)}
 
     elif args.input_mode == 'stability_flat':
         args.train_proj = 'stability'
@@ -272,7 +282,7 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         """ e.g., 8 numbers given in each group, but only the first 6 is used by the network, 
             the last 2 for reconstruction """
         dims = ((8, 0, 8), (5, 10, 15), (5, 16, 21))
-    elif 'stability' in input_mode or 'qualitative' in input_mode:
+    elif 'stability' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints:
         dims = (2, 0, 2), (4, 2, 6)
     else:
         dims = ((3, 0, 3), (4, 3, 7)) if 'Triangular' in train_task else ((2, 0, 2), (2, 2, 4))  ## P1

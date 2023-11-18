@@ -21,9 +21,9 @@ from envs.mesh_utils import CLOUD, create_tray, create_grid_meshes, Rotation2D, 
     reorganize_points_2, RAINBOW_COLOR_NAMES
 from envs.data_utils import get_grid_index, get_grid_offset, save_graph_data, get_grids_offsets, \
     print_line, compute_pairwise_collisions, apply_grid_mask, print_tensor, grid_offset_to_pose, r, \
-    compute_world_constraints, expand_unordered_constraints
+    compute_world_constraints, expand_unordered_constraints, compute_tidy_constraints
 from envs.render_utils import export_gif
-from envs.builders import get_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen
+from envs.builders import get_tray_splitting_gen, get_sub_region_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen
 
 
 def get_world_class(world_name):
@@ -146,13 +146,14 @@ class CSPWorld(object):
         return constraints
 
     def generate_json(self, input_mode='collisions', json_name=None,
-                      constraints={}, world={}, same_order=True):
+                      constraints={}, world={}, same_order=True, test_only=False):
         """ record in a json file for collision checking """
         world.update({
             'name': self.name,
             'objects': {},
             'constraints': constraints,
         })
+      
         scene = self.get_scene()
         for name, mesh in scene.geometry.items():
             if name not in self.labels:
@@ -227,6 +228,13 @@ class CSPWorld(object):
         """ compute constraints """
         if len(world['constraints']) == 0:
             world['constraints'] = self.generate_constraints(world['objects'], same_order=same_order)
+
+        from networks.denoise_fn import tidy_constraints
+
+        if 'tidy' in input_mode or input_mode in tidy_constraints:
+            scale = min([self.w / 3, self.l / 2])
+            world = compute_tidy_constraints(world, relation=input_mode, rotations=self.rotations, same_order=same_order, scale=scale, test_only=test_only)
+
         if 'qualitative' in input_mode:
             scale = min([self.w / 3, self.l / 2])
             world = compute_world_constraints(world, rotations=self.rotations, same_order=same_order, scale=scale)
@@ -285,6 +293,14 @@ class CSPWorld(object):
                     yaw = np.pi
                 shape_features = [w, l]
                 pose_feature = pose_feature[:2] + [np.sin(yaw), np.cos(yaw)]
+            elif isinstance(self, RandomSplitSparseWorld):
+                w, l = shape_features[:2]
+                yaw = np.pi / 2
+                if l > w:
+                    l, w = shape_features[:2]
+                    yaw = np.pi
+                shape_features = [w, l]
+                pose_feature = pose_feature[:2] + [np.sin(yaw), np.cos(yaw)]
             elif not isinstance(self, TriangularRandomSplitWorld):
                 shape_features = shape_features[:2]
                 pose_feature = pose_feature[:2]
@@ -331,7 +347,8 @@ class CSPWorld(object):
             return np.array(nodes)
 
         ## add edge_index
-        if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode:
+        from networks.denoise_fn import tidy_constraints
+        if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints:
             edge_index = data['constraints']
             class_counts[len(nodes)-1] = 1
         else:
@@ -639,16 +656,18 @@ class RandomSplitWorld(ShapeSettingWorld):
     def __init__(self, **kwargs):
         super(RandomSplitWorld, self).__init__(**kwargs)
 
-    def sample_scene(self, min_num_objects=2, max_num_objects=6, min_offset_perc=0.1, **kwargs):
+    def sample_scene(self, min_num_objects=2, max_num_objects=6, min_offset_perc=0.15, **kwargs):
         """ first get region boxes from `get_tray_spliting_gen` """
         max_depth = math.ceil(math.log2(max_num_objects)) + 1
-        gen = get_tray_splitting_gen(num_samples=2, min_num_regions=min_num_objects,
+        gen = get_sub_region_tray_splitting_gen(num_samples=2, min_num_regions=min_num_objects,
                                      max_num_regions=max_num_objects, max_depth=max_depth)
+        # gen = get_tray_splitting_gen(num_samples=2, min_num_regions=min_num_objects,
+        #                              max_num_regions=max_num_objects, max_depth=max_depth)
         regions = next(gen(self.w, self.l))
 
         # start_idx = np.random.randint(0, len(regions)-1)
         # regions = [regions[start_idx],regions[start_idx+1]]
-        meshes = regions_to_meshes(regions, self.w, self.l, self.h, min_offset_perc=min_offset_perc)
+        meshes = regions_to_meshes(regions, self.w, self.l, self.h, min_offset_perc=min_offset_perc, align="top", max_offset=0.1)
         self.tiles.extend(meshes)
 
     def construct_scene_from_objects(self, objects, rotations):
@@ -713,6 +732,84 @@ class RandomSplitWorld(ShapeSettingWorld):
                 rot_matrix = None
 
             self.add_shape('box', size=(bw, bl), x=x, y=y, color=color, R=rot_matrix)
+
+
+class RandomSplitSparseWorld(RandomSplitWorld):
+    """ 
+    Randomly sample a sub region of the box to split the boxes. This is to ensure that the dataset has more variability in the locations of the boxes.
+    c-free is ensured by randomly splitting the boxes.
+    we create the datasets here to learn a library of relations to tidy:
+
+    1. aligned(A, B) 
+    2. left_of(A, B|pov), right_of(A, B|pov)
+    3. centered(A)
+    4. avoid_edge(A)
+    5. not_obstructed(A|pov)
+    6. in_a_container(A, B)
+    7. on_top_of(A, B)
+    8. symmetry(A, B|pov)
+    9. regular_grid(A_1, A_2, A_3,....)
+    10. stacked(A_1, A_2, A_3,....)
+    11. ordered(A_1, A_2, A_3,....)
+
+    """
+    def __init__(self, **kwargs):
+        super(RandomSplitSparseWorld, self).__init__(**kwargs)
+        self.tidy_constraints = None
+        self.rotations = {}
+
+    def sample_scene(self, input_mode="aligned_bottom", min_num_objects=2, max_num_objects=6, min_offset_perc=0.15, **kwargs):
+        """ first get region boxes from `get_tray_spliting_gen` """
+        max_depth = math.ceil(math.log2(max_num_objects)) + 1
+        gen = get_sub_region_tray_splitting_gen(num_samples=2, min_num_regions=min_num_objects,
+                                     max_num_regions=max_num_objects, max_depth=max_depth)
+        regions = next(gen(self.w, self.l))
+        # start_idx = np.random.randint(0, len(regions)-1)
+        # regions = [regions[start_idx],regions[start_idx+1]]
+        meshes = regions_to_meshes(regions, self.w, self.l, self.h, min_offset_perc=min_offset_perc, relation=input_mode, max_offset=0.3)
+        self.tiles.extend(meshes)
+
+    def get_current_constraints(self, relation):
+        from networks.denoise_fn import ignored_constraints
+        data = self.generate_json(input_mode=relation)
+        return [tuple(d) for d in data['constraints'] if d[0] not in ignored_constraints]
+
+    def check_constraints_satisfied(self, relation, same_order=False, **kwargs):
+        from networks.denoise_fn import ignored_constraints
+        collisions = self.check_collisions_in_scene(**kwargs)
+        ## check other constraints
+        if len(collisions) > 0:
+            if self.img_name is not None:
+                json_name = self.img_name.replace('.png', '.json')
+                world = {
+                    'check_constraints_satisfied': collisions,
+                }
+                self.generate_json(input_mode=relation, json_name=json_name, world=world)
+            return collisions
+        current_constraints = self.get_current_constraints(relation)
+        given_constraints = self.tidy_constraints 
+        if not same_order:
+            current_constraints = expand_unordered_constraints(current_constraints)
+            given_constraints = expand_unordered_constraints(given_constraints)
+        missing = [ct for ct in given_constraints if ct not in current_constraints]
+
+        if self.img_name is not None:
+            json_name = self.img_name.replace('.png', '.json')
+            world = {
+                'current_constraints': current_constraints,
+                'given_constraints': given_constraints,
+                'missing': missing,
+            }
+            # print('\n', self.img_name, missing)
+            # print('\t', current_constraints)
+            # print('\t', given_constraints)
+            self.generate_json(input_mode='qualitative', json_name=json_name, world=world)
+        return missing
+
+    def construct_scene_from_graph_data(self, nodes, constraints, **kwargs):
+        """ give ground truth constraints to check if they are satisfied """
+        self.tidy_constraints = constraints
+        super().construct_scene_from_graph_data(nodes, **kwargs)
 
 
 class RandomSplitQualitativeWorld(RandomSplitWorld):

@@ -6,7 +6,7 @@ from os.path import join, isfile
 from envs.data_utils import print_tensor, get_one_hot, r, get_grasp_side_from_grasp, \
     get_ont_hot_grasp_side
 from networks.denoise_fn import robot_constraints, puzzle_constraints, \
-    stability_constraints, qualitative_constraints, robot_qualitative_constraints
+    stability_constraints, qualitative_constraints, robot_qualitative_constraints, tidy_constraints
 import pdb
 
 ####################################################################################################
@@ -14,7 +14,7 @@ import pdb
 
 def pre_transform(data, data_idx, input_mode, debug_mode=0, **kwargs):
     if 'diffuse_pairwise' in input_mode or 'robot' in input_mode or 'stability' in input_mode \
-            or 'qualitative' in input_mode:
+            or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints:
         return data_transform_cn_diffuse_batch(data, data_idx, input_mode, **kwargs)
     if input_mode == 'collisions':
         return data_transform_cn_graph(data, data_idx, **kwargs)
@@ -107,6 +107,15 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
                         y /= (l_tray / 2)
                         geom = [w, l]
                         pose = [x, y, cs, sn]
+                    elif 'tidy' in input_mode or input_mode in tidy_constraints:
+                        all_constraints = tidy_constraints
+                        _, w, l, x, y, sn, cs = dd
+                        w /= w_tray
+                        l /= l_tray
+                        x /= (w_tray / 2)
+                        y /= (l_tray / 2)
+                        geom = [w, l]
+                        pose = [x, y, cs, sn]
 
         ## triangle P1 encoding with sin/cos
         elif len(dd) == 8 or len(dd) == 8 + 32 ** 2 or len(dd) == 8 + 64 ** 2:
@@ -164,12 +173,13 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
 
             if 'robot' in input_mode and 'qualitative' in input_mode:
                 all_constraints = robot_qualitative_constraints
-
+            if 'tidy' in input_mode or input_mode in tidy_constraints:
+                all_constraints = tidy_constraints
         feature = geom + pose
         if verbose:
             print(f'feature {i}: {r(feature)}')
         features.append(feature)
-
+    
     ## for each edge, add one constraint node, and add edge_attr
     edge_attr = [all_constraints.index(elems[0]) for elems in data.edge_index]
     edge_index = [elems[1:] for elems in data.edge_index]

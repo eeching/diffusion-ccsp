@@ -5,6 +5,7 @@ from math import sqrt
 import random
 
 from envs.data_utils import compute_qualitative_constraints, summarize_constraints, r as rd
+import pdb
 
 
 def get_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.4):
@@ -50,6 +51,61 @@ def get_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6,
             if count == 0:
                 break
         yield None
+    return gen
+
+
+def get_sub_region_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.075):
+
+    Region = Tuple[float, float, float, float]  # l, t, w, h
+
+    def partition(box: Region, depth: int = 3) -> Iterable[Region]:
+        if rand() < 0.3 or depth == 0:
+            yield box
+
+        else:
+            # if rand() < 0.5:
+            if rand() < 1:
+                axis = 0
+            else:
+                axis = 1
+
+            split_point = random.uniform(0.25, 0.75) * box[axis + 2]
+            if axis == 0:
+                yield from partition((box[0], box[1], split_point, box[3]), depth - 1)
+                yield from partition((box[0] + split_point, box[1], box[2] - split_point, box[3]), depth - 1)
+            else:
+                yield from partition((box[0], box[1], box[2], split_point), depth - 1)
+                yield from partition((box[0], box[1] + split_point, box[2], box[3] - split_point), depth - 1)
+
+    def filter_regions(regions: Iterable[Region], min_size: float) -> Iterable[Region]:
+        return [r for r in regions if r[2] > min_size and r[3] > min_size]
+
+    def gen(w, l):
+
+        w_offset, l_offset = random.uniform(0.2, 0.95)*w, random.uniform(0.2, 0.95)*l 
+
+        x_0, y_0 = random.uniform(0, w - w_offset), random.uniform(0, l - l_offset)
+
+        min_size = min([w, l]) / 2 * default_min_size
+        def get_regions():
+            regions = []
+            for region in partition((x_0, y_0, w_offset, l_offset), max_depth):
+                regions.append(region)
+            return regions
+        count = num_samples
+        while True:
+            regions = get_regions()
+            # print("before: ", len(regions))
+            regions = filter_regions(regions, min_size)
+            # print("after filtering: ", len(regions))
+            if min_num_regions <= len(regions) <= max_num_regions:
+                count -= 1
+                print(len(regions), "added!")
+                yield regions
+            if count == 0:
+                break
+        yield None
+        
     return gen
 
 

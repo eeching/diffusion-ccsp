@@ -225,7 +225,7 @@ def add_shape(shape, size, height, color=CLOUD, **kwargs):
 
 
 def regions_to_meshes(regions, width, length, height,
-                      max_offset=0.2, min_offset_perc=0.1):
+                      max_offset=0.2, min_offset_perc=0.1, relation=None):
     """ convert 2D regions [top, left, width, height] to 3D meshes centered at origin """
 
     meshes = []
@@ -241,7 +241,15 @@ def regions_to_meshes(regions, width, length, height,
         else:
             assert "what's this region?"
             continue
-        ps = np.random.uniform(max_offset*min_offset_perc, max_offset, 4)  ## padding [top, left, bottom, right]
+
+        
+        if relation == "aligned_bottom":
+            if w < 0.2: # is the rectangle is already very thin
+                ps = [0, np.random.uniform(w*0.05, w*0.1), np.random.uniform(l*0.1, l*0.75), np.random.uniform(w*0.05, w*0.1)]
+            else:
+                ps = [0, np.random.uniform(w*0.1, w*0.45), np.random.uniform(l*0.1, l*0.75), np.random.uniform(w*0.1, w*0.45)]
+        else:
+            ps = np.random.uniform(max_offset*min_offset_perc, max_offset, 4)  ## padding [top, left, bottom, right]
         if w <= ps[1]+ps[3] or l <= ps[0]+ps[2]:
             continue
         w -= (ps[1]+ps[3])

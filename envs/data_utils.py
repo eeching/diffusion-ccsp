@@ -406,6 +406,14 @@ def compute_world_constraints(world, same_order=False, **kwargs):
     world['constraints'] += constraints
     return world
 
+def compute_tidy_constraints(world, relation='aligned_bottom', same_order=False, **kwargs):
+    objects = copy.deepcopy(world['objects'])
+    objects = {v['label']: v for k, v in objects.items()}  ##  if v['label'] not in ['bottom']
+    constraints = compute_tidy_atomic_constraints(objects, relation, **kwargs)
+    if not same_order:
+        constraints = randomize_unordered_constraints(constraints)
+    world['constraints'] += constraints
+    return world
 
 def randomize_unordered_constraints(constraints):
     new_constraints = []
@@ -617,6 +625,209 @@ def compute_qualitative_constraints(objects, rotations=None, debug=False, scale=
 
     from networks.denoise_fn import ignored_constraints
     constraints = [c for c in constraints if c[0] not in ignored_constraints]
+    # print()
+    if debug:
+        summarize_constraints(constraints)
+    return constraints
+
+def compute_tidy_atomic_constraints(objects, relation, rotations=None, debug=False, scale=1, test_only=False): # if the relation is None, compute all relations, if not, only compute the specified relations
+    """ objects is a dictionary of tile_name: {center, extents} """
+    sides = ['east', 'west', 'north', 'south']
+    if debug:
+        print('scale', scale)
+        print('rotations', rotations)
+        pprint({k: {kk: r(vv) for kk, vv in v.items() if kk in ['extents', 'center']}
+                for k, v in objects.items() if k not in sides})
+        print()
+
+    constraints = []
+    names = list(objects.keys())
+    tiles = ['bottom'] + [n for n in names if 'tile_' in n]
+    neighbors = {n: defaultdict(list) for n in names}  ## the neighbors of each object
+    # print(rotations)
+
+    """ left, right, top, bottom """
+    alignment = 0.05 * scale
+    farness = 0.5 * scale
+    closeness = 0.3 * scale
+    touching = 0.1 * scale
+    overlap_threshold = 0.6 * scale
+    for i in range(len(names)):
+        m = objects[names[i]]
+        if names[i] == 'bottom':
+            continue
+        name1 = names[i] if 'tile_' in names[i] else 'bottom'
+
+        x1, y1, z1 = m['center']
+        lx1, ly1, lz1 = m['extents']
+        if rotations is not None and name1 in rotations:
+            rot = rotations[name1]
+            if abs(abs(rot) - np.pi /2) < 0.1:
+                ly1, lx1, lz1 = m['extents']
+
+        x1_left = x1 - lx1 / 2
+        x1_right = x1 + lx1 / 2
+        y1_top = y1 + ly1 / 2
+        y1_bottom = y1 - ly1 / 2
+
+        if math.sqrt(x1**2 + y1**2) < closeness:
+            constraints.append(('center-in', tiles.index(name1), tiles.index('bottom')))
+        if x1_right < 0:
+            constraints.append(('left-in', tiles.index(name1), tiles.index('bottom')))
+        if x1_left > 0:
+            constraints.append(('right-in', tiles.index(name1), tiles.index('bottom')))
+        if y1_top < 0:
+            constraints.append(('bottom-in', tiles.index(name1), tiles.index('bottom')))
+        if y1_bottom > 0:
+            constraints.append(('top-in', tiles.index(name1), tiles.index('bottom')))
+
+        for j in range(i + 1, len(names)):
+            n = objects[names[j]]
+            if names[j] == 'bottom':
+                continue
+            name2 = names[j] if 'tile_' in names[j] else 'bottom'
+            if name1 == name2:
+                continue
+
+            x2, y2, z2 = n['center']
+            lx2, ly2, lz2 = n['extents']
+            if rotations is not None and name2 in rotations:
+                rot = rotations[name2]
+                if abs(abs(rot) - np.pi /2) < 0.1:
+                    ly2, lx2, lz2 = n['extents']
+            x2_left = x2 - lx2 / 2
+            x2_right = x2 + lx2 / 2
+            y2_top = y2 + ly2 / 2
+            y2_bottom = y2 - ly2 / 2
+            if debug: print(name1, name2)
+            if debug: print('\t', name1, r(objects[names[i]]['center'][:2]), r(objects[names[i]]['extents'][:2]))
+            if debug: print('\t', name2, r(n['center'][:2]), r(n['extents'][:2]))
+
+            """ aligned """
+            if name1 != 'bottom' and name2 != 'bottom':
+                if abs(y1_top - y2_top) < alignment:
+                    constraints.append(('aligned_top', tiles.index(name1), tiles.index(name2)))
+                if abs(y1_bottom - y2_bottom) < alignment:
+                    constraints.append(('aligned_bottom', tiles.index(name1), tiles.index(name2)))    
+                if abs(x1_left - x2_left) < alignment:
+                    constraints.append(('aligned_right', tiles.index(name1), tiles.index(name2)))
+                if abs(x1_right - x2_right) < alignment:
+                    constraints.append(('aligned_left', tiles.index(name1), tiles.index(name2)))   
+                if abs(x1 - x2) < alignment:
+                    constraints.append(('v-aligned', tiles.index(name1), tiles.index(name2)))
+                if abs(y1 - y2) < alignment:
+                    constraints.append(('h-aligned', tiles.index(name1), tiles.index(name2)))
+
+    #         """ top / bottom """
+
+    #         ## check if they overlap enough on x-axis
+    #         if debug: print(x2_left, x1_left, x1_right, x2_right)
+    #         in_x_range = (x2_left <= x1_left < x1_right <= x2_right) or (x1_left <= x2_left < x2_right <= x1_right)
+    #         if debug: print('\tin_x_range =', in_x_range)
+
+    #         if not in_x_range:
+    #             overlap = 0
+    #             min_w = min(lx1, lx2)
+    #             if x2_left <= x1_left <= x2_right <= x1_right:
+    #                 overlap = x2_right - x1_left
+    #             elif x1_left <= x2_left <= x1_right <= x2_right:
+    #                 overlap = x1_right - x2_left
+    #             in_x_range = in_x_range or (overlap > min_w * overlap_threshold)
+    #             if debug: print('\tin_x_range overlap =', overlap)
+
+    #         if in_x_range:
+
+    #             ref_dist = max(ly1, ly2)
+
+    #             d = y2_bottom - y1_top
+    #             if debug: print('\td1 =', d)
+    #             if -0.05 <= d < farness:
+    #                 if debug: print('\t0 <= d1 < farness')
+    #                 neighbors[name1]['top'].append((name2, d, ref_dist))
+    #                 neighbors[name2]['bottom'].append((name1, d, ref_dist))
+
+    #             d = y1_bottom - y2_top
+    #             if debug: print('\td2 =', d)
+    #             if -0.05 <= d < farness:
+    #                 if debug: print('\t0 <= d2 < farness')
+    #                 neighbors[name1]['bottom'].append((name2, d, ref_dist))
+    #                 neighbors[name2]['top'].append((name1, d, ref_dist))
+
+    #         """ left / right """
+
+    #         ## check if they overlap enough on y-axis
+    #         in_y_range = (y2_bottom <= y1_bottom < y1_top <= y2_top) or (y1_bottom <= y2_bottom < y2_top <= y1_top)
+    #         if debug: print('\tin_y_range =', in_x_range)
+
+    #         if not in_y_range:
+    #             overlap = 0
+    #             min_h = min(ly1, ly2)
+    #             if y2_bottom <= y1_bottom <= y2_top <= y1_top:
+    #                 overlap = y2_top - y1_bottom
+    #             elif y1_bottom <= y2_bottom <= y1_top <= y2_top:
+    #                 overlap = y1_top - y2_bottom
+    #             in_y_range = in_y_range or (overlap > min_h * overlap_threshold)
+    #             if debug: print('\tin_y_range overlap =', overlap)
+
+    #         if in_y_range:
+
+    #             ref_dist = max(lx1, lx2)
+
+    #             d = x1_left - x2_right
+    #             if debug: print('\td3 =', d)
+    #             if -0.05 <= d < farness:
+    #                 if debug: print('\t0 <= d3 < farness')
+    #                 neighbors[name1]['left'].append((name2, d, ref_dist))
+    #                 neighbors[name2]['right'].append((name1, d, ref_dist))
+
+    #             d = x2_left - x1_right
+    #             if debug: print('\td4 =', d)
+    #             if -0.05 <= d < farness:
+    #                 if debug: print('\t0 <= d4 < farness')
+    #                 neighbors[name1]['right'].append((name2, d, ref_dist))
+    #                 neighbors[name2]['left'].append((name1, d, ref_dist))
+
+    # for name, relations in neighbors.items():
+    #     if name not in tiles:
+    #         continue
+    #     if debug:
+    #         print(name, '\t', {k: [(v[0], round(v[1], 3)) for v in vv] for k, vv in relations.items()})
+    #     a = tiles.index(name)
+    #     neighbor = [name, 'bottom']
+    #     for k, vv in relations.items():
+    #         for v in vv:
+    #             b = tiles.index(v[0])
+    #             if a == b:
+    #                 continue
+    #             if v[1] < closeness:
+    #                 if k in ['left', 'top']:
+    #                     k2 = {'left': 'right', 'top': 'bottom'}[k]
+    #                     if a != 0 and b != 0:
+    #                         constraints.append((f"{k}-of", b, a))
+    #                         constraints.append((f"{k2}-of", a, b))
+    #             if v[1] < touching and (f"close-to", b, a) not in constraints and \
+    #                     (f"close-to", a, b) not in constraints and a != 0 and b != 0:
+    #                 constraints.append((f"close-to", b, a))
+    #         neighbor += [v[0] for v in vv]
+    #     if name == 'bottom':
+    #         continue
+    #     constraints += [(f"away-from", tiles.index(m), a) for m in tiles if m not in neighbor
+    #                     if (f"away-from", a, tiles.index(m)) not in constraints]
+    
+    constraints.sort()
+
+    for x in [c[1] for c in constraints if c[0] == 'right-in']:
+        if x in [c[1] for c in constraints if c[0] == 'left-in']:
+            constraints.remove(('right-in', x, 0))
+            constraints.remove(('left-in', x, 0))
+    for x in [c[1] for c in constraints if c[0] == 'bottom-in']:
+        if x in [c[1] for c in constraints if c[0] == 'top-in']:
+            constraints.remove(('bottom-in', x, 0))
+            constraints.remove(('top-in', x, 0))
+
+    from networks.denoise_fn import ignored_constraints
+    if test_only:
+        constraints = [c for c in constraints if c[0] in [relation]]
     # print()
     if debug:
         summarize_constraints(constraints)

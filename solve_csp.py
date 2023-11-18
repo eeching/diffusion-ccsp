@@ -1,9 +1,10 @@
 import os
 from os.path import join, dirname, isdir
-from datasets import GraphDataset
+from datasets import GraphDataset, RENDER_PATH
 from networks.data_transforms import pre_transform
 from train_utils import load_trainer
 import argparse
+import pdb
 
 
 def check_data_graph(dataset_name):
@@ -20,8 +21,13 @@ def evaluate_model(run_id, milestone, tries=(10, 0), json_name='eval', save_log=
                    run_all=False, render=True, run_only=False, resume_eval=False, render_name_extra=None,
                    return_history=False, **kwargs):
     trainer = load_trainer(run_id, milestone, **kwargs)
+    
     if render_name_extra is not None:
         trainer.render_dir += f'_{render_name_extra}'
+        if not isdir(trainer.render_dir):
+            os.mkdir(trainer.render_dir)
+    if 'test_set' in kwargs:
+        trainer.render_dir = join(RENDER_PATH, kwargs["test_render_dir"])
         if not isdir(trainer.render_dir):
             os.mkdir(trainer.render_dir)
     trainer.evaluate(json_name, tries=tries, render=render, save_log=save_log,
@@ -104,6 +110,11 @@ def indie_runs():
     #     evaluate_model('siovfil2', milestone=6, tries=(1, 0), test_tasks=test_tasks, json_name=f'tamp_{k}', run_all=True)  ## 0.1-0.14 sec per graph
     #     # evaluate_model('4xt8u4n7', milestone=20, tries=(1, 0), test_tasks=test_tasks, json_name=f'tamp_{k}', run_all=True)  ## 0.005-0.01 sec per graph
 
-
+def eval_new_set():
+    eval_1_kwargs = dict(tries=(1, 0), json_name='eval_N=1_K=1', save_log=False, visualize=True, test_set=True, test_render_dir = 'RandomSplitQualitativeWorld(1)_qualitative_test_m=ULA_t=1000_qualitative_id=qsd3ju74')
+    test_1_tasks = {i: f'RandomSplitQualitativeWorld(1)_qualitative_test_{i}_split' for i in range(2, 6)}
+    evaluate_model('qsd3ju74', milestone=7, test_tasks=test_1_tasks, **eval_1_kwargs)
+    
 if __name__ == '__main__':
-    indie_runs()
+    # indie_runs()
+    eval_new_set()

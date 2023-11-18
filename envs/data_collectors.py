@@ -35,14 +35,16 @@ class DataCollector(object):
                 balance_data: bool = True,
                 save_meshes: bool = False,
                 input_mode: str = 'collisions',
+                test_only: bool = False,
                 **kwargs):
         import torch
         world = self.world_class(**self.world_args)
         name = f"{world.name}({n})"
         if len(label) > 0:
             name += f"_{label}"
+        from networks.denoise_fn import tidy_constraints
         ## accounting for data distribution
-        if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode:
+        if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints:
             class_counts = defaultdict(int)
         else:
             classes = []
@@ -90,7 +92,7 @@ class DataCollector(object):
         def add_one_pt(world, data_path, png_path, newly_generated):
 
             json_name = None if not jsons else png_path.replace('.png', '.json')
-            data = world.generate_json(json_name=json_name, input_mode=input_mode) # getting constraints for the objects
+            data = world.generate_json(json_name=json_name, input_mode=input_mode, test_only=test_only) # getting constraints for the objects
             # if label == 'test':
             #     json_path = data_path.replace('.pt', '.json').replace(raw_dir, json_dir)
             #     with open(json_path, 'w') as f:
@@ -114,6 +116,9 @@ class DataCollector(object):
         counts = defaultdict(int)
         min_n = self.scene_sampler_args['min_num_objects']
         max_n = self.scene_sampler_args['max_num_objects']
+        if 'tidy' in input_mode or input_mode in tidy_constraints:
+            self.scene_sampler_args['input_mode'] = input_mode
+
         scene_sampler_args = copy.deepcopy(self.scene_sampler_args)
         count_threshold = math.ceil(n / (max_n - min_n + 1))
         current_n = min_n
@@ -235,6 +240,8 @@ def main(**kwargs):
 def generate_train_dataset(args=None, debug=False, save_meshes=False, same_order=False, **kwargs):
     if args is None:
         args = get_data_collection_args(**kwargs)
+    # scene_sampler_args = dict(min_num_objects=2, max_num_objects=2)
+
     scene_sampler_args = dict(min_num_objects=args.min_num_objects, max_num_objects=args.max_num_objects)
 
     print(args.pngs, args.jsons)
@@ -266,7 +273,7 @@ def generate_test_dataset(args=None, pngs=True, jsons=True,
         scene_sampler_args = dict(min_num_objects=i, max_num_objects=i)
         collector = DataCollector(world_class, world_args=args.world_args, scene_sampler_args=scene_sampler_args)
         collector.collect(args.num_worlds, label=f'{args.input_mode}_test_{i}_split', pngs=args.pngs, jsons=args.jsons,
-                          save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode)
+                          save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, test_only=True)
 
 
 ######################## tests ############################

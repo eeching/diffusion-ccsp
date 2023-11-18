@@ -25,7 +25,7 @@ from tqdm import tqdm
 
 
 from envs.data_utils import render_world_from_graph, print_tensor, constraint_from_edge_attr, translate_cfree_evaluations
-
+from networks.denoise_fn import tidy_constraints
 try:
     from apex import amp
     APEX_AVAILABLE = True
@@ -454,6 +454,7 @@ class Trainer(object):
         if not isdir(self.render_dir):
             os.makedirs(self.render_dir, exist_ok=True)
 
+        from networks.denoise_fn import tidy_constraints
         self.world_name = 'TriangularRandomSplitWorld' if 'Triangular' in self.render_dir else 'RandomSplitWorld'
         if 'robot' in self.input_mode:
             self.world_name = 'TableToBoxWorld'
@@ -461,6 +462,8 @@ class Trainer(object):
             self.world_name = 'RandomSplitWorld'
         elif 'qualitative' in self.input_mode:
             self.world_name = 'RandomSplitQualitativeWorld'
+        elif 'tidy' in self.input_mode or self.input_mode in tidy_constraints:
+            self.world_name = 'RandomSplitSparseWorld'
 
         self.opt = Adam(denoise_fn.parameters(), lr=train_lr)
         # self.scheduler = lr_scheduler.CosineAnnealingLR(self.opt, T_max=10000)
@@ -556,12 +559,15 @@ class Trainer(object):
         print('training completed')
 
     def evaluate(self, milestone, tries=(10, 0), verbose=False, return_history=False,
-                 save_log=False, run_all=False, run_only=False, resume_eval=False, **kwargs):
+                 save_log=False, run_all=False, run_only=False, resume_eval=False, render_dir=None,**kwargs):
         if 'robot' in self.input_mode or 'stability' in self.input_mode:
             sys.path.append(dirname(dirname(abspath("__file__"))))
             from demo_utils import render_robot_world_from_graph, render_stability_world_from_graph
 
         self.model.eval()
+        if render_dir is not None:
+            self.render_dir = render_dir
+
         json_name = join(self.render_dir, f'denoised_t={milestone}.json')
         once = False
         skip_the_rest = False
@@ -692,7 +698,7 @@ class Trainer(object):
                                     render_kwargs.update(dict(
                                         world_name='RandomSplitQualitativeWorld', show_grid=False, show=False
                                     ))
-                                if 'qualitative' in self.input_mode:
+                                if 'qualitative' in self.input_mode or 'tidy' in self.input_mode or self.input_mode in tidy_constraints:
                                     edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
                                     edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
                                     offset = edge_index.min()
@@ -730,6 +736,12 @@ class Trainer(object):
                                     evaluations = translate_cfree_evaluations(evaluations)
                                 else:
                                     evaluations = [e for e in evaluations if e[0] in qualitative_constraints]
+                                all_failure_modes[k][j] = evaluations
+                            elif 'tidy' in self.input_mode or self.input_mode in tidy_constraints:
+                                if len(evaluations) > 0 and len(evaluations[0]) == 2:
+                                    evaluations = translate_cfree_evaluations(evaluations)
+                                else:
+                                    evaluations = [e for e in evaluations if e[0] in tidy_constraints]
                                 all_failure_modes[k][j] = evaluations
 
                             elif 'diffuse_pairwise' in self.input_mode:
