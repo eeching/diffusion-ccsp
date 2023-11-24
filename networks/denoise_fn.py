@@ -11,6 +11,7 @@ import jactorch.nn as jacnn
 
 from collections import defaultdict
 from inspect import isfunction
+import pdb
 
 
 puzzle_constraints = ['in', 'cfree']
@@ -26,8 +27,9 @@ ignored_constraints = ['right-of', 'bottom-of']
 # tidy_constraints = ['aligned_bottom', 'aligned_top', 'aligned_left', 'aligned_right' 'left_of', 'right_of', 'centered', 'avoid_edge',
 #                      'not_obstructed', 'in_container', 'on_top_of', 'regular_grid', 'stacked', 'ordered']
 # v0
-tidy_constraints = ['aligned_bottom', 'aligned_top', 'in', 'center-in', 'left-in', 'right-in', 'top-in', 'bottom-in',
-    'cfree', 'h-aligned', 'v-aligned']
+# tidy_constraints = ['aligned_bottom', 'aligned_top', 'in', 'center-in', 'left-in', 'right-in', 'top-in', 'bottom-in',
+#     'cfree', 'h-aligned', 'v-aligned']
+tidy_constraints = ['aligned_bottom', 'in', 'cfree']
 
 
 def exists(x):
@@ -308,8 +310,8 @@ class ConstraintDiffuser(torch.nn.Module):
             else:
                 """ o, o, p, p, t """
                 linear = nn.Linear(self.hidden_dim * 5, out_feature) ## * 2 because of o and p
-            mlp = nn.Sequential(linear, nn.SiLU()).to(self.device)
-            mlps.append(mlp)
+            mlp = nn.Sequential(linear, nn.SiLU()).to(self.device) 
+            mlps.append(mlp) # list of ebms
             if self.verbose: print_network(mlp[0], '\t'+con)
         if self.verbose: print('-' * 50)
         return nn.ModuleList(mlps)
@@ -321,6 +323,7 @@ class ConstraintDiffuser(torch.nn.Module):
         use_default_encoder = self._if_use_default_encoder(i)
 
         ## find the nodes used by all constraints of this type
+        ### edge_attr encodes the constraint type
         edges = torch.where(batch.edge_attr == i)[0]
         edges = edges.detach().cpu().numpy()
         args_1 = edge_index[edges][:, 0]
@@ -523,6 +526,7 @@ class ConstraintDiffuser(torch.nn.Module):
             outputs = self._process_constraint(i, input_dict)
 
             if tag == 'EBM' and self.energy_wrapper:
+                pdb.set_trace()
                 total_energy += self._compute_energy(i, input_dict, poses_in, outputs)
             else:
                 self._add_constraints_outputs(i, input_dict, outputs, all_poses_out, all_counts_out) ##
@@ -532,6 +536,7 @@ class ConstraintDiffuser(torch.nn.Module):
 
         ## return the gradients and energy
         if tag == 'EBM' and self.energy_wrapper:
+            pdb.set_trace()
             gradients = self._get_EBM_gradients(poses_in, total_energy)
             return gradients, total_energy
         else:

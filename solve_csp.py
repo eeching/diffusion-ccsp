@@ -20,18 +20,21 @@ def check_data_graph(dataset_name):
 def evaluate_model(run_id, milestone, tries=(10, 0), json_name='eval', save_log=True,
                    run_all=False, render=True, run_only=False, resume_eval=False, render_name_extra=None,
                    return_history=False, **kwargs):
+    
     trainer = load_trainer(run_id, milestone, **kwargs)
+
+    trainer.render_dir = trainer.render_dir.replace('train', 'test_1')
+
+    if not isdir(trainer.render_dir):
+        os.mkdir(trainer.render_dir)
     
     if render_name_extra is not None:
         trainer.render_dir += f'_{render_name_extra}'
         if not isdir(trainer.render_dir):
             os.mkdir(trainer.render_dir)
-    if 'test_set' in kwargs:
-        trainer.render_dir = join(RENDER_PATH, kwargs["test_render_dir"])
-        if not isdir(trainer.render_dir):
-            os.mkdir(trainer.render_dir)
-    trainer.evaluate(json_name, tries=tries, render=render, save_log=save_log,
-                     run_all=run_all, run_only=run_only, resume_eval=resume_eval, return_history=return_history)
+
+    trainer.evaluate(milestone, tries=tries, render=render, save_log=save_log,
+                     run_all=run_all, run_only=run_only, resume_eval=resume_eval, return_history=return_history, debug=False)
 
 
 MILESTONES = {
@@ -111,10 +114,24 @@ def indie_runs():
     #     # evaluate_model('4xt8u4n7', milestone=20, tries=(1, 0), test_tasks=test_tasks, json_name=f'tamp_{k}', run_all=True)  ## 0.005-0.01 sec per graph
 
 def eval_new_set():
-    eval_1_kwargs = dict(tries=(1, 0), json_name='eval_N=1_K=1', save_log=False, visualize=True, test_set=True, test_render_dir = 'RandomSplitQualitativeWorld(1)_qualitative_test_m=ULA_t=1000_qualitative_id=qsd3ju74')
-    test_1_tasks = {i: f'RandomSplitQualitativeWorld(1)_qualitative_test_{i}_split' for i in range(2, 6)}
-    evaluate_model('qsd3ju74', milestone=7, test_tasks=test_1_tasks, **eval_1_kwargs)
+    # partial_constraints = False
+    # eval_10_kwargs = dict(tries=(5, 0), json_name='eval', save_log=False, visualize=True, test_set=True, return_history=False, partial_constraints=partial_constraints)
+    eval_10_kwargs = dict(tries=(3, 0), json_name='eval', save_log=False, visualize=True, test_set=True, return_history=False, run_all=True)
+    # if partial_constraints:
+    #     test_10_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_partial_constraints_True_split' for i in range(2, 6)}
+    # else:
+    #     test_10_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_split' for i in range(2, 6)}
+    test_10_tasks = {i: f'RandomSplitSparseWorld(3)_aligned_bottom_test_{i}_split' for i in range(3, 9)}
+    # evaluate_model('qsd3ju74', input_mode="aligned_bottom", milestone=7, test_tasks=test_5_tasks, **eval_5_kwargs)
     
+    # evaluate_model('tfpwxhwc', input_mode="aligned_bottom", milestone=7, test_tasks=test_10_tasks, **eval_10_kwargs)
+    # evaluate_model('e65kirak', input_mode="aligned_bottom", milestone=5, test_tasks=test_10_tasks, **eval_10_kwargs)
+    evaluate_model('8j4sp2eg', input_mode="aligned_bottom", milestone=15, test_tasks=test_10_tasks, **eval_10_kwargs)
+    # evaluate_model('tn43mem7', input_mode="aligned_bottom", milestone=6, test_tasks=test_10_tasks, **eval_10_kwargs)
+    # evaluate_model('ob8ea2mo', input_mode="aligned_bottom", milestone=4, test_tasks=test_10_tasks, **eval_10_kwargs)
+
+
+
 if __name__ == '__main__':
     # indie_runs()
     eval_new_set()

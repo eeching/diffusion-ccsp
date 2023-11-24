@@ -187,6 +187,17 @@ def constraint_from_edge_attr(edge_attr, edge_index, composed_inference=False):
         constraints.append(constraint)
     return constraints
 
+def tidy_constraint_from_edge_attr(edge_attr, edge_index, input_mode="aligned_bottom"):
+    from networks.denoise_fn import tidy_constraints
+    constraints = []
+    for i in range(len(edge_attr)):
+        typ = int(edge_attr[i].detach().cpu().numpy().item())
+        if typ >= len(tidy_constraints):
+            continue
+        constraint = tuple([tidy_constraints[typ]] + edge_index.T[i].detach().cpu().numpy().tolist())
+        constraints.append(constraint)
+    return constraints
+
 
 def world_from_graph(nodes, world_name='ShapeSettingWorld', **kwargs):
     """ input_mode = 'grid_offset_mp4'
@@ -303,6 +314,7 @@ def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_bat
     if verbose: print()
     nodes = []
     poses = []
+
     for i in range(len(features)):
         typ = int(i != 0)
         node, pose = get_node(features[i], typ)
@@ -428,7 +440,7 @@ def randomize_unordered_constraints(constraints):
 def expand_unordered_constraints(constraints):
     new_constraints = []
     for c in constraints:
-        if c[0] in ['close-to', 'away-from', 'h-aligned', 'v-aligned', 'cfree']:
+        if c[0] in ['close-to', 'away-from', 'h-aligned', 'v-aligned', 'cfree', 'aligned_bottom']:
             new_constraints.append(tuple([c[0], c[2], c[1]]))
         new_constraints.append(c)
     return new_constraints
@@ -647,7 +659,8 @@ def compute_tidy_atomic_constraints(objects, relation, rotations=None, debug=Fal
     # print(rotations)
 
     """ left, right, top, bottom """
-    alignment = 0.05 * scale
+    # alignment = 0.05 * scale
+    alignment = 0.1 * scale
     farness = 0.5 * scale
     closeness = 0.3 * scale
     touching = 0.1 * scale
@@ -661,25 +674,28 @@ def compute_tidy_atomic_constraints(objects, relation, rotations=None, debug=Fal
         x1, y1, z1 = m['center']
         lx1, ly1, lz1 = m['extents']
         if rotations is not None and name1 in rotations:
-            rot = rotations[name1]
-            if abs(abs(rot) - np.pi /2) < 0.1:
+            rot1 = rotations[name1]
+            # if abs(abs(rot1%(np.pi/2)) - np.pi /4) < np.pi/8:
+            if abs(abs(rot2) - np.pi /2) < 0.1:
                 ly1, lx1, lz1 = m['extents']
+        else: 
+            rot1 = 0 
 
         x1_left = x1 - lx1 / 2
         x1_right = x1 + lx1 / 2
         y1_top = y1 + ly1 / 2
         y1_bottom = y1 - ly1 / 2
 
-        if math.sqrt(x1**2 + y1**2) < closeness:
-            constraints.append(('center-in', tiles.index(name1), tiles.index('bottom')))
-        if x1_right < 0:
-            constraints.append(('left-in', tiles.index(name1), tiles.index('bottom')))
-        if x1_left > 0:
-            constraints.append(('right-in', tiles.index(name1), tiles.index('bottom')))
-        if y1_top < 0:
-            constraints.append(('bottom-in', tiles.index(name1), tiles.index('bottom')))
-        if y1_bottom > 0:
-            constraints.append(('top-in', tiles.index(name1), tiles.index('bottom')))
+        # if math.sqrt(x1**2 + y1**2) < closeness:
+        #     constraints.append(('center-in', tiles.index(name1), tiles.index('bottom')))
+        # if x1_right < 0:
+        #     constraints.append(('left-in', tiles.index(name1), tiles.index('bottom')))
+        # if x1_left > 0:
+        #     constraints.append(('right-in', tiles.index(name1), tiles.index('bottom')))
+        # if y1_top < 0:
+        #     constraints.append(('bottom-in', tiles.index(name1), tiles.index('bottom')))
+        # if y1_bottom > 0:
+        #     constraints.append(('top-in', tiles.index(name1), tiles.index('bottom')))
 
         for j in range(i + 1, len(names)):
             n = objects[names[j]]
@@ -692,9 +708,12 @@ def compute_tidy_atomic_constraints(objects, relation, rotations=None, debug=Fal
             x2, y2, z2 = n['center']
             lx2, ly2, lz2 = n['extents']
             if rotations is not None and name2 in rotations:
-                rot = rotations[name2]
-                if abs(abs(rot) - np.pi /2) < 0.1:
+                rot2 = rotations[name2]
+                if abs(abs(rot2) - np.pi /2) < 0.1:
+                # if abs(abs(rot2%(np.pi/2)) - np.pi /4) < np.pi/8:
                     ly2, lx2, lz2 = n['extents']
+            else:
+                rot2 = 0
             x2_left = x2 - lx2 / 2
             x2_right = x2 + lx2 / 2
             y2_top = y2 + ly2 / 2
@@ -705,18 +724,17 @@ def compute_tidy_atomic_constraints(objects, relation, rotations=None, debug=Fal
 
             """ aligned """
             if name1 != 'bottom' and name2 != 'bottom':
-                if abs(y1_top - y2_top) < alignment:
-                    constraints.append(('aligned_top', tiles.index(name1), tiles.index(name2)))
-                if abs(y1_bottom - y2_bottom) < alignment:
+               
+                if abs(y1_bottom - y2_bottom) < alignment and abs(rot1-rot2)%(np.pi/2) < alignment:
                     constraints.append(('aligned_bottom', tiles.index(name1), tiles.index(name2)))    
-                if abs(x1_left - x2_left) < alignment:
-                    constraints.append(('aligned_right', tiles.index(name1), tiles.index(name2)))
-                if abs(x1_right - x2_right) < alignment:
-                    constraints.append(('aligned_left', tiles.index(name1), tiles.index(name2)))   
-                if abs(x1 - x2) < alignment:
-                    constraints.append(('v-aligned', tiles.index(name1), tiles.index(name2)))
-                if abs(y1 - y2) < alignment:
-                    constraints.append(('h-aligned', tiles.index(name1), tiles.index(name2)))
+                # if abs(x1_left - x2_left) < alignment:
+                #     constraints.append(('aligned_right', tiles.index(name1), tiles.index(name2)))
+                # if abs(x1_right - x2_right) < alignment:
+                #     constraints.append(('aligned_left', tiles.index(name1), tiles.index(name2)))   
+                # if abs(x1 - x2) < alignment:
+                #     constraints.append(('v-aligned', tiles.index(name1), tiles.index(name2)))
+                # if abs(y1 - y2) < alignment:
+                #     constraints.append(('h-aligned', tiles.index(name1), tiles.index(name2)))
 
     #         """ top / bottom """
 
@@ -816,18 +834,26 @@ def compute_tidy_atomic_constraints(objects, relation, rotations=None, debug=Fal
     
     constraints.sort()
 
-    for x in [c[1] for c in constraints if c[0] == 'right-in']:
-        if x in [c[1] for c in constraints if c[0] == 'left-in']:
-            constraints.remove(('right-in', x, 0))
-            constraints.remove(('left-in', x, 0))
-    for x in [c[1] for c in constraints if c[0] == 'bottom-in']:
-        if x in [c[1] for c in constraints if c[0] == 'top-in']:
-            constraints.remove(('bottom-in', x, 0))
-            constraints.remove(('top-in', x, 0))
+    # for x in [c[1] for c in constraints if c[0] == 'right-in']:
+    #     if x in [c[1] for c in constraints if c[0] == 'left-in']:
+    #         constraints.remove(('right-in', x, 0))
+    #         constraints.remove(('left-in', x, 0))
+    # for x in [c[1] for c in constraints if c[0] == 'bottom-in']:
+    #     if x in [c[1] for c in constraints if c[0] == 'top-in']:
+    #         constraints.remove(('bottom-in', x, 0))
+    #         constraints.remove(('top-in', x, 0))
 
-    from networks.denoise_fn import ignored_constraints
-    if test_only:
-        constraints = [c for c in constraints if c[0] in [relation]]
+    # from networks.denoise_fn import ignored_constraints
+    
+    # if True:
+    #     # c_tmp = []
+    #     # for c in constraints:
+    #     #     if c[0] == "aligned_bottom":
+    #     #         c_tmp.append(("h-aligned", c[1], c[2]))
+    #     # return c_tmp
+                    
+    #     constraints = [c for c in constraints if c[0] in [relation]]
+        
     # print()
     if debug:
         summarize_constraints(constraints)

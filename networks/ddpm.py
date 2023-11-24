@@ -24,7 +24,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-from envs.data_utils import render_world_from_graph, print_tensor, constraint_from_edge_attr, translate_cfree_evaluations
+from envs.data_utils import render_world_from_graph, print_tensor, constraint_from_edge_attr, tidy_constraint_from_edge_attr, translate_cfree_evaluations
 from networks.denoise_fn import tidy_constraints
 try:
     from apex import amp
@@ -169,7 +169,7 @@ class GaussianDiffusion(nn.Module):
     def __init__(
         self,
         denoise_fn,
-        timesteps=100,
+        timesteps=1000,
         loss_type='l2',
         EBM=False,
         betas=None,
@@ -270,7 +270,8 @@ class GaussianDiffusion(nn.Module):
         shape = gt_features.shape
 
         ## random noise
-        pose_features = 0.5 * torch.randn(shape, device=device)
+        pose_features = 0.5 * torch.randn(shape, device=device) # inject noises
+
         pose_features[m.bool()] = gt_features[m.bool()].clone()
 
         ## HMC sampler
@@ -559,7 +560,7 @@ class Trainer(object):
         print('training completed')
 
     def evaluate(self, milestone, tries=(10, 0), verbose=False, return_history=False,
-                 save_log=False, run_all=False, run_only=False, resume_eval=False, render_dir=None,**kwargs):
+                 save_log=False, run_all=False, run_only=False, resume_eval=False, render_dir=None, debug=False, **kwargs):
         if 'robot' in self.input_mode or 'stability' in self.input_mode:
             sys.path.append(dirname(dirname(abspath("__file__"))))
             from demo_utils import render_robot_world_from_graph, render_stability_world_from_graph
@@ -577,6 +578,7 @@ class Trainer(object):
         if resume_eval and isfile(json_name):
             log = json.load(open(json_name, 'r'))
 
+        # each test_dls a class of test cases, i is the number of objects
         for i, test_dls in self.test_dls.items():
             success_list = []
             succeeded_graph_indices = []
@@ -594,13 +596,14 @@ class Trainer(object):
                 continue
 
             ## first run everything, then only those failed ones
-            for m, test_dl in enumerate(test_dls):
+            for m, test_dl in enumerate(test_dls): # each test_dl is a dataloader
                 count = 0
 
                 ## for test datasets involving a larger number of objects
-                for n, data in enumerate(test_dl):
+                for n, data in enumerate(test_dl): # each data is one constraint in the loaded data
 
                     ## for each set of objects, we add-noise + denoise 3 times
+                    pdb.set_trace()
                     for k in range(tries[m]):
 
                         if m == 0 and len(succeeded_graph_indices) == self.num_test_samples:
@@ -615,7 +618,7 @@ class Trainer(object):
                         all_failure_modes[k] = {}
 
                         start = time.time()
-                        result = self.model.sample(batch, debug=once, return_history=return_history)
+                        result = self.model.sample(batch, debug=once, return_history=return_history) 
                         once = False
                         passed = time.time() - start
 
@@ -624,6 +627,7 @@ class Trainer(object):
                         else:
                             all_features, history = result, None
                         all_features.clamp_(-1., 1.)
+                        
                         all_features = self.get_all_features(all_features, batch)
 
                         graph_indices = batch.x_extract.unique().int().numpy().tolist()
@@ -636,7 +640,7 @@ class Trainer(object):
                         else:
                             print_out += f' (j = {graph_indices[0]})'
 
-                        for j in graph_indices:
+                        for j in graph_indices: # graph indices corresponds to each test case
 
                             if run_only and j != run_only[1]:
                                 continue
@@ -698,7 +702,7 @@ class Trainer(object):
                                     render_kwargs.update(dict(
                                         world_name='RandomSplitQualitativeWorld', show_grid=False, show=False
                                     ))
-                                if 'qualitative' in self.input_mode or 'tidy' in self.input_mode or self.input_mode in tidy_constraints:
+                                if 'qualitative' in self.input_mode:
                                     edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
                                     edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
                                     offset = edge_index.min()
@@ -706,8 +710,17 @@ class Trainer(object):
                                     constraints = constraint_from_edge_attr(edge_attr, edge_index,
                                                                             composed_inference=composed_inference)
                                     render_kwargs.update(dict(constraints=constraints))
+                                if 'tidy' in self.input_mode or self.input_mode in tidy_constraints:
+                                    
+                                    edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
+                                    edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
+                                    offset = edge_index.min()
+                                    edge_index -= offset
+                                    constraints = tidy_constraint_from_edge_attr(edge_attr, edge_index)
+                                    render_kwargs.update(dict(constraints=constraints))
 
                                 evaluations = render_world_from_graph(features, **render_kwargs)
+                                
                                 if verbose:
                                     print(i, j, k, '\t', evaluations)
 
@@ -717,7 +730,8 @@ class Trainer(object):
                                     success = success and (len(evaluations) == 0)
                                 elif 'stability' not in self.input_mode:
                                     success = (len(evaluations) == 0)
-
+                            if debug:
+                                pdb.set_trace()
                             """ log success """
                             if success:
                                 ## computing statistics
@@ -726,9 +740,9 @@ class Trainer(object):
                                     succeeded_graph_indices.append(j)
                                     success_rounds[j] = k
 
-                                ## save an animation of the denoising process
-                                if return_history and self.visualize:  ##  and False
-                                    self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
+                                # ## save an animation of the denoising process
+                                # if return_history and self.visualize:  ##  and False
+                                #     self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
 
                             elif 'qualitative' in self.input_mode:
                                 from networks.denoise_fn import qualitative_constraints
@@ -743,6 +757,10 @@ class Trainer(object):
                                 else:
                                     evaluations = [e for e in evaluations if e[0] in tidy_constraints]
                                 all_failure_modes[k][j] = evaluations
+
+                                if return_history and self.visualize:  ##  and False
+                                    self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
+
 
                             elif 'diffuse_pairwise' in self.input_mode:
                                 from envs.data_utils import yaw_from_sn_cs
@@ -885,6 +903,7 @@ class Trainer(object):
             features = all_features[torch.where(batch.x_extract == j)]
             if 'robot' not in self.input_mode:
                 features.clamp_(-1., 1.)
+                
             img_arr, object_states, evaluations = render_world_from_graph(features, world_dims, array=True, **kwargs)
 
             ## add a progress bar

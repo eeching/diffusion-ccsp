@@ -15,7 +15,7 @@ from networks.denoise_fn import ConstraintDiffuser, ComposedEBMDenoiseFn, tidy_c
 from networks.data_transforms import pre_transform
 from envs.data_utils import print_tensor
 
-def wandb_init(config, project_name='grid_offset_mp4'):
+def wandb_init(config, project_name='tidy_aligned_bottom'):
     import wandb
     keys = ['data_dir', 'data.batch_size', 'model.lr', 'trainer.max_epochs']
     key_names = {
@@ -46,7 +46,7 @@ def send_email(address, title=None, message=None, textfile=None):
     # me == the sender's email address
     # you == the recipient's email address
     msg['Subject'] = 'The contents of %s' % title
-    msg['From'] = me = "ztyang@mit.edu"
+    msg['From'] = me = "yiqing_x@mit.edu"
     msg['To'] = you = address
 
     # Send the message via our own SMTP server, but don't include the
@@ -85,8 +85,8 @@ def print_config(name: str, dic: dict):
 
 def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusion-CCSP', EBM=False,
              train_num_steps=300000, input_mode=None,
-             hidden_dim=256, ebm_per_steps=1, ev='ff', use_wandb=False, pretrained=False, normalize=True,
-             run_id=None, train_proj='correct_norm', samples_per_step=10, step_sizes='2*self.betas'):
+             hidden_dim=256, ebm_per_steps=1, ev='ff', use_wandb=True, pretrained=False, normalize=True,
+             run_id=None, train_proj='correct_norm', samples_per_step=10, step_sizes='2*self.betas', wandb_name=""):
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-timesteps', type=int, default=timesteps)
@@ -109,6 +109,7 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
     parser.add_argument('-pretrained', action='store_true', default=pretrained)
     parser.add_argument('-use_wandb', action='store_true', default=use_wandb)
     parser.add_argument('-run_id', type=str, default=run_id)
+    parser.add_argument('-wandb_name', type=str, default=wandb_name)
     args = parser.parse_args()
     if args.EBM == 'False':
         args.EBM = False
@@ -160,15 +161,17 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
 
         args.test_tasks = {i: f'RandomSplitQualitativeWorld(10)_qualitative_test_{i}_split' for i in range(2, 5)}
     elif args.input_mode == 'tidy' or args.input_mode in tidy_constraints:
-        args.train_proj = 'tidy'
+        args.train_proj = 'tidy_aligned_bottom'
         # --- for testing
-        train_task = "RandomSplitSparseWorld(2000)_aligned_bottom_train"
-        test_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_split' for i in range(2, 5)}
+        # train_task = "RandomSplitSparseWorld(2000)_aligned_bottom_train"
+        # test_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_split' for i in range(2, 4)}
+        train_task = "RandomSplitSparseWorld(10000)_aligned_bottom_train"
+        test_tasks = {i: f'RandomSplitSparseWorld(5)_aligned_bottom_test_{i}_split' for i in range(2, 5)}
 
         if 'World' not in args.train_task:
-            args.train_task = "RandomSplitSparseWorld(2000)_aligned_bottom_train"
+            args.train_task = "RandomSplitSparseWorld(10000)_aligned_bottom_train"
 
-        args.test_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_split' for i in range(2, 5)}
+        args.test_tasks = {i: f'RandomSplitSparseWorld(5)_aligned_bottom_test_{i}_split' for i in range(2, 5)}
 
     elif args.input_mode == 'stability_flat':
         args.train_proj = 'stability'
@@ -247,9 +250,14 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
     )
     if use_wandb:
         import wandb
-        wandb_kwargs = dict(project=train_proj, entity="sketchers", config=config)
-        wandb.init(name=train_name, **wandb_kwargs)
+        wandb_kwargs = dict(project=train_proj, entity="xuyiqing613", config=config)
+        if args.wandb_name == "":
+            run_name = train_name
+        else:
+            run_name = f"{args.wandb_name}_{train_name}"
+        wandb.init(name=run_name, **wandb_kwargs)
         run_id = wandb.run.id
+        
 
     render_dir = join(RENDER_PATH, f"{train_task}_{train_name}_{input_mode}")
     if input_mode not in train_task and not composed_inference:
@@ -356,7 +364,7 @@ def load_trainer(run_id, milestone, visualize=False, rejection_sampling=False, v
     args = get_args_from_run_id(run_id)
 
     # args.test_tasks = kwargs.get('test_tasks', args.test_tasks)
-    for k in ['input_mode', 'train_task', 'test_tasks', 'train_num_steps']:
+    for k in ['input_mode', 'train_task', 'test_tasks', 'train_num_steps', 'train_task', 'test_tasks', 'input_mode']:
         if k in kwargs:
             setattr(args, k, kwargs[k])
             kwargs.pop(k)

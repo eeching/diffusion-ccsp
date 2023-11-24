@@ -190,7 +190,7 @@ class DataCollector(object):
 def get_data_collection_args(world_name='RandomSplitWorld', input_mode='diffuse_pairwise',
                              num_worlds=10, verbose=False, num_shakes=1, data_type='train',
                              min_num_objects=2, max_num_objects=5, pngs=False, jsons=False,
-                             del_if_exists=True, world_args=dict(), w=3.0, l=2.0, h=0.5, grid_size=0.5):
+                             del_if_exists=True, world_args=dict(), w=3.0, l=2.0, h=0.5, grid_size=0.5, partial_constriants=False):
 
     if 'w' in world_args:
         w = world_args['w']

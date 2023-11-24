@@ -129,24 +129,24 @@ class CSPWorld(object):
         """ generate constraints for the scene """
         objects = [mesh['label'] for mesh in objects.values() if mesh['label'] not in self.ignore_nodes]
         if sequential_sampling:
-            constraints = [['in', 1, 0]]
+            constraints = [('in', 1, 0)]
             for i in range(1, len(objects)):
                 if same_order or np.random.rand() < 0.5:
-                    constraints.append(['cfree', i+1, i])
+                    constraints.append(('cfree', i+1, i))
                 else:
-                    constraints.append(['cfree', i, i+1])
+                    constraints.append(('cfree', i, i+1))
         else:
             constraints = [['in', i, 0] for i in range(1, len(objects))]
             for i in range(1, len(objects) - 1):
                 for j in range(i + 1, len(objects)):
                     if same_order or np.random.rand() < 0.5:
-                        constraints.append(['cfree', i, j])
+                        constraints.append(('cfree', i, j))
                     else:
-                        constraints.append(['cfree', j, i])
+                        constraints.append(('cfree', j, i))
         return constraints
 
     def generate_json(self, input_mode='collisions', json_name=None,
-                      constraints={}, world={}, same_order=True, test_only=False):
+                      constraints={}, world={}, same_order=True, test_only=False, collisions=[]):
         """ record in a json file for collision checking """
         world.update({
             'name': self.name,
@@ -227,7 +227,10 @@ class CSPWorld(object):
 
         """ compute constraints """
         if len(world['constraints']) == 0:
-            world['constraints'] = self.generate_constraints(world['objects'], same_order=same_order)
+            if len(collisions) == 0:
+                world['constraints'] = self.generate_constraints(world['objects'], same_order=same_order)
+            else:
+                world['constraints'] = []
 
         from networks.denoise_fn import tidy_constraints
 
@@ -680,6 +683,8 @@ class RandomSplitWorld(ShapeSettingWorld):
             self.add_shape('box', size=size, x=x, y=y, color=obj['color'])
             if isinstance(self, RandomSplitQualitativeWorld):
                 self.rotations[f"tile_box_{i}"] = rotations[i]
+            if isinstance(self, RandomSplitSparseWorld):
+                self.rotations[f"tile_box_{i}"] = rotations[i]
 
     def construct_scene_from_graph_data(self, nodes, labels=None, predictions=None, verbose=False, phase='truth'):
         """ check collisions during model evaluation """
@@ -705,6 +710,11 @@ class RandomSplitWorld(ShapeSettingWorld):
                 t, bw, bl, x, y, yaw = nodes[i]
                 if isinstance(self, RandomSplitQualitativeWorld):
                     self.rotations[f"tile_box_{i-1}"] = yaw
+                if isinstance(self, RandomSplitSparseWorld):
+                    # print(f"node (t, bw, bl, x, y, yaw): {nodes[i]}")
+                    yaw = yaw % np.pi
+                    self.rotations[f"tile_box_{i-1}"] = yaw
+                
             elif nodes[i].shape[0] == 8:
                 t, bw, bl, x, y, g, dx, dy = nodes[i]
 
@@ -768,29 +778,36 @@ class RandomSplitSparseWorld(RandomSplitWorld):
         # regions = [regions[start_idx],regions[start_idx+1]]
         meshes = regions_to_meshes(regions, self.w, self.l, self.h, min_offset_perc=min_offset_perc, relation=input_mode, max_offset=0.3)
         self.tiles.extend(meshes)
-
-    def get_current_constraints(self, relation):
+        
+    def get_current_constraints(self, relation, collisions=[]):
         from networks.denoise_fn import ignored_constraints
-        data = self.generate_json(input_mode=relation)
+        data = self.generate_json(input_mode=relation, collisions=collisions)
         return [tuple(d) for d in data['constraints'] if d[0] not in ignored_constraints]
 
-    def check_constraints_satisfied(self, relation, same_order=False, **kwargs):
-        from networks.denoise_fn import ignored_constraints
+    def check_constraints_satisfied(self, relation="aligned_bottom", same_order=False, **kwargs):
+       
+        print("checking collisions ... ")
         collisions = self.check_collisions_in_scene(**kwargs)
-        ## check other constraints
-        if len(collisions) > 0:
-            if self.img_name is not None:
-                json_name = self.img_name.replace('.png', '.json')
-                world = {
-                    'check_constraints_satisfied': collisions,
-                }
-                self.generate_json(input_mode=relation, json_name=json_name, world=world)
-            return collisions
-        current_constraints = self.get_current_constraints(relation)
+        print(collisions)
+        pdb.set_trace()
+        
+        # pdb.set_trace()
+        # ## check other constraints
+        # if len(collisions) > 0:
+        #     if self.img_name is not None:
+        #         json_name = self.img_name.replace('.png', '.json')
+        #         world = {
+        #             'check_constraints_satisfied': collisions,
+        #         }
+        #         self.generate_json(input_mode=relation, json_name=json_name, world=world)
+        #     return collisions
+      
+        current_constraints = self.get_current_constraints(relation, collisions) # current constraints satisfied
         given_constraints = self.tidy_constraints 
+
         if not same_order:
             current_constraints = expand_unordered_constraints(current_constraints)
-            given_constraints = expand_unordered_constraints(given_constraints)
+            # given_constraints = expand_unordered_constraints(given_constraints)
         missing = [ct for ct in given_constraints if ct not in current_constraints]
 
         if self.img_name is not None:
@@ -799,14 +816,15 @@ class RandomSplitSparseWorld(RandomSplitWorld):
                 'current_constraints': current_constraints,
                 'given_constraints': given_constraints,
                 'missing': missing,
+                'collisions': collisions,
             }
             # print('\n', self.img_name, missing)
             # print('\t', current_constraints)
             # print('\t', given_constraints)
-            self.generate_json(input_mode='qualitative', json_name=json_name, world=world)
+            self.generate_json(input_mode=relation, json_name=json_name, world=world)
         return missing
 
-    def construct_scene_from_graph_data(self, nodes, constraints, **kwargs):
+    def construct_scene_from_graph_data(self, nodes, constraints=[], **kwargs):
         """ give ground truth constraints to check if they are satisfied """
         self.tidy_constraints = constraints
         super().construct_scene_from_graph_data(nodes, **kwargs)

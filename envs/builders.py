@@ -3,6 +3,7 @@ from typing import Iterable, Tuple
 import numpy as np
 from math import sqrt
 import random
+import numpy.random as rn
 
 from envs.data_utils import compute_qualitative_constraints, summarize_constraints, r as rd
 import pdb
@@ -52,6 +53,58 @@ def get_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6,
                 break
         yield None
     return gen
+
+def get_aligned_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.075):
+    Region = Tuple[float, float, float, float]
+
+    def aligned(box: Region, y_bottom: int, depth: int = 3) -> Iterable[Region]:
+
+        x_start , y_start, W, L = box
+
+        w1 = rn.uniform(0, W)
+        x1 = rn.uniform(0, W - w1) + x_start
+
+        l1 = rn.uniform(0, y_bottom) + y_start
+        y1 = y_bottom - l1
+        
+        if rand() < 0.3 or depth == 0:
+            yield (x1, y1, w1, l1)
+
+        else:
+            yield from aligned((x_start, y_start, x1 - x_start, L), y_bottom, depth - 1) 
+            yield from aligned((x1 + w1, y_start, W - (x1 - x_start) - w1, L), y_bottom, depth - 1)
+
+    def filter_regions(regions: Iterable[Region], min_size: float) -> Iterable[Region]:
+        return [r for r in regions if r[2] > min_size and r[3] > min_size]
+
+
+    def gen(W, L):
+
+        min_size = min([W, L]) / 2 * default_min_size
+        y_bottom = rn.uniform(0.2, 0.95)*L
+        def get_regions():
+            regions = []
+            for region in aligned((0, 0, W, L), y_bottom, max_depth):
+                regions.append(region)
+            return regions
+        
+        count = num_samples
+        while True:
+            regions = get_regions()
+            # print("before: ", len(regions))
+            regions = filter_regions(regions, min_size)
+            # print("after filtering: ", len(regions))
+            if min_num_regions <= len(regions) <= max_num_regions:
+                count -= 1
+                print(len(regions), "added!")
+                yield regions
+            if count == 0:
+                break
+        yield None
+        
+    return gen
+
+
 
 
 def get_sub_region_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.075):
