@@ -2,8 +2,10 @@ __pycache__/
 .idea/
 
 data/
+data-old/
 checkpoints/
 renders/
+renders-old/
 logs/
 wandb/
 temp/
