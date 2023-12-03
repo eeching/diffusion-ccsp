@@ -127,13 +127,6 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
             args.pretrained = True
         args.train_proj = 'triangular_3'
 
-        # --- for testing
-        # train_task = "RandomSplitWorld(10)_train_3_split"
-        # test_tasks = {i: f"RandomSplitWorld(10)_test_{i}_split" for i in range(3, 4)}
-
-        # train_task = "RandomSplitWorld(20000)_train"  ## {3: 5001, 4: 5001, 5: 5001, 6: 4997}
-        # test_tasks = {i: f"RandomSplitWorld(100)_test_{i}_split" for i in range(3, 9)}
-
         args.train_task = "RandomSplitWorld(100)_train"  ## {3: 5001, 4: 5001, 5: 5001, 6: 4997}
         args.test_tasks = {i: f"RandomSplitWorld(10)_test_{i}_split" for i in range(2, 6)}
 
@@ -182,6 +175,7 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
         if 'World' not in args.train_task:
             args.train_task = train_task
         args.test_tasks = test_tasks
+        pdb.set_trace()
 
     elif args.input_mode == 'stability_flat':
         args.train_proj = 'stability'
@@ -344,6 +338,9 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         results_folder=f'./logs/{log_name}',
         visualize=visualize,
         use_wandb=use_wandb,
+        model_relation=model_relation,
+        evaluate_relation=evaluate_relation,
+        eval_only=eval_only,
         **config,
         **kwargs,
     )

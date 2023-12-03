@@ -743,7 +743,7 @@ class Trainer(object):
                                                                             composed_inference=composed_inference)
                                     render_kwargs.update(dict(constraints=constraints))
                                 if 'tidy' in self.input_mode:
-                                    
+                                
                                     edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
                                     edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
                                     offset = edge_index.min() 
