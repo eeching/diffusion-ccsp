@@ -246,6 +246,7 @@ class GaussianDiffusion(nn.Module):
         """ batch process ConstraintGraphData """
         all_noise = self.denoise_fn(features, batch, t, eval=True, **kwargs)
         all_features_recon = self.predict_start_from_noise(features, t=t, noise=all_noise)
+        clip_denoised = True
         if clip_denoised:
             all_features_recon.clamp_(-1., 1.)
         return self.q_posterior(x_start=all_features_recon, x_t=features, t=t)
@@ -255,7 +256,7 @@ class GaussianDiffusion(nn.Module):
         noise = noise_like(all_features.shape, self.device, repeat_noise)
         # no noise when t == 0
         nonzero_mask = (1 - (t == 0).item())
-        return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
+        return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise, model_mean
 
     def p_sample_loop(self, batch, return_history=False, **kwargs):
 
@@ -300,7 +301,7 @@ class GaussianDiffusion(nn.Module):
                     samples_per_step = torch.tensor([4]*n + [8]*n + [12]*n + [16]*n)
                     # step_sizes[-2*n:-n] *= 2
                     # step_sizes[-n//2:] *= 2
-                sampler = AnnealedULASampler(samples_per_step, step_sizes, gradient_function, noise_function)
+                sampler = AnnealedULASampler(samples_per_step, step_sizes, gradient_function, noise_function, clip_denoised=True)
 
             elif self.EBM == 'MALA':
                 samples_per_step = self.samples_per_step
@@ -323,18 +324,40 @@ class GaussianDiffusion(nn.Module):
         ## denoising process
         if return_history:
             history = [pose_features]
+
+        # tmp_stat_filename = '/tmp/denoise_n=6.pkl'
+        # tmp_stats = list()
         for j in reversed(range(0, self.num_timesteps)):
             t = torch.full((1, ), j, device=device, dtype=torch.long)
 
             assert not self.training
-            pose_features = self.p_sample(batch, pose_features, t, tag='EBM', **kwargs)  ## , tag=f'test_{j}'
+            
+            # if pose_features.shape[0] > 0:
+            #     print(f'Current number of objects: {pose_features.shape[0] / 10}; Diffusion step: {j}')
+            #     import ipdb; ipdb.set_trace()
+            pose_features, mean = self.p_sample(batch, pose_features, t, tag='EBM', **kwargs)  ## , tag=f'test_{j}'
+            # print(f'Step {j}', pose_features.mean().item(), pose_features.std().item())
+            # if pose_features.std().item() > 10:
+            #     import ipdb; ipdb.set_trace()
+
             if self.EBM and j % self.denoise_fn.ebm_per_steps == 0:
                 pose_features = sampler.sample_step(pose_features, batch, t)
+                # print(pose_features)
                 # print(f'p_sample_loop {j}/{self.num_timesteps}')
+            # else:
+            #     pose_features = self.p_sample(batch, pose_features, t, tag='EBM', **kwargs)  ## , tag=f'test_{j}'
 
             pose_features[m.bool()] = gt_features[m.bool()].clone()
+
+            # import jactorch
+            # tmp_stats.append({'step': j, 'tstat': jactorch.tstat(mean)})
+
             if return_history:
                 history.append(pose_features)
+
+        # import jacinle; jacinle.dump(tmp_stat_filename, tmp_stats)
+        # print(f'stat dumped: {tmp_stat_filename}')
+        # exit(1)
 
         if return_history:
             return pose_features, history
@@ -416,13 +439,16 @@ class Trainer(object):
         rejection_sampling=False,
         tamp_pipeline=False,
         eval_only=False,
-        input_mode=None,
+        model_relation=[0],
+        evaluate_relation=[0], 
         **kwargs
     ):
         super().__init__()
         self.model = denoise_fn
         self.dims = denoise_fn.dims
         self.input_mode = denoise_fn.input_mode
+        self.model_relation = model_relation
+        self.evaluate_relation = evaluate_relation
         self.ema = EMA(ema_decay)
         self.ema_model = None ## copy.deepcopy(self.model)
         self.update_ema_every = update_ema_every
@@ -510,6 +536,7 @@ class Trainer(object):
         self.step = data['step']
         state_dict = data['model']
         new_state_dict = {}
+
         for k, v in state_dict.items():
             if 'denoise_fn.model' in k and False:
                 new_state_dict[k.replace(k, k.replace('.model', ''))] = v
@@ -585,6 +612,7 @@ class Trainer(object):
             success_rounds = {}
             sampling_time = []
             all_failure_modes = {}
+            best_tries = {}
             percentage = 0
 
             ## add new num_object so only ran that one
@@ -600,12 +628,11 @@ class Trainer(object):
                 count = 0
 
                 ## for test datasets involving a larger number of objects
-                for n, data in enumerate(test_dl): # each data is one constraint in the loaded data
+                for n, data in enumerate(test_dl): 
 
                     ## for each set of objects, we add-noise + denoise 3 times
-                    pdb.set_trace()
                     for k in range(tries[m]):
-
+                    
                         if m == 0 and len(succeeded_graph_indices) == self.num_test_samples:
                             break
                         elif m == 1:
@@ -626,7 +653,9 @@ class Trainer(object):
                             all_features, history = result
                         else:
                             all_features, history = result, None
-                        all_features.clamp_(-1., 1.)
+
+                        # not clamp 
+                        # all_features.clamp_(-1., 1.)
                         
                         all_features = self.get_all_features(all_features, batch)
 
@@ -639,8 +668,11 @@ class Trainer(object):
                             print_out += f' on average {passed_ave:.2f} sec per graph'
                         else:
                             print_out += f' (j = {graph_indices[0]})'
-
+                        
                         for j in graph_indices: # graph indices corresponds to each test case
+                            
+                            if j not in best_tries.keys():
+                                best_tries[j] = [None, 0]
 
                             if run_only and j != run_only[1]:
                                 continue
@@ -710,16 +742,16 @@ class Trainer(object):
                                     constraints = constraint_from_edge_attr(edge_attr, edge_index,
                                                                             composed_inference=composed_inference)
                                     render_kwargs.update(dict(constraints=constraints))
-                                if 'tidy' in self.input_mode or self.input_mode in tidy_constraints:
+                                if 'tidy' in self.input_mode:
                                     
                                     edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
                                     edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
-                                    offset = edge_index.min()
-                                    edge_index -= offset
-                                    constraints = tidy_constraint_from_edge_attr(edge_attr, edge_index)
+                                    offset = edge_index.min() 
+                                    edge_index -= (offset - 1)
+                                    constraints = tidy_constraint_from_edge_attr(edge_attr, edge_index, evaluate_relation=self.evaluate_relation)
                                     render_kwargs.update(dict(constraints=constraints))
 
-                                evaluations = render_world_from_graph(features, **render_kwargs)
+                                evaluations, success_ratio = render_world_from_graph(features, evaluate_relation=self.evaluate_relation, **render_kwargs)
                                 
                                 if verbose:
                                     print(i, j, k, '\t', evaluations)
@@ -730,12 +762,12 @@ class Trainer(object):
                                     success = success and (len(evaluations) == 0)
                                 elif 'stability' not in self.input_mode:
                                     success = (len(evaluations) == 0)
-                            if debug:
-                                pdb.set_trace()
+                          
                             """ log success """
                             if success:
                                 ## computing statistics
                                 success_list.append((j, k))
+                                best_tries[j] = [k, 1]
                                 if j not in success_rounds:
                                     succeeded_graph_indices.append(j)
                                     success_rounds[j] = k
@@ -751,12 +783,16 @@ class Trainer(object):
                                 else:
                                     evaluations = [e for e in evaluations if e[0] in qualitative_constraints]
                                 all_failure_modes[k][j] = evaluations
+
                             elif 'tidy' in self.input_mode or self.input_mode in tidy_constraints:
                                 if len(evaluations) > 0 and len(evaluations[0]) == 2:
                                     evaluations = translate_cfree_evaluations(evaluations)
                                 else:
                                     evaluations = [e for e in evaluations if e[0] in tidy_constraints]
                                 all_failure_modes[k][j] = evaluations
+                                
+                                if success_ratio > best_tries[j][1]:
+                                    best_tries[j] = [k, success_ratio]
 
                                 if return_history and self.visualize:  ##  and False
                                     self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
@@ -800,24 +836,30 @@ class Trainer(object):
                         percentage = len(succeeded_graph_indices) / self.num_test_samples
                         print_out += f"\t solved {len(succeeded_graph_indices)} / {self.num_test_samples} graphs " \
                                      f"({percentage:.2f})"
+                       
+
+                        all_success_rate = [k[1] for k in best_tries.values()]
+                        print_out += f"\t average success ratio {np.mean(all_success_rate):.2f} with std {np.std(all_success_rate):.2f} " 
+
                         print(print_out)
 
                         if m == 0 and count != 0:
                             self.summarize_success_rate(i, success_list, self.num_test_samples, succeeded_graph_indices,
-                                                        success_rounds, log, tries=tries[0], send_wandb=False)
+                                                        success_rounds, log, best_tries, tries=tries[0], send_wandb=False)
 
                         log[i]['success_rounds'] = success_rounds
                         log[i]['sampling_time'] = sampling_time
                         log[i]['all_failure_modes'] = all_failure_modes
                         log[i]['eval_tries'] = k
                         log[i]['visualize'] = self.visualize
+                        log[i]['best_tries'] = best_tries
                         with open(json_name, 'w') as f:
                             json.dump(log, f)
 
                 ## compute and log the success rate and average sample time
                 if m == 0 and count != 0:
                     self.summarize_success_rate(i, success_list, self.num_test_samples, succeeded_graph_indices,
-                                                success_rounds, log, tries=tries[0], send_wandb=True)
+                                                success_rounds, log, best_tries,  tries=tries[0], send_wandb=True)
 
                 ## for printing in matplotlib
                 if save_log: print('saved', json_name)
@@ -833,6 +875,125 @@ class Trainer(object):
                 break
 
         self.model.train()
+
+    def get_masked_testing_data(self, n_objs):
+
+        from torch_geometric.data import Data
+
+        test_dls = self.test_dls[n_objs]
+
+        data_list = []
+        for m, test_dl in enumerate(test_dls): # each test_dl is a dataloader
+
+            for n, data in enumerate(test_dl):
+
+                # print(f"this is the {n}th data in {m}th data_loader")
+                batch = data.clone()
+                        
+                graph_indices = batch.x_extract.unique().int().numpy().tolist()
+                
+                # print(f"{n}th data in {m}th data_loader has {len(graph_indices)} graphs")
+                # print(graph_indices)
+                # pdb.set_trace()
+                
+
+                for j in graph_indices: # graph indices corresponds to each test case
+
+                    x = batch.x[torch.where(batch.x_extract == j)]
+                    edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
+                    edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
+                    offset = edge_index.min() 
+                    edge_index -= (offset - 1)
+                    mask = batch.mask[torch.where(batch.x_extract == j)]
+
+                    x_extract=torch.ones(x.shape[0]) * 0
+                    edge_extract=torch.ones(edge_index.shape[1]) * 0
+                    original_x = batch.original_x[torch.where(batch.x_extract == j)]
+                    original_y = batch.original_y[torch.where(batch.x_extract == j)]
+
+                    sub_data_list = []
+
+                    for obj_idx in range(1, n_objs+1): # obj is the leave out obj
+                        geoms_in = x[1:, :2]
+                        # pose_A_rot = x[obj_idx, 4:]
+                        # poses_B = x[2, 2:]
+                        pose_A_idx = obj_idx -1
+                        poses_in = x[1:, 2:]
+
+                        conditioned_variables = [n for n in range(x.shape[0]) if n != obj_idx]
+                        curr_mask = mask.clone().detach()
+                        curr_mask[conditioned_variables] = 1
+
+                        data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr,
+                                        conditioned_variables=conditioned_variables, mask=curr_mask,
+                                        x_extract=x_extract,
+                                        edge_extract=edge_extract,
+                                        world_dims=(3, 2), original_x=original_x, original_y=original_y)
+                        sub_data_list.append((data, geoms_in, pose_A_idx, poses_in))
+
+                    data_list.append(sub_data_list)
+                # print(f"data list has {len(data_list)} graphs")    
+                del batch
+            
+        return data_list[:5]
+    
+    def get_unmasked_testing_data(self, n_objs):
+
+        from torch_geometric.data import Data
+
+        test_dls = self.test_dls[n_objs]
+
+        data_list = []
+        for m, test_dl in enumerate(test_dls): # each test_dl is a dataloader
+
+            for n, data in enumerate(test_dl):
+
+                # print(f"this is the {n}th data in {m}th data_loader")
+                batch = data.clone()
+                        
+                graph_indices = batch.x_extract.unique().int().numpy().tolist()
+                
+                # print(f"{n}th data in {m}th data_loader has {len(graph_indices)} graphs")
+                # print(graph_indices)
+                # pdb.set_trace()
+                
+
+
+                for j in graph_indices: # graph indices corresponds to each test case
+
+                    x = batch.x[torch.where(batch.x_extract == j)]
+                    edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
+                    edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
+                    offset = edge_index.min() 
+                    edge_index -= (offset - 1)
+                    mask = batch.mask[torch.where(batch.x_extract == j)]
+                    conditioned_variables = [0]
+
+                    x_extract=torch.ones(x.shape[0]) * 0
+                    edge_extract=torch.ones(edge_index.shape[1]) * 0
+                    original_x = batch.original_x[torch.where(batch.x_extract == j)]
+                    original_y = batch.original_y[torch.where(batch.x_extract == j)]
+
+                    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr,
+                                        conditioned_variables=conditioned_variables, mask=mask,
+                                        x_extract=x_extract,
+                                        edge_extract=edge_extract,
+                                        world_dims=(3, 2), original_x=original_x, original_y=original_y)
+
+                    sub_data_list = []
+
+                    for obj_idx in range(1, n_objs+1): # obj is the leave out obj
+                        geoms_in = x[1:, :2]
+                        pose_A_idx = obj_idx -1
+
+                        
+                        sub_data_list.append((geoms_in, pose_A_idx))
+
+                    data_list.append([data, sub_data_list])
+                # print(f"data list has {len(data_list)} graphs")    
+                del batch
+            
+        return data_list[:5]
 
     def get_all_features(self, all_features, batch):
         """ replace pose features with generated outputs """
@@ -851,7 +1012,7 @@ class Trainer(object):
         return all_features
 
     def summarize_success_rate(self, i, success_list, count, succeeded_graph_indices, success_rounds,
-                               log, tries=2, send_wandb=False):
+                               log, best_tries, tries=2, send_wandb=False):
         import wandb
         top1 = round(len([s for s in success_rounds.values() if s == 0]) / count, 3)
         topk = round(len(succeeded_graph_indices) / count, 3)
@@ -862,7 +1023,7 @@ class Trainer(object):
             log[i] = {}
         log[i].update({
             'success': success_list, 'success_rate': top1, 'success_rate_top3': topk,
-            'model_ave_sample_time': ave_sample_time
+            'model_ave_sample_time': ave_sample_time, 'best_tries': best_tries
         })
         if send_wandb:
             self.model.sample_loop_time = []
@@ -874,6 +1035,7 @@ class Trainer(object):
 
     def render_success(self, milestone, i, j, k, batch, history, n_frames=50,
                        gif_file=None, save_mp4=False, save_history=True, **kwargs):
+
         from envs.mesh_utils import GREEN, RED
         if gif_file is None:
             gif_file = join(self.render_dir, f'denoised_t={milestone}_n={i}_i={j}_k={k}.gif')
@@ -975,13 +1137,15 @@ class AnnealedULASampler:
                  num_samples_per_step,
                  step_sizes,
                  gradient_function,
-                 noise_function):
+                 noise_function,
+                 clip_denoised):
         self._step_sizes = step_sizes
         if isinstance(num_samples_per_step, int):
             num_samples_per_step = torch.tensor([num_samples_per_step] * len(step_sizes))
         self._num_samples_per_step = num_samples_per_step
         self._gradient_function = gradient_function
         self._noise_function = noise_function
+        self._clip_denoised = clip_denoised
 
     @torch.enable_grad()
     def sample_step(self, x, batch, t):
@@ -993,6 +1157,10 @@ class AnnealedULASampler:
             grad = self._gradient_function(x, batch, t)
             noise = self._noise_function() * std
             x = x + grad * ss + noise
+
+            if self._clip_denoised:
+            
+               x.clamp_(-1., 1.)
 
         return x
 

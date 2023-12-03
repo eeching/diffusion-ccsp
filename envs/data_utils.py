@@ -187,14 +187,16 @@ def constraint_from_edge_attr(edge_attr, edge_index, composed_inference=False):
         constraints.append(constraint)
     return constraints
 
-def tidy_constraint_from_edge_attr(edge_attr, edge_index, input_mode="aligned_bottom"):
+def tidy_constraint_from_edge_attr(edge_attr, edge_index, evaluate_relation=[0]):
     from networks.denoise_fn import tidy_constraints
+
+
     constraints = []
     for i in range(len(edge_attr)):
         typ = int(edge_attr[i].detach().cpu().numpy().item())
-        if typ >= len(tidy_constraints):
+        if typ not in evaluate_relation: # check if the constraint is the one we need to check
             continue
-        constraint = tuple([tidy_constraints[typ]] + edge_index.T[i].detach().cpu().numpy().tolist())
+        constraint = tuple([tidy_constraints[typ]] + edge_index.T[i].detach().cpu().numpy().tolist()) # still use the index from the tidy constraints
         constraints.append(constraint)
     return constraints
 
@@ -231,8 +233,8 @@ def render_world(nodes, png_name='png_name', show=False, save=True, array=False,
     return world
 
 
-def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_batch', array=False,
-                            log=False, verbose=False, **kwargs):
+def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_batch.png', array=False,
+                            log=False, verbose=False, evaluate_relation=[0], **kwargs):
     w_tray, l_tray = world_dims
 
     def get_node(f, typ):
@@ -324,7 +326,8 @@ def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_bat
     nodes = np.asarray(nodes)
 
     world = render_world(nodes, png_name=png_name, array=array, **kwargs)
-    evaluations = world.check_constraints_satisfied(verbose=False)
+  
+    evaluations = world.check_constraints_satisfied(verbose=False, evaluate_relation=evaluate_relation)
     object_states = []
     if world.__class__.__name__ == 'TableToBoxWorld':
 
@@ -418,10 +421,10 @@ def compute_world_constraints(world, same_order=False, **kwargs):
     world['constraints'] += constraints
     return world
 
-def compute_tidy_constraints(world, relation='aligned_bottom', same_order=False, **kwargs):
+def compute_tidy_constraints(world, model_relation=[0], same_order=False, **kwargs):
     objects = copy.deepcopy(world['objects'])
     objects = {v['label']: v for k, v in objects.items()}  ##  if v['label'] not in ['bottom']
-    constraints = compute_tidy_atomic_constraints(objects, relation, **kwargs)
+    constraints = compute_tidy_atomic_constraints(objects, model_relation, **kwargs)
     if not same_order:
         constraints = randomize_unordered_constraints(constraints)
     world['constraints'] += constraints
@@ -642,7 +645,7 @@ def compute_qualitative_constraints(objects, rotations=None, debug=False, scale=
         summarize_constraints(constraints)
     return constraints
 
-def compute_tidy_atomic_constraints(objects, relation, rotations=None, debug=False, scale=1, test_only=False): # if the relation is None, compute all relations, if not, only compute the specified relations
+def compute_tidy_atomic_constraints(objects, model_relation=[0], rotations=None, debug=False, scale=1, test_only=False): # if the relation is None, compute all relations, if not, only compute the specified relations
     """ objects is a dictionary of tile_name: {center, extents} """
     sides = ['east', 'west', 'north', 'south']
     if debug:
@@ -660,7 +663,7 @@ def compute_tidy_atomic_constraints(objects, relation, rotations=None, debug=Fal
 
     """ left, right, top, bottom """
     # alignment = 0.05 * scale
-    alignment = 0.1 * scale
+    alignment = 0.15 * scale
     farness = 0.5 * scale
     closeness = 0.3 * scale
     touching = 0.1 * scale
@@ -676,7 +679,7 @@ def compute_tidy_atomic_constraints(objects, relation, rotations=None, debug=Fal
         if rotations is not None and name1 in rotations:
             rot1 = rotations[name1]
             # if abs(abs(rot1%(np.pi/2)) - np.pi /4) < np.pi/8:
-            if abs(abs(rot2) - np.pi /2) < 0.1:
+            if abs(abs(rot2) - np.pi /2) < 0.2:
                 ly1, lx1, lz1 = m['extents']
         else: 
             rot1 = 0 
@@ -709,7 +712,7 @@ def compute_tidy_atomic_constraints(objects, relation, rotations=None, debug=Fal
             lx2, ly2, lz2 = n['extents']
             if rotations is not None and name2 in rotations:
                 rot2 = rotations[name2]
-                if abs(abs(rot2) - np.pi /2) < 0.1:
+                if abs(abs(rot2) - np.pi /2) < 0.2:
                 # if abs(abs(rot2%(np.pi/2)) - np.pi /4) < np.pi/8:
                     ly2, lx2, lz2 = n['extents']
             else:
@@ -724,7 +727,7 @@ def compute_tidy_atomic_constraints(objects, relation, rotations=None, debug=Fal
 
             """ aligned """
             if name1 != 'bottom' and name2 != 'bottom':
-               
+                
                 if abs(y1_bottom - y2_bottom) < alignment and abs(rot1-rot2)%(np.pi/2) < alignment:
                     constraints.append(('aligned_bottom', tiles.index(name1), tiles.index(name2)))    
                 # if abs(x1_left - x2_left) < alignment:

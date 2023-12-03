@@ -14,7 +14,7 @@ def get_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6,
     Region = Tuple[float, float, float, float]  # l, t, w, h
 
     def partition(box: Region, depth: int = 3) -> Iterable[Region]:
-        if rand() < 0.3 or depth == 0:
+        if rand() < 0.2 or depth == 0:
             yield box
 
         else:
@@ -54,58 +54,139 @@ def get_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6,
         yield None
     return gen
 
-def get_aligned_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.075):
-    Region = Tuple[float, float, float, float]
+def get_aligned_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.075, relation="mixed"):
 
-    def aligned(box: Region, y_bottom: int, depth: int = 3) -> Iterable[Region]:
+    Region = Tuple[float, float, float, float] # x, y, w, l
 
-        x_start , y_start, W, L = box
+    def partition(box: Region, depth: int = 3) -> Iterable[Region]:
 
-        w1 = rn.uniform(0, W)
-        x1 = rn.uniform(0, W - w1) + x_start
-
-        l1 = rn.uniform(0, y_bottom) + y_start
-        y1 = y_bottom - l1
-        
-        if rand() < 0.3 or depth == 0:
-            yield (x1, y1, w1, l1)
+        if rand() < 0.15 or depth == 0:
+            yield box
 
         else:
-            yield from aligned((x_start, y_start, x1 - x_start, L), y_bottom, depth - 1) 
-            yield from aligned((x1 + w1, y_start, W - (x1 - x_start) - w1, L), y_bottom, depth - 1)
+            if rand() < 0.6:
+                axis = 0
+            else:
+                axis = 1
+
+            split_point = rand() * box[axis + 2]
+            if axis == 0:
+                yield from partition((box[0], box[1], split_point, box[3]), depth - 1)
+                yield from partition((box[0] + split_point, box[1], box[2] - split_point, box[3]), depth - 1)
+            else:
+                yield from partition((box[0], box[1], box[2], split_point), depth - 1)
+                yield from partition((box[0], box[1] + split_point, box[2], box[3] - split_point), depth - 1)
+
 
     def filter_regions(regions: Iterable[Region], min_size: float) -> Iterable[Region]:
         return [r for r in regions if r[2] > min_size and r[3] > min_size]
 
 
-    def gen(W, L):
+    def gen(W, L, relation, offset=0.05):
 
         min_size = min([W, L]) / 2 * default_min_size
-        y_bottom = rn.uniform(0.2, 0.95)*L
-        def get_regions():
+
+        def get_aligned_regions():
+
             regions = []
-            for region in aligned((0, 0, W, L), y_bottom, max_depth):
-                regions.append(region)
-            return regions
+            n = rn.randint(min_num_regions, max_num_regions+1)
+
+            y_bottom = rn.uniform(0.2, 0.95)*(L - 2* offset) 
+            xs = np.sort(rn.uniform(0+offset, W - 2*offset, size = n * 2))
+            ys = rn.uniform(0, L - y_bottom, size = n)
+
+            for i in range(n):
+                x1 = xs[i * 2]
+                w1 = xs[i * 2 + 1] - x1
+                l1 = ys[i] 
+                regions.append((x1, y_bottom, w1, l1))
+
+            return regions, 'aligned_bottom'
         
+        def get_cfree_regions(max_depth):
+
+            regions = []
+            for region in partition((offset, offset, W - 2*offset, L - 2*offset), max_depth):
+                regions.append(region)
+
+            return regions, 'cfree'
+
+        def get_ccollide_regions():
+
+            import math
+
+            p = np.array([1, 3, 6, 10, 15, 21, 28, 36, 45])/165
+
+            sqrt_n_1 = math.sqrt(np.random.choice(np.arange(2, 11), p = p))
+            sqrt_n_2 = math.sqrt(np.random.choice(np.arange(2, 11), p = p))
+
+            # sample the poses of the first object            
+            w, l = np.clip(rn.uniform(0.45, 1)*W/sqrt_n_1, 0.2*W, 0.8*W), np.clip(rn.uniform(0.45, 1)*L/sqrt_n_1, 0.2*L, 0.8*L)
+
+            x1 = rn.uniform(offset, W - w - offset)
+            y1 = rn.uniform(offset, L - l - offset)
+
+            regions = [(x1, y1, w, l)]
+
+            # sample the poses of the second object
+
+            c_x2, c_y2 = rn.uniform(x1, x1 + w), rn.uniform(y1, y1 + l)
+
+            prob = rand()
+
+            if prob < 0.25: # right-bottom
+                w2 = rn.uniform(0, (W - offset-c_x2)/sqrt_n_2)
+                l2 = rn.uniform(0, (L - offset-c_y2)/sqrt_n_2)
+                x2, y2 = c_x2, c_y2
+            elif prob < 0.5: # right-top
+                w2 = rn.uniform(0, (W - offset-c_x2)/sqrt_n_2)
+                l2 = rn.uniform(0, (c_y2 - offset)/sqrt_n_2)
+                x2, y2 = c_x2, c_y2 - l2
+            elif prob < 0.75: # left-top    
+                w2 = rn.uniform(0, (c_x2 - offset)/sqrt_n_2)
+                l2 = rn.uniform(0, (c_y2 - offset)/sqrt_n_2)
+                x2, y2 = c_x2 - w2, c_y2 - l2   
+            else: # left-bottom 
+                w2 = rn.uniform(0, (c_x2-offset)/sqrt_n_2)
+                l2 = rn.uniform(0, (L - offset-c_y2)/sqrt_n_2)
+                x2, y2 = c_x2 - w2, c_y2
+
+            regions.append((x2, y2, w2, l2))
+
+            return regions, 'ccollide'
+           
         count = num_samples
+
+        if "mixed" in relation:
+            _, relation_2 = relation.split("_")
+            relation_1 = "aligned_bottom"
+
+            if rand() < 0.5:
+                relation = relation_1
+            else:
+                relation = relation_2
+        
         while True:
-            regions = get_regions()
+            if relation == "aligned_bottom":
+                regions, relation = get_aligned_regions()
+            elif relation == "cfree":
+                regions, relation = get_cfree_regions(max_depth)
+            elif relation == "ccollide":
+                regions, relation = get_ccollide_regions()
+
             # print("before: ", len(regions))
             regions = filter_regions(regions, min_size)
             # print("after filtering: ", len(regions))
-            if min_num_regions <= len(regions) <= max_num_regions:
+            
+            if (relation == "ccollide" and len(regions) == 2) or min_num_regions <= len(regions) <= max_num_regions:
                 count -= 1
                 print(len(regions), "added!")
-                yield regions
+                yield regions, relation
             if count == 0:
                 break
         yield None
         
     return gen
-
-
-
 
 def get_sub_region_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.075):
 

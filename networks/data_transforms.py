@@ -23,7 +23,7 @@ def pre_transform(data, data_idx, input_mode, debug_mode=0, **kwargs):
 
 ####################################################################################################
 
-def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, visualize=False, verbose=False):
+def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, visualize=False, verbose=False, model_relation=[0]):
     """
         excluding the first feature on type [0 (container) / 1 (tiles)]
         for BoxWorld: each object has 4 features
@@ -107,8 +107,8 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
                         y /= (l_tray / 2)
                         geom = [w, l]
                         pose = [x, y, cs, sn]
-                    elif 'tidy' in input_mode or input_mode in tidy_constraints:
-                        all_constraints = tidy_constraints
+                    elif 'tidy' in input_mode:
+                        all_constraints = np.array(tidy_constraints)[model_relation].tolist()
                         _, w, l, x, y, sn, cs = dd
                         w /= w_tray
                         l /= l_tray
@@ -174,14 +174,20 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
             if 'robot' in input_mode and 'qualitative' in input_mode:
                 all_constraints = robot_qualitative_constraints
             if 'tidy' in input_mode or input_mode in tidy_constraints:
-                all_constraints = tidy_constraints
+                all_constraints = np.array(tidy_constraints)[model_relation].tolist()
+                
         feature = geom + pose
         if verbose:
             print(f'feature {i}: {r(feature)}')
         features.append(feature)
     
+   
     ## for each edge, add one constraint node, and add edge_attr
-    edge_attr = [all_constraints.index(elems[0]) for elems in data.edge_index]
+
+    # edge_attr = [all_constraints.index(elems[0]) for elems in data.edge_index]
+
+    data.edge_index = [elem for elem in data.edge_index if elem[0] in all_constraints] # extract all the relations in model_relation
+    edge_attr =  [tidy_constraints.index(elems[0]) for elems in data.edge_index] # map the index of the relation to that in tidy_constraints
     edge_index = [elems[1:] for elems in data.edge_index]
 
     if visualize:
@@ -196,6 +202,7 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
     mask = torch.tensor(np.stack([np.asarray(n) for n in mask]), dtype=torch.int8)
     conditioned_variables = torch.tensor(
         np.stack([np.asarray(n) for n in conditioned_variables]), dtype=torch.int8)
+    
     edge_index = torch.tensor(np.stack([np.asarray(n) for n in edge_index]), dtype=torch.int64).T
     edge_attr = torch.tensor(np.stack([np.asarray(n) for n in edge_attr]), dtype=torch.float)
 

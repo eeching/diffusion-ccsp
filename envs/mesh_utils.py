@@ -225,7 +225,7 @@ def add_shape(shape, size, height, color=CLOUD, **kwargs):
 
 
 def regions_to_meshes(regions, width, length, height,
-                      max_offset=0.2, min_offset_perc=0.1, relation=None):
+                      max_offset=0.2, min_offset_perc=0.1, relation='cfree'):
     """ convert 2D regions [top, left, width, height] to 3D meshes centered at origin """
 
     meshes = []
@@ -243,13 +243,26 @@ def regions_to_meshes(regions, width, length, height,
             continue
 
         
-        if relation == "aligned_bottom":
+        if relation == "aligned_bottom":            
+            ps = [0, 0, 0, 0]
+        elif relation == "cfree":
+            ps = [0, 0, 0, 0]
             if w < 0.2: # is the rectangle is already very thin
-                ps = [0, np.random.uniform(w*0.05, w*0.1), np.random.uniform(l*0.1, l*0.75), np.random.uniform(w*0.05, w*0.1)]
+                w_ratio = [0.05, 0.01]
             else:
-                ps = [0, np.random.uniform(w*0.1, w*0.45), np.random.uniform(l*0.1, l*0.75), np.random.uniform(w*0.1, w*0.45)]
+                w_ratio = [0.1, 0.45]
+            
+            if l < 0.2:
+                l_ratio = [0.05, 0.01]
+            else:
+                l_ratio = [0.1, 0.45]
+
+            ps = [np.random.uniform(l_ratio[0]*l, l_ratio[1]*l), np.random.uniform(w_ratio[0]*w, w_ratio[1]*w), np.random.uniform(l_ratio[0]*l, l_ratio[1]*l), np.random.uniform(w_ratio[0]*w, w_ratio[1]*w)]
+        elif relation == "ccollide":
+            ps = [0, 0, 0, 0] 
         else:
             ps = np.random.uniform(max_offset*min_offset_perc, max_offset, 4)  ## padding [top, left, bottom, right]
+        
         if w <= ps[1]+ps[3] or l <= ps[0]+ps[2]: # this will never happen for aligned_bottom
             continue
         w -= (ps[1]+ps[3])
@@ -264,8 +277,8 @@ def regions_to_meshes(regions, width, length, height,
         mesh.visual.vertex_colors = color
         mesh.metadata['label'] = f"tile_{len(meshes)}"
         meshes.append(mesh)
-    return meshes
 
+    return meshes
 
 def load_panda_meshes(pose):
     import open3d as o3d

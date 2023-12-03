@@ -15,7 +15,7 @@ from networks.denoise_fn import ConstraintDiffuser, ComposedEBMDenoiseFn, tidy_c
 from networks.data_transforms import pre_transform
 from envs.data_utils import print_tensor
 
-def wandb_init(config, project_name='tidy_aligned_bottom'):
+def wandb_init(config, project_name='grid_offset_mp4'):
     import wandb
     keys = ['data_dir', 'data.batch_size', 'model.lr', 'trainer.max_epochs']
     key_names = {
@@ -46,7 +46,7 @@ def send_email(address, title=None, message=None, textfile=None):
     # me == the sender's email address
     # you == the recipient's email address
     msg['Subject'] = 'The contents of %s' % title
-    msg['From'] = me = "yiqing_x@mit.edu"
+    msg['From'] = me = "ztyang@mit.edu"
     msg['To'] = you = address
 
     # Send the message via our own SMTP server, but don't include the
@@ -86,7 +86,8 @@ def print_config(name: str, dic: dict):
 def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusion-CCSP', EBM=False,
              train_num_steps=300000, input_mode=None,
              hidden_dim=256, ebm_per_steps=1, ev='ff', use_wandb=True, pretrained=False, normalize=True,
-             run_id=None, train_proj='correct_norm', samples_per_step=10, step_sizes='2*self.betas', wandb_name=""):
+             run_id=None, train_proj='correct_norm', samples_per_step=10, step_sizes='2*self.betas',
+             energy_wrapper=False, model_relation=[], evaluate_relation=[], eval_only=False, wandb_name=None):
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-timesteps', type=int, default=timesteps)
@@ -109,7 +110,10 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
     parser.add_argument('-pretrained', action='store_true', default=pretrained)
     parser.add_argument('-use_wandb', action='store_true', default=use_wandb)
     parser.add_argument('-run_id', type=str, default=run_id)
-    parser.add_argument('-wandb_name', type=str, default=wandb_name)
+    parser.add_argument('-wandb_name', type=str, default=wandb_name)    
+    parser.add_argument('-eval_only', type=bool, default=eval_only)
+    parser.add_argument('-model_relation', type=list, default=model_relation)
+    parser.add_argument('-evaluate_relation', type=list, default=evaluate_relation)
     args = parser.parse_args()
     if args.EBM == 'False':
         args.EBM = False
@@ -133,18 +137,6 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
         args.train_task = "RandomSplitWorld(100)_train"  ## {3: 5001, 4: 5001, 5: 5001, 6: 4997}
         args.test_tasks = {i: f"RandomSplitWorld(10)_test_{i}_split" for i in range(2, 6)}
 
-
-        # # --- for testing
-        # # train_task = "TriangularRandomSplitWorld(7500)_train"  ## {2: 7500}
-        # train_task = "TriangularRandomSplitWorld(30000)_train"  ## {2: 7500, 3: 7500, 4: 7500, 5: 7500}
-        # test_tasks = {i: f"TriangularRandomSplitWorld(100)_test_{i}_split" for i in range(2, 8)}
-
-        # # train_task = "TriangularRandomSplitWorld[32]_(40)_train"
-        # # test_tasks = {2: f"TriangularRandomSplitWorld[32]_(10)_test_2_split"}
-
-        # args.train_task = "TriangularRandomSplitWorld[64]_(30000)_diffuse_pairwise_train"  ## {2: 7500, 3: 7500, 4: 7500, 5: 7500}
-        # args.test_tasks = {i: f"TriangularRandomSplitWorld[64]_(10)_diffuse_pairwise_test_{i}_split" for i in range(2, 7)}
-
     elif args.input_mode == 'qualitative':
         args.train_proj = 'correct_norm'
         args.train_proj = 'qualitative_new'
@@ -160,18 +152,36 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
             args.train_task = "RandomSplitQualitativeWorld(100)_qualitative_train"
 
         args.test_tasks = {i: f'RandomSplitQualitativeWorld(10)_qualitative_test_{i}_split' for i in range(2, 5)}
-    elif args.input_mode == 'tidy' or args.input_mode in tidy_constraints:
-        args.train_proj = 'tidy_aligned_bottom'
+    elif args.input_mode == 'tidy':
+
+        tidy_relations = [tidy_constraints[i] for i in args.model_relation]
+
+        if len(tidy_relations) == 2:
+            n = 20000
+            if 'cfree' in tidy_relations:
+                tidy_relations = ['mixed_cfree']
+            elif 'ccollide' in tidy_relations:
+                tidy_relations = ['mixed_ccollide']
+        elif len(tidy_relations) == 1:
+            n = 10000
+        elif len(tidy_relations) == 3:
+            n = 30000
+            tidy_relations = ['mixed_all']
+
+        args.train_proj = f'tidy_{tidy_relations[0]}'
         # --- for testing
-        # train_task = "RandomSplitSparseWorld(2000)_aligned_bottom_train"
-        # test_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_split' for i in range(2, 4)}
-        train_task = "RandomSplitSparseWorld(10000)_aligned_bottom_train"
-        test_tasks = {i: f'RandomSplitSparseWorld(5)_aligned_bottom_test_{i}_split' for i in range(2, 5)}
+        train_task = f"RandomSplitSparseWorld({n})_tidy_train/{tidy_relations[0]}"
+
+        if 'ccollide' in tidy_relations[0]:
+            end_idx = 3
+        else:
+            end_idx = 11
+
+        test_tasks = {i: f'RandomSplitSparseWorld({int(n/1000)})_tidy_test_{i}_split/{tidy_relations[0]}' for i in range(2, end_idx)}
 
         if 'World' not in args.train_task:
-            args.train_task = "RandomSplitSparseWorld(10000)_aligned_bottom_train"
-
-        args.test_tasks = {i: f'RandomSplitSparseWorld(5)_aligned_bottom_test_{i}_split' for i in range(2, 5)}
+            args.train_task = train_task
+        args.test_tasks = test_tasks
 
     elif args.input_mode == 'stability_flat':
         args.train_proj = 'stability'
@@ -221,13 +231,21 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
     normalize = args.normalize
     use_wandb = args.use_wandb
     energy_wrapper = args.energy_wrapper
+    eval_only = args.eval_only
+    model_relation = args.model_relation
+    evaluate_relation = args.evaluate_relation
+    wandb_name = args.wandb_name
+
     if debug or data_only:
         use_wandb = False
 
     if model != 'Diffusion-CCSP':
         train_name = f'm={model}_t={timesteps}'
     else:
-        train_name = f'm={EBM}_t={timesteps}'
+        if eval_only:
+            train_name = f'm={EBM}_model_relation={model_relation}'
+        else:
+            train_name = f'eval_m={EBM}_eval_relation={evaluate_relation}'
     if train_name_extra != '' and train_name_extra != train_name:
         train_name += f'_{train_name_extra}'
 
@@ -251,13 +269,8 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
     if use_wandb:
         import wandb
         wandb_kwargs = dict(project=train_proj, entity="xuyiqing613", config=config)
-        if args.wandb_name == "":
-            run_name = train_name
-        else:
-            run_name = f"{args.wandb_name}_{train_name}"
-        wandb.init(name=run_name, **wandb_kwargs)
+        wandb.init(name=train_name, **wandb_kwargs)
         run_id = wandb.run.id
-        
 
     render_dir = join(RENDER_PATH, f"{train_task}_{train_name}_{input_mode}")
     if input_mode not in train_task and not composed_inference:
@@ -279,8 +292,8 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         log_name = train_task
 
     dataset_kwargs = dict(input_mode=input_mode, pre_transform=pre_transform, visualize=False)
-    train_dataset = GraphDataset(train_task, **dataset_kwargs)
-    test_datasets = {k: GraphDataset(task, **dataset_kwargs) for k, task in test_tasks.items()}
+    train_dataset = GraphDataset(train_task, model_relation=model_relation, **dataset_kwargs)
+    test_datasets = {k: GraphDataset(task, model_relation=evaluate_relation, **dataset_kwargs) for k, task in test_tasks.items()}
 
     if data_only:
         return None
@@ -302,7 +315,7 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
 
     denoise_fn = ConstraintDiffuser(dims=dims, hidden_dim=hidden_dim, EBM=EBM, input_mode=input_mode,
                                     pretrained=pretrained, normalize=normalize, energy_wrapper=energy_wrapper,
-                                    model=model, verbose=verbose).cuda()
+                                    model=model, verbose=verbose, model_relation=model_relation).cuda()
     if EBM and denoise_fn.energy_wrapper:
         denoise_fn = ComposedEBMDenoiseFn(denoise_fn, ebm_per_steps)
     diffusion = GaussianDiffusion(denoise_fn, timesteps=timesteps, EBM=EBM,
@@ -364,7 +377,7 @@ def load_trainer(run_id, milestone, visualize=False, rejection_sampling=False, v
     args = get_args_from_run_id(run_id)
 
     # args.test_tasks = kwargs.get('test_tasks', args.test_tasks)
-    for k in ['input_mode', 'train_task', 'test_tasks', 'train_num_steps', 'train_task', 'test_tasks', 'input_mode']:
+    for k in ['input_mode', 'train_task', 'test_tasks', 'train_num_steps', 'EBM', 'model_relation', 'evaluate_relation', 'eval_only', 'energy_wrapper']:
         if k in kwargs:
             setattr(args, k, kwargs[k])
             kwargs.pop(k)

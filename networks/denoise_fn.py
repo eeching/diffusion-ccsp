@@ -29,7 +29,8 @@ ignored_constraints = ['right-of', 'bottom-of']
 # v0
 # tidy_constraints = ['aligned_bottom', 'aligned_top', 'in', 'center-in', 'left-in', 'right-in', 'top-in', 'bottom-in',
 #     'cfree', 'h-aligned', 'v-aligned']
-tidy_constraints = ['aligned_bottom', 'in', 'cfree']
+# tidy_constraints = ['aligned_bottom', 'in', 'cfree']
+tidy_constraints = ['aligned_bottom', 'cfree', 'ccollide']
 
 
 def exists(x):
@@ -191,7 +192,7 @@ def print_network(net, name):
 class ConstraintDiffuser(torch.nn.Module):
     def __init__(self, dims=((2, 0, 2), (2, 2, 4)), hidden_dim=256, max_num_obj=12, input_mode=None,
                  EBM=False, pretrained=False, normalize=True, energy_wrapper=False, device='cuda',
-                 model='Diffusion-CCSP', verbose=True):
+                 model='Diffusion-CCSP', verbose=True, model_relation=[0]):
         """ in_features: list of input feature dimensions for each variable type (geometry, pose)
             e.g. for puzzle constraints ((6, 0, 6), (4, 6, 10)) = {(length, begin, end)}
                 means 6 geometry features for pose, 4 for pose features
@@ -210,6 +211,7 @@ class ConstraintDiffuser(torch.nn.Module):
         self.verbose = verbose
         self.energy_wrapper = energy_wrapper  ## (EBM not in [False])  ## , 'ULA'
         self.model = model
+        self.model_relation = model_relation
 
         if 'robot' in input_mode:
             self.constraint_sets = robot_constraints
@@ -217,8 +219,8 @@ class ConstraintDiffuser(torch.nn.Module):
             self.constraint_sets = stability_constraints
         elif 'qualitative' in input_mode:
             self.constraint_sets = qualitative_constraints
-        elif 'tidy' in input_mode or input_mode in tidy_constraints:
-            self.constraint_sets = tidy_constraints
+        elif 'tidy' in input_mode:
+            self.constraint_sets = [tidy_constraints[i] for i in self.model_relation]
         else:
             self.constraint_sets = puzzle_constraints
 
@@ -257,7 +259,6 @@ class ConstraintDiffuser(torch.nn.Module):
             nn.Linear(hidden_dim//2, hidden_dim),
             nn.SiLU(),
         ).to(self.device)
-        if self.verbose: print_network(self.pose_encoder[0], 'pose_encoder')
 
         self.pose_decoder = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim//2),
@@ -303,6 +304,7 @@ class ConstraintDiffuser(torch.nn.Module):
         out_feature = 2 * self.hidden_dim  ## change two poses for now
         mlps = []
         if self.verbose: print(f'denoise_fns({len(self.constraint_sets)})', self.constraint_sets)
+
         for con in self.constraint_sets:
             if con in robot_constraints:
                 """ g, o, o, p, p, t """
@@ -326,6 +328,7 @@ class ConstraintDiffuser(torch.nn.Module):
         ### edge_attr encodes the constraint type
         edges = torch.where(batch.edge_attr == i)[0]
         edges = edges.detach().cpu().numpy()
+
         args_1 = edge_index[edges][:, 0]
         args_2 = edge_index[edges][:, 1]
 
@@ -349,10 +352,11 @@ class ConstraintDiffuser(torch.nn.Module):
         return input_dict
 
     def _process_constraint(self, i, input_dict): ## when b = 4
+
         use_default_encoder = self._if_use_default_encoder(i)
         geom_emb = input_dict['geoms_emb' if use_default_encoder else 'geoms_emb_2']  ## torch.Size([4, 2, 256])
         pose_emb = input_dict['poses_emb' if use_default_encoder else 'poses_emb_2']  ## torch.Size([4, 2, 256])
-
+        
         embeddings = [
             geom_emb.reshape(geom_emb.shape[0], -1),  ## torch.Size([4, 512])
             pose_emb.reshape(pose_emb.shape[0], -1),  ## torch.Size([4, 512])
@@ -385,6 +389,7 @@ class ConstraintDiffuser(torch.nn.Module):
         return ((outputs - input_poses_in) ** 2).sum()
 
     def _add_constraints_outputs(self, i, input_dict, outputs, all_poses_out, all_counts_out=None):
+    
         n_features = all_poses_out.shape[0]
 
         args = input_dict['args'].reshape(-1)
@@ -490,7 +495,9 @@ class ConstraintDiffuser(torch.nn.Module):
         poses_in = poses_in.to(self.device)
         poses_in.requires_grad_(True)
 
+
         emb_dict = {'geoms_emb': geoms_emb, 'poses_emb': self.pose_encoder(poses_in)}
+
         if 'robot' in self.input_mode:
             emb_dict['grasp_emb'] = self.grasp_encoder(x[:, self.dims[1][1]:self.dims[1][2]])
 
@@ -519,24 +526,44 @@ class ConstraintDiffuser(torch.nn.Module):
         all_poses_out = torch.zeros_like(poses_in)
         all_counts_out = torch.zeros_like(poses_in[:, 0])
         total_energy = 0
+
+        if self.model_relation == [0]:
+            relation_idx_mapping = {0: 0}
+        elif self.model_relation == [1]:
+            relation_idx_mapping = {0: 1}
+        elif self.model_relation == [2]:
+            relation_idx_mapping = {0: 2}
+        elif self.model_relation == [0, 1]:
+            relation_idx_mapping = {0: 0, 1: 1}
+        elif self.model_relation == [0, 2]:
+            relation_idx_mapping = {0: 0, 1: 2}
+        
         for i in range(len(self.mlps)):
-            input_dict = self._get_constraint_inputs(i, batch, t, emb_dict, edge_index)
+
+            idx = relation_idx_mapping[i]
+            
+            input_dict = self._get_constraint_inputs(idx, batch, t, emb_dict, edge_index)
+          
             if len(input_dict['args']) == 0:
                 continue
             outputs = self._process_constraint(i, input_dict)
-
+            
             if tag == 'EBM' and self.energy_wrapper:
-                pdb.set_trace()
                 total_energy += self._compute_energy(i, input_dict, poses_in, outputs)
             else:
-                self._add_constraints_outputs(i, input_dict, outputs, all_poses_out, all_counts_out) ##
-
+                self._add_constraints_outputs(idx, input_dict, outputs, all_poses_out, all_counts_out) ##
+        
+        # if all_poses_out.shape[0] > 30:
+        #     print('Caught you!')
+        #     import ipdb; ipdb.set_trace()
         if self.normalize:
-            all_poses_out /= torch.sqrt(all_counts_out.unsqueeze(-1))
+            all_poses_out /= torch.sqrt(all_counts_out.unsqueeze(-1)).clip(1, 1e6)
+
+        # import jactorch
+        # print(jactorch.tstat(all_poses_out))
 
         ## return the gradients and energy
         if tag == 'EBM' and self.energy_wrapper:
-            pdb.set_trace()
             gradients = self._get_EBM_gradients(poses_in, total_energy)
             return gradients, total_energy
         else:

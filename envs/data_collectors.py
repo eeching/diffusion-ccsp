@@ -8,7 +8,7 @@ import sys
 from tqdm import tqdm
 import math
 from envs.config import *
-from envs.worlds import TrayWorld, ShapeSettingWorld, RandomSplitWorld, get_world_class
+from envs.worlds import TrayWorld, RandomSplitWorld, get_world_class
 from envs.render_utils import *
 from envs.data_utils import world_from_pt
 import argparse
@@ -36,6 +36,7 @@ class DataCollector(object):
                 save_meshes: bool = False,
                 input_mode: str = 'collisions',
                 test_only: bool = False,
+                relation: str = 'aligned_bottom',
                 **kwargs):
         import torch
         world = self.world_class(**self.world_args)
@@ -44,7 +45,7 @@ class DataCollector(object):
             name += f"_{label}"
         from networks.denoise_fn import tidy_constraints
         ## accounting for data distribution
-        if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints:
+        if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode:
             class_counts = defaultdict(int)
         else:
             classes = []
@@ -57,10 +58,11 @@ class DataCollector(object):
             class_counts = {k: 0 for k in classes}
 
         ## dataset directory
-        dataset_dir = join(dataset_dir, name)
+        dataset_dir = join(dataset_dir, name, relation)
+        os.makedirs(dataset_dir, exist_ok=True)
         raw_dir = join(dataset_dir, 'raw')
         json_dir = join(dataset_dir, 'json')
-        render_dir = join(RENDER_PATH, name)
+        render_dir = join(RENDER_PATH, name, relation)
         if isdir(dataset_dir):
             if del_if_exists:
                 shutil.rmtree(dataset_dir)
@@ -75,9 +77,9 @@ class DataCollector(object):
 
         ## images directory
         if pngs or jsons:
-            png_dir = join(RENDER_PATH, name)
-            if not isdir(png_dir):
-                os.mkdir(png_dir)
+            png_dir = join(RENDER_PATH, name, relation)
+            
+            os.makedirs(png_dir, exist_ok=True)
 
         if isfile(join(dataset_dir, f'class_counts.pt')):
             print('\nLoading existing class counts...')
@@ -89,14 +91,16 @@ class DataCollector(object):
         ## sample n data
         newly_generated = 0
 
-        def add_one_pt(world, data_path, png_path, newly_generated):
+        def add_one_pt(world, data_path, png_path, newly_generated, model_relation):
 
             json_name = None if not jsons else png_path.replace('.png', '.json')
-            data = world.generate_json(json_name=json_name, input_mode=input_mode, test_only=test_only) # getting constraints for the objects
+
+            data = world.generate_json(json_name=json_name, input_mode=input_mode, test_only=test_only, model_relation=model_relation, generating_data=True) # getting constraints for the objects
             # if label == 'test':
             #     json_path = data_path.replace('.pt', '.json').replace(raw_dir, json_dir)
             #     with open(json_path, 'w') as f:
             #         json.dump(data, f)
+
             c = world.generate_pt(data=data, data_path=data_path, verbose=verbose, input_mode=input_mode, **kwargs)
             for k, v in c.items():
                 class_counts[k] += v
@@ -122,11 +126,14 @@ class DataCollector(object):
         scene_sampler_args = copy.deepcopy(self.scene_sampler_args)
         count_threshold = math.ceil(n / (max_n - min_n + 1))
         current_n = min_n
-        scene_sampler_args['max_num_objects'] = current_n
+        scene_sampler_args['max_num_objects'] = current_n or input_mode in tidy_constraints
         for t in tqdm(range(n)):
             t = t * shake_per_world
             data_path = join(raw_dir, f'data_{t}.pt')
-            png_path = join(RENDER_PATH, name, f'idx={t}.png')
+
+            png_dir = join(RENDER_PATH, name, relation)
+            os.makedirs(png_dir, exist_ok=True)
+            png_path = join(png_dir, f'idx={t}.png')
 
             if isfile(data_path):
                 world = world_from_pt(data_path, self.world_class.__name__)
@@ -135,9 +142,9 @@ class DataCollector(object):
                     class_counts[g] += 1
             else:
                 world = self.world_class(**self.world_args)
-                world.sample_scene(**scene_sampler_args)
-                
-                newly_generated = add_one_pt(world, data_path, png_path, newly_generated)
+                model_relation = world.sample_scene(**scene_sampler_args)
+
+                newly_generated = add_one_pt(world, data_path, png_path, newly_generated, model_relation)
 
                 ## balancing the dataset for the boxes dataset
                 if balance_data:
@@ -190,7 +197,8 @@ class DataCollector(object):
 def get_data_collection_args(world_name='RandomSplitWorld', input_mode='diffuse_pairwise',
                              num_worlds=10, verbose=False, num_shakes=1, data_type='train',
                              min_num_objects=2, max_num_objects=5, pngs=False, jsons=False,
-                             del_if_exists=True, world_args=dict(), w=3.0, l=2.0, h=0.5, grid_size=0.5, partial_constriants=False):
+                             del_if_exists=True, world_args=dict(), w=3.0, l=2.0, h=0.5, grid_size=0.5, 
+                             partial_constriants=False, relation="aligned_bottom"):
 
     if 'w' in world_args:
         w = world_args['w']
@@ -211,12 +219,15 @@ def get_data_collection_args(world_name='RandomSplitWorld', input_mode='diffuse_
     parser.add_argument('-width', type=float, default=w)
     parser.add_argument('-length', type=float, default=l)
     parser.add_argument('-height', type=float, default=h)
+    parser.add_argument('-relation', type=str, default=relation)
 
     parser.add_argument('-pngs', action='store_true')
     parser.add_argument('-jsons', action='store_true')
     parser.add_argument('-del_if_exists', action='store_true')
 
     parser.add_argument('-verbose', action='store_true', default=verbose)
+    
+
     args = parser.parse_args()
 
     args.pngs = pngs or args.pngs
@@ -242,7 +253,7 @@ def generate_train_dataset(args=None, debug=False, save_meshes=False, same_order
         args = get_data_collection_args(**kwargs)
     # scene_sampler_args = dict(min_num_objects=2, max_num_objects=2)
 
-    scene_sampler_args = dict(min_num_objects=args.min_num_objects, max_num_objects=args.max_num_objects)
+    scene_sampler_args = dict(min_num_objects=args.min_num_objects, max_num_objects=args.max_num_objects, relation=args.relation)
 
     print(args.pngs, args.jsons)
 
@@ -250,7 +261,7 @@ def generate_train_dataset(args=None, debug=False, save_meshes=False, same_order
     collector = DataCollector(world_class, world_args=args.world_args, scene_sampler_args=scene_sampler_args)
     collector.collect(args.num_worlds, shake_per_world=args.num_shakes, label=args.input_mode + '_train',
                       verbose=args.verbose, pngs=args.pngs, jsons=args.jsons, debug=debug,
-                      save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode)
+                      save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, relation=args.relation)
     # collector.collect(int(args.num_worlds/10), label='test', **kwargs)
 
 
@@ -270,10 +281,10 @@ def generate_test_dataset(args=None, pngs=True, jsons=True,
     kwargs.update(dict(input_mode=args.input_mode, shake_per_world=1,
                        pngs=args.pngs, jsons=args.jsons, verbose=False))
     for i in range(args.min_num_objects, args.max_num_objects + 1):
-        scene_sampler_args = dict(min_num_objects=i, max_num_objects=i)
+        scene_sampler_args = dict(min_num_objects=i, max_num_objects=i, relation=args.relation)
         collector = DataCollector(world_class, world_args=args.world_args, scene_sampler_args=scene_sampler_args)
         collector.collect(args.num_worlds, label=f'{args.input_mode}_test_{i}_split', pngs=args.pngs, jsons=args.jsons,
-                          save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, test_only=True)
+                          save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, test_only=True, relation=args.relation)
 
 
 ######################## tests ############################

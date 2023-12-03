@@ -23,10 +23,8 @@ def evaluate_model(run_id, milestone, tries=(10, 0), json_name='eval', save_log=
     
     trainer = load_trainer(run_id, milestone, **kwargs)
 
-    trainer.render_dir = trainer.render_dir.replace('train', 'test_1')
-
-    if not isdir(trainer.render_dir):
-        os.mkdir(trainer.render_dir)
+    trainer.render_dir = trainer.render_dir.replace('train', 'test_(10)')
+    os.makedirs(trainer.render_dir, exist_ok=True)
     
     if render_name_extra is not None:
         trainer.render_dir += f'_{render_name_extra}'
@@ -116,21 +114,34 @@ def indie_runs():
 def eval_new_set():
     # partial_constraints = False
     # eval_10_kwargs = dict(tries=(5, 0), json_name='eval', save_log=False, visualize=True, test_set=True, return_history=False, partial_constraints=partial_constraints)
-    eval_10_kwargs = dict(tries=(3, 0), json_name='eval', save_log=False, visualize=True, test_set=True, return_history=False, run_all=True)
+    eval_10_kwargs = dict(tries=(10, 0), json_name='eval', save_log=False, visualize=False, test_set=True, return_history=False, run_all=True, model_relation=[0], evaluate_relation=[0], EBM=False, samples_per_step=20, eval_only=True)
     # if partial_constraints:
     #     test_10_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_partial_constraints_True_split' for i in range(2, 6)}
     # else:
     #     test_10_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_split' for i in range(2, 6)}
-    test_10_tasks = {i: f'RandomSplitSparseWorld(3)_aligned_bottom_test_{i}_split' for i in range(3, 9)}
+    test_10_tasks = {i: f'RandomSplitSparseWorld(100)_tidy_test_{i}_split/aligned_bottom' for i in range(2, 11)}
     # evaluate_model('qsd3ju74', input_mode="aligned_bottom", milestone=7, test_tasks=test_5_tasks, **eval_5_kwargs)
     
     # evaluate_model('tfpwxhwc', input_mode="aligned_bottom", milestone=7, test_tasks=test_10_tasks, **eval_10_kwargs)
     # evaluate_model('e65kirak', input_mode="aligned_bottom", milestone=5, test_tasks=test_10_tasks, **eval_10_kwargs)
-    evaluate_model('8j4sp2eg', input_mode="aligned_bottom", milestone=15, test_tasks=test_10_tasks, **eval_10_kwargs)
-    # evaluate_model('tn43mem7', input_mode="aligned_bottom", milestone=6, test_tasks=test_10_tasks, **eval_10_kwargs)
-    # evaluate_model('ob8ea2mo', input_mode="aligned_bottom", milestone=4, test_tasks=test_10_tasks, **eval_10_kwargs)
+    # evaluate_model('8j4sp2eg', input_mode="aligned_bottom", milestone=15, test_tasks=test_10_tasks, **eval_10_kwargs)
+    # evaluate_model('opq3cr2l', input_mode="aligned_bottom", milestone=2, test_tasks=test_10_tasks, **eval_10_kwargs)
+    # evaluate_model('dx8vkgz9', input_mode="aligned_bottom", milestone=1, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, single
+    # evaluate_model('lwxp9l76', input_mode="aligned_bottom", milestone=0, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, both
+    # evaluate_model('hz8snjdg', input_mode="aligned_bottom", milestone=3, test_tasks=test_10_tasks, **eval_10_kwargs) # False, single
+    # evaluate_model('smuob4no', input_mode="aligned_bottom", milestone=2, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
+    
 
+    # evaluate_model('cegzrggl', input_mode="aligned_bottom", milestone=2, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, single
+    # evaluate_model('mun5fyd7', input_mode="aligned_bottom", milestone=1, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, both
+    # evaluate_model('vdl5asu6', input_mode="aligned_bottom", milestone=11, test_tasks=test_10_tasks, **eval_10_kwargs) # False, single
+    # evaluate_model('m0l0yzfw', input_mode="aligned_bottom", milestone=10, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
+    
+    
+    # evaluate_model('urnb8iua', input_mode="aligned_bottom", milestone=13, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
 
+    # evaluate_model('trci7w1x', input_mode="aligned_bottom", milestone=11, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
+    evaluate_model('5ckl6qnj', input_mode="tidy", relation="aligned_bottom", milestone=11, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
 
 if __name__ == '__main__':
     # indie_runs()

@@ -15,7 +15,7 @@ import pdb
 
 from envs.data_utils import get_one_hot, print_tensor, render_world_from_graph, constraint_from_edge_attr
 from networks.data_transforms import pre_transform, robot_data_json_to_pt, stability_data_json_to_pt
-from networks.denoise_fn import qualitative_constraints
+from networks.denoise_fn import qualitative_constraints, tidy_constraints
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -27,14 +27,17 @@ VISUALIZATION_PATH = abspath(join(PROJECT_PATH, 'visualizations'))
 
 class GraphDataset(InMemoryDataset): ## Dataset | InMemoryDataset
     def __init__(self, dir_name, input_mode='grid_offset', transform=None, pre_transform=None,
-                 pre_filter=None, debug_mode=2, visualize=False):
+                 pre_filter=None, debug_mode=2, visualize=False, model_relation=[0]):
         self.input_mode = input_mode
         self.dir_name = dir_name
         self.debug_mode = debug_mode
         self.visualize = visualize
+        self.model_relation = model_relation
+      
         root = join(DATASET_PATH, dir_name)
 
-        processed = join(root, 'processed')
+        processed = join(root, f'processed_relation_{self.model_relation}')
+
         self.composed_inference = False
         if self.input_mode == 'robot_qualitative' and ('test' in dir_name or 'robot_qualitative' in dir_name):
             """ need to run create_qualitative_data() in 3-panda-box-data.py on the dir_name first """
@@ -72,6 +75,8 @@ class GraphDataset(InMemoryDataset): ## Dataset | InMemoryDataset
         processed = join(self.root, 'processed')
         if self.input_mode == 'robot_qualitative' and self.composed_inference:
             processed = join(self.root, 'processed_robot_qualitative')
+        if self.input_mode == "tidy":
+            processed = join(self.root, f'processed_relation_{self.model_relation}')
         return processed
 
     def download(self):
@@ -107,7 +112,7 @@ class GraphDataset(InMemoryDataset): ## Dataset | InMemoryDataset
                 continue
             if self.pre_transform is not None:
                 data = self.pre_transform(data, idx, input_mode=self.input_mode,
-                                          dir_name=self.dir_name, visualize=self.visualize)
+                                          dir_name=self.dir_name, visualize=self.visualize, model_relation=self.model_relation)
                 if data is None:
                     continue
 
@@ -269,6 +274,12 @@ def visualize_qualitative_distribution(train_task="RandomSplitQualitativeWorld(6
     """ check data symmetry
     https://python-graph-gallery.com/80-contour-plot-with-seaborn/
     """
+
+    ## skip if already generated
+    dist_dir = join(VISUALIZATION_PATH, 'data_distribution', train_task)
+    if len([f for f in listdir(join(dist_dir)) if '.png' in f]) == 13:
+        return
+
     import seaborn as sns
     import matplotlib.pyplot as plt
     import matplotlib
@@ -289,7 +300,7 @@ def visualize_qualitative_distribution(train_task="RandomSplitQualitativeWorld(6
     counts = defaultdict(list)
     poses_data = defaultdict(list)
     total_con = 0
-    dist_dir = join(VISUALIZATION_PATH, 'data_distribution', train_task)
+    # dist_dir = join(VISUALIZATION_PATH, 'data_distribution', train_task)
     os.makedirs(dist_dir, exist_ok=True)
     for data in train_dataloader:
         data = data.to('cuda')
@@ -377,7 +388,7 @@ if __name__ == "__main__":
 
     # visualize_dataset('TableToBoxWorld(10)_train', input_mode='robot_box')
     # visualize_dataset('TableToBoxWorld(3)_test', input_mode='robot_box', visualize=True)
-    visualize_dataset('TableToBoxWorld(1)_robot_real', visualize=True)
+    # visualize_dataset('TableToBoxWorld(1)_robot_real', visualize=True)
 
     # visualize_dataset('RandomSplitWorld(1)_stability_train', input_mode='stability_flat', visualize=False)
     # visualize_dataset('RandomSplitWorld(20)_stability_train', input_mode='stability_flat', visualize=False)
@@ -388,6 +399,6 @@ if __name__ == "__main__":
     ###########################################################
 
     # check_data_distribution()
-    # visualize_qualitative_distribution()
+    visualize_qualitative_distribution()
     # visualize_packing_object_distribution()
     # visualize_qualitative_constraints_two_fold()

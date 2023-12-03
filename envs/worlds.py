@@ -13,6 +13,7 @@ from pprint import pprint
 import matplotlib.pyplot as plt
 import numpy as np
 import pdb
+from numpy.random import rand
 
 from envs.mesh_utils import CLOUD, create_tray, create_grid_meshes, Rotation2D, \
     get_color, fit_shape_in_bounds, transform_by_constraints, RENDER_PATH, \
@@ -23,7 +24,7 @@ from envs.data_utils import get_grid_index, get_grid_offset, save_graph_data, ge
     print_line, compute_pairwise_collisions, apply_grid_mask, print_tensor, grid_offset_to_pose, r, \
     compute_world_constraints, expand_unordered_constraints, compute_tidy_constraints
 from envs.render_utils import export_gif
-from envs.builders import get_tray_splitting_gen, get_sub_region_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen
+from envs.builders import get_tray_splitting_gen, get_sub_region_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen, get_aligned_data_gen
 
 
 def get_world_class(world_name):
@@ -144,9 +145,59 @@ class CSPWorld(object):
                     else:
                         constraints.append(('cfree', j, i))
         return constraints
+    
+    def generate_c_free_constraints(self, objects, collisions, sequential_sampling=False, same_order=True):
+        """ generate constraints for the scene """
+        objects = [mesh['label'] for mesh in objects.values() if mesh['label'] not in self.ignore_nodes]
+
+        if sequential_sampling:
+            constraints = []
+            for i in range(1, len(objects)):
+                if (objects[i], objects[i+1]) in collisions or (objects[i+1], objects[i]) in collisions:
+                        continue
+                if same_order or np.random.rand() < 0.5:
+                    constraints.append(('cfree', i+1, i))
+                else:
+                    constraints.append(('cfree', i, i+1))
+        else:
+            constraints = []
+            for i in range(1, len(objects) - 1):
+                for j in range(i + 1, len(objects)):
+                    if (objects[i], objects[j]) in collisions or (objects[j], objects[i]) in collisions:
+                        continue
+                    if same_order or np.random.rand() < 0.5:
+                        constraints.append(('cfree', i, j))
+                    else:
+                        constraints.append(('cfree', j, i))
+        return constraints
+    
+    def generate_c_collide_constraints(self, objects, collisions, sequential_sampling=False, same_order=True):
+        """ generate constraints for the scene """
+        objects = [mesh['label'] for mesh in objects.values() if mesh['label'] not in self.ignore_nodes]
+
+        print("collisions: ", collisions)
+        if sequential_sampling:
+            constraints = []
+            for i in range(1, len(objects)):
+                if (objects[i], objects[i+1]) in collisions or (objects[i+1], objects[i]) in collisions:
+                    if same_order or np.random.rand() < 0.5:
+                        constraints.append(('ccollide', i+1, i))
+                    else:
+                        constraints.append(('ccollide', i, i+1))
+        else:
+            constraints = []
+            for i in range(1, len(objects) - 1):
+                for j in range(i + 1, len(objects)):
+                    if (objects[i], objects[j]) in collisions or (objects[j], objects[i]) in collisions:   
+                        if same_order or np.random.rand() < 0.5:
+                            constraints.append(('ccollide', i, j))
+                        else:
+                            constraints.append(('ccollide', j, i))
+        return constraints
 
     def generate_json(self, input_mode='collisions', json_name=None,
-                      constraints={}, world={}, same_order=True, test_only=False, collisions=[]):
+                      constraints={}, world={}, same_order=True, test_only=False, 
+                      collisions=[], model_relation=[0], generating_data=False):
         """ record in a json file for collision checking """
         world.update({
             'name': self.name,
@@ -226,17 +277,28 @@ class CSPWorld(object):
                 world['objects'][name]['grid_label'] = grid_label
 
         """ compute constraints """
-        if len(world['constraints']) == 0:
-            if len(collisions) == 0:
-                world['constraints'] = self.generate_constraints(world['objects'], same_order=same_order)
-            else:
-                world['constraints'] = []
-
         from networks.denoise_fn import tidy_constraints
 
-        if 'tidy' in input_mode or input_mode in tidy_constraints:
+        if len(world['constraints']) == 0:
+            if input_mode != "tidy":
+                world['constraints'] = self.generate_constraints(world['objects'], same_order=same_order)
+            else: 
+                if generating_data:
+                    world['collisions'] = self.check_collisions_in_scene(world['objects'], verbose=False)
+                    collisions = world['collisions']
+                    if len(collisions) == 0 and 2 in model_relation:
+                        print("empty collisions")
+                        pdb.set_trace()
+                if 1 in model_relation: # or 0 in model_relation:
+                    world['constraints'] = self.generate_c_free_constraints(world['objects'], collisions, same_order=same_order)
+                if 2 in model_relation:
+                    world['constraints'] = self.generate_c_collide_constraints(world['objects'], collisions, same_order=same_order)
+                if len(world['constraints']) == 0:
+                    world['constraints'] = []
+    
+        if 'tidy' in input_mode and 0 in model_relation:
             scale = min([self.w / 3, self.l / 2])
-            world = compute_tidy_constraints(world, relation=input_mode, rotations=self.rotations, same_order=same_order, scale=scale, test_only=test_only)
+            world = compute_tidy_constraints(world, model_relation=model_relation, rotations=self.rotations, same_order=same_order, scale=scale, test_only=test_only)
 
         if 'qualitative' in input_mode:
             scale = min([self.w / 3, self.l / 2])
@@ -263,7 +325,6 @@ class CSPWorld(object):
 
         if data is None:
             data = self.generate_json(input_mode=input_mode, **kwargs)
-        
         nodes = []
         edge_index = []
         labels = []
@@ -402,8 +463,9 @@ class CSPWorld(object):
         if objects is None:
             objects = self.generate_json()['objects']
         collisions = check_collisions_in_scene(objects, rotations=self.rotations, verbose=verbose)
+        ignored_objects = ['bottom', 'south', 'north', 'east', 'west']
         collisions = [c for c in collisions if c not in self.cfree and \
-                      c[0] != 'bottom' and c[1] != 'bottom']
+                      c[0] not in ignored_objects and c[1] not in ignored_objects]
         if verbose: print('collisions', collisions)
         return collisions
 
@@ -767,47 +829,54 @@ class RandomSplitSparseWorld(RandomSplitWorld):
         super(RandomSplitSparseWorld, self).__init__(**kwargs)
         self.tidy_constraints = None
         self.rotations = {}
+        self.p = np.array([1, 3, 6, 10, 15, 21, 28, 36, 45])/165
 
-    def sample_scene(self, input_mode="aligned_bottom", min_num_objects=2, max_num_objects=6, min_offset_perc=0.15, **kwargs):
+    def sample_scene(self, min_num_objects=2, max_num_objects=6, relation="aligned_bottom", **kwargs):
         """ first get region boxes from `get_tray_spliting_gen` """
-        max_depth = math.ceil(math.log2(max_num_objects)) + 1
-        gen = get_sub_region_tray_splitting_gen(num_samples=2, min_num_regions=min_num_objects,
-                                     max_num_regions=max_num_objects, max_depth=max_depth)
-        regions = next(gen(self.w, self.l))
-        # start_idx = np.random.randint(0, len(regions)-1)
-        # regions = [regions[start_idx],regions[start_idx+1]]
-        meshes = regions_to_meshes(regions, self.w, self.l, self.h, min_offset_perc=min_offset_perc, relation=input_mode, max_offset=0.3)
-        self.tiles.extend(meshes)
+        # gen = get_sub_region_tray_splitting_gen(num_samples=2, min_num_regions=min_num_objects,
+        #                              max_num_regions=max_num_objects, max_depth=max_depth)
         
-    def get_current_constraints(self, relation, collisions=[]):
+        if max_num_objects == 2:
+            n = np.random.choice(np.arange(2, 11), p = self.p)
+            max_depth = math.ceil(math.log2(n)) + 1 
+            gen = get_aligned_data_gen(num_samples=5, min_num_regions=n,
+                                     max_num_regions=n, max_depth=max_depth, relation=relation)
+            regions, relation = next(gen(self.w, self.l, relation))
+
+            regions = [regions[idx] for idx in np.random.choice(np.arange(len(regions)), max_num_objects, replace=False)]
+        else: 
+            max_depth = math.ceil(math.log2(max_num_objects)) + 1 
+            gen = get_aligned_data_gen(num_samples=12, min_num_regions=min_num_objects,
+                                     max_num_regions=max_num_objects, max_depth=max_depth, relation=relation)
+            regions, relation = next(gen(self.w, self.l, relation))
+            
+        meshes = regions_to_meshes(regions, self.w, self.l, self.h, relation=relation)
+        self.tiles.extend(meshes)
+
+        from networks.denoise_fn import tidy_constraints
+        model_relation = [tidy_constraints.index(relation)]
+        return model_relation
+            
+    def get_current_constraints(self, evaluate_relation, collisions=[]):
         from networks.denoise_fn import ignored_constraints
-        data = self.generate_json(input_mode=relation, collisions=collisions)
+        data = self.generate_json(input_mode="tidy", model_relation=evaluate_relation, collisions=collisions)
         return [tuple(d) for d in data['constraints'] if d[0] not in ignored_constraints]
 
-    def check_constraints_satisfied(self, relation="aligned_bottom", same_order=False, **kwargs):
-       
-        print("checking collisions ... ")
-        collisions = self.check_collisions_in_scene(**kwargs)
-        print(collisions)
-        pdb.set_trace()
-        
-        # pdb.set_trace()
-        # ## check other constraints
-        # if len(collisions) > 0:
-        #     if self.img_name is not None:
-        #         json_name = self.img_name.replace('.png', '.json')
-        #         world = {
-        #             'check_constraints_satisfied': collisions,
-        #         }
-        #         self.generate_json(input_mode=relation, json_name=json_name, world=world)
-        #     return collisions
-      
-        current_constraints = self.get_current_constraints(relation, collisions) # current constraints satisfied
-        given_constraints = self.tidy_constraints 
+    def check_constraints_satisfied(self, evaluate_relation=[0], same_order=False, **kwargs):
 
+        if evaluate_relation == [0]:
+            collisions = []
+        else:
+            # print("checking collisions ... ")
+            collisions = self.check_collisions_in_scene(**kwargs)
+            
+        given_constraints = self.tidy_constraints
+
+        current_constraints = self.get_current_constraints(evaluate_relation, collisions) # current constraints satisfied
+    
         if not same_order:
             current_constraints = expand_unordered_constraints(current_constraints)
-            # given_constraints = expand_unordered_constraints(given_constraints)
+            given_constraints = expand_unordered_constraints(given_constraints)
         missing = [ct for ct in given_constraints if ct not in current_constraints]
 
         if self.img_name is not None:
@@ -821,8 +890,8 @@ class RandomSplitSparseWorld(RandomSplitWorld):
             # print('\n', self.img_name, missing)
             # print('\t', current_constraints)
             # print('\t', given_constraints)
-            self.generate_json(input_mode=relation, json_name=json_name, world=world)
-        return missing
+            self.generate_json(input_mode="tidy", model_relation=evaluate_relation, json_name=json_name, world=world)
+        return missing, 1-0.5*len(missing)/len(given_constraints)
 
     def construct_scene_from_graph_data(self, nodes, constraints=[], **kwargs):
         """ give ground truth constraints to check if they are satisfied """
