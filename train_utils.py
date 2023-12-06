@@ -158,8 +158,8 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
         elif len(tidy_relations) == 1:
             n = 10000
         elif len(tidy_relations) == 3:
-            n = 30000
-            tidy_relations = ['mixed_all']
+            n = 20000
+            tidy_relations = ['integrated_cfree&ccollide']
 
         args.train_proj = f'tidy_{tidy_relations[0]}'
         # --- for testing
@@ -175,8 +175,7 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
         if 'World' not in args.train_task:
             args.train_task = train_task
         args.test_tasks = test_tasks
-        pdb.set_trace()
-
+    
     elif args.input_mode == 'stability_flat':
         args.train_proj = 'stability'
         # train_task = "RandomSplitWorld(20)_train"
@@ -237,9 +236,9 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         train_name = f'm={model}_t={timesteps}'
     else:
         if eval_only:
-            train_name = f'm={EBM}_model_relation={model_relation}'
-        else:
             train_name = f'eval_m={EBM}_eval_relation={evaluate_relation}'
+        else:
+            train_name = f'm={EBM}_model_relation={model_relation}'
     if train_name_extra != '' and train_name_extra != train_name:
         train_name += f'_{train_name_extra}'
 
@@ -286,6 +285,7 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         log_name = train_task
 
     dataset_kwargs = dict(input_mode=input_mode, pre_transform=pre_transform, visualize=False)
+
     train_dataset = GraphDataset(train_task, model_relation=model_relation, **dataset_kwargs)
     test_datasets = {k: GraphDataset(task, model_relation=evaluate_relation, **dataset_kwargs) for k, task in test_tasks.items()}
 
@@ -374,7 +374,7 @@ def load_trainer(run_id, milestone, visualize=False, rejection_sampling=False, v
     args = get_args_from_run_id(run_id)
 
     # args.test_tasks = kwargs.get('test_tasks', args.test_tasks)
-    for k in ['input_mode', 'train_task', 'test_tasks', 'train_num_steps', 'EBM', 'model_relation', 'evaluate_relation', 'eval_only', 'energy_wrapper']:
+    for k in ['input_mode', 'train_task', 'test_tasks', 'train_num_steps', 'EBM', 'model_relation', 'evaluate_relation', 'eval_only', 'energy_wrapper', 'samples_per_step']:
         if k in kwargs:
             setattr(args, k, kwargs[k])
             kwargs.pop(k)
@@ -382,7 +382,8 @@ def load_trainer(run_id, milestone, visualize=False, rejection_sampling=False, v
         pprint(args.__dict__)
 
     trainer = create_trainer(args, visualize=visualize, rejection_sampling=rejection_sampling,
-                             eval_only=True, verbose=verbose, **kwargs)
+                             verbose=verbose, **kwargs)
+    
     trainer.load(milestone)
     return trainer
 

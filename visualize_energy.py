@@ -662,7 +662,6 @@ def make_tidy_energy_fn(x, y, denoise_fn, trainer, c_idx, geoms_emb, time_emb,
    
     outputs = denoise_fn._process_constraint(c_idx, input_dict)  ## torch.Size([600*(n_objs-1), 2, 4])
     
-    
     outputs = outputs.reshape(n, -1, 2, 4) ## torch.Size([600, n_objs-1, 2, 4])
     
     if use_EBM_wrapper:
@@ -793,6 +792,7 @@ def plot_diffusion_by_pt(run_id, milestone, data_pt, key, con_pair, t=0, save_pn
         energy = energy.reshape(x.shape).cpu().detach().numpy()
         gradients = gradients.cpu().detach().numpy()  ## torch.Size([100, 2, 4]) -> (100, 2)
         return energy, gradients, outputs  ## [100, 2]
+    
 
     images[key] = make_plot(composed_energy_fn, name=key, **plot_kwargs)
     return images
@@ -839,23 +839,79 @@ def get_qualitative_config():
 
     return input_mode, run_id, milestone, timesteps
 
-def get_tidy_config(single_model, name):
-    input_mode = 'aligned_bottom'
+def get_tidy_config(model_name, relation_name):
+   
+    if model_name == "aligned_bottom":
+        model_relation = [0]
+        model_id = '5ckl6qnj'
+        milestone = 11
+    elif model_name == "cfree":
+        model_relation = [1]
+        model_id = '6b95pov5'
+        milestone = 13
+       
+    elif model_name == "ccollide":
+        model_relation = [2]
+        model_id = 'cvh3bsux'
+        milestone = 13
+        
+    elif model_name == "mixed_cfree":
+        model_relation = [0, 1]
+        model_id = 'nlx9uk0b'
+        milestone = 13
+        
+    elif model_name == "mixed_ccollide":
+        model_relation = [0, 2]
+        model_id = 'kx2ig70z'
+        milestone = 17
+       
+    elif model_name == "integrated_cfree&ccollide":
+        model_relation = [0, 1, 2]
+        model_id = 'qnoni470'
+        milestone = 13
 
-    if single_model:
-        if name == 'aligned_bottom':
-            run_id, milestone, timesteps, single_relation = 'vdl5asu6', 11, 1500, True
-        elif name == 'cfree':
-            run_id, milestone, timesteps, single_relation = 'trci7w1x', 11, 1500, False
-    else:
-        run_id, milestone, timesteps, single_relation = 'urnb8iua', 13, 1500, False  ## aligned_bottom & c-free
+    if relation_name == "aligned_bottom":
+        evaluate_relation = [0]
+        end_idx = 11
+        n = 10
+    elif relation_name == "cfree":
+        evaluate_relation = [1]
+        end_idx = 11
+        n = 10
+    elif relation_name == "ccollide":
+        evaluate_relation = [2]
+        end_idx = 11
+        n = 10
+    elif relation_name == "mixed_cfree":
+        evaluate_relation = [0, 1]
+        end_idx = 11
+        n = 20
+    elif relation_name == "mixed_ccollide":
+        evaluate_relation = [0, 2]
+        end_idx = 11
+        n = 20
+    elif relation_name == "integrated_cfree":
+        evaluate_relation = [0, 1]
+        end_idx = 11
+        n = 20
+    elif relation_name == "integrated_ccollide":
+        evaluate_relation = [0, 2]
+        end_idx = 11
+        n = 20
+    elif relation_name == "integrated_cfree&ccollide":
+        end_idx = 3
+        evaluate_relation = [0, 1, 2]
+        n = 20
+ 
+    test_tasks = {i: f'RandomSplitSparseWorld({n})_tidy_test_{i}_split/{relation_name}' for i in [2, 3, 5, 8]}
+   
 
-    if not isdir(join(OUTPUT_PATH, run_id)):
-        os.makedirs(join(OUTPUT_PATH, run_id))
-    if not isdir(join(OUTPUT_PATH, run_id, 'data')):
-        os.makedirs(join(OUTPUT_PATH, run_id, 'data'))
+    if not isdir(join(OUTPUT_PATH, model_id)):
+        os.makedirs(join(OUTPUT_PATH, model_id))
+    if not isdir(join(OUTPUT_PATH, model_id, 'data')):
+        os.makedirs(join(OUTPUT_PATH, model_id, 'data'))
 
-    return input_mode, run_id, milestone, timesteps, single_relation
+    return model_id, milestone, model_relation, evaluate_relation, test_tasks
 
 
 def crop_sample_images(data_dir, w=None, padding=20):
@@ -895,31 +951,18 @@ def generate_gif_plots(input_mode, run_id, milestone, name, timestep, plot_kwarg
         os.remove(img)
     return file_name
 
-def visualize_energy_field_masked(n_objs, name="aligned_bottom", mode="fixed", single_mode=True, t=0, save_png=True, render_history=True, EBM=False, test_tasks={}, **kwargs):
+def visualize_energy_field_masked(n_objs, model_name, optimized_relation, plot_relation, t=0, save_png=True, render_history=True, EBM=False):
     
-    input_mode, run_id, milestone, timesteps, single_relation = get_tidy_config(single_mode, name)
+    run_id, milestone, model_relation, evaluate_relation, test_tasks = get_tidy_config(model_name, optimized_relation)
 
-    if mode == "fixed":
-        test_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_split' for i in range(2, 11)}
-    elif mode == "random":
-        test_tasks = {i: f'RandomSplitSparseWorld(5)_aligned_bottom_test_{i}_split' for i in range(2, 11)}
-    else:
-        print("unknown mode")
-        return
-    
-    if name == "aligned_bottom":
-        evaluate_single_relation = True
-    elif name == "cfree":
-        evaluate_single_relation = False
-    else:
-        print("Unknown name")
-        return 
-    trainer = load_trainer(run_id, milestone, test_tasks=test_tasks, visualize=False, test_model=False, verbose=False, single_relation=single_relation, evaluate_single_relation=evaluate_single_relation, EBM=EBM, **kwargs)
+    input_mode = "tidy"
+
+    trainer = load_trainer(run_id, milestone, test_tasks=test_tasks, visualize=False, test_model=False, verbose=False, model_relation=model_relation, evaluate_relation=evaluate_relation, EBM=EBM)
     trainer.model.eval()
 
     data_list = trainer.get_masked_testing_data(n_objs=n_objs)
     
-    output_dir = join(OUTPUT_PATH, run_id, mode, name, f"n={n_objs}")
+    output_dir = join(OUTPUT_PATH, run_id, f"m={model_name}_opt_for_{optimized_relation}", f"{plot_relation}", f"n={n_objs}")
     os.makedirs(output_dir, exist_ok=True)
 
     for idx, ele in enumerate(data_list):
@@ -946,7 +989,7 @@ def visualize_energy_field_masked(n_objs, name="aligned_bottom", mode="fixed", s
                 render_kwargs = dict(world_dims=(3, 2), world_name="RandomSplitSparseWorld", log=True, show=False)
                 
                 render_kwargs['constraints'] = [('aligned_bottom', 1, 2)]
-                evaluations = render_world_from_graph(pose_features, save=True, png_name=png_name, evaluate_single_relation=False, **render_kwargs)
+                evaluations = render_world_from_graph(pose_features, save=True, png_name=png_name, evaluate_relation=evaluate_relation, **render_kwargs)
                 # print(name, '\tviolated constraints:', evaluations)
 
                 # pdb.set_trace()
@@ -957,7 +1000,7 @@ def visualize_energy_field_masked(n_objs, name="aligned_bottom", mode="fixed", s
             
             """ get energy field """
             denoise_fn, use_EBM_wrapper = get_denoise_fn(trainer)
-            c_idx = denoise_fn.constraint_sets.index(name)
+            c_idx = denoise_fn.constraint_sets.index(plot_relation)
 
             geoms_in = geoms_in.clone().detach().to(denoise_fn.device)
             # geoms_in = torch.tensor(geoms_in).float().to(denoise_fn.device)
@@ -972,33 +1015,27 @@ def visualize_energy_field_masked(n_objs, name="aligned_bottom", mode="fixed", s
             def energy_fn(x, y):
                 return make_tidy_energy_fn(x, y, denoise_fn, trainer, c_idx, geoms_emb, time_emb, use_EBM_wrapper, pose_A_idx, poses_in)
 
-            make_plot(energy_fn, run_id=run_id, name=name, input_mode=input_mode, t=t, save_png=save_png, use_toy_data=False, output_dir=curr_dir)
+            make_plot(energy_fn, run_id=run_id, name=plot_relation, input_mode=input_mode, t=t, save_png=save_png, use_toy_data=False, output_dir=curr_dir)
 
-    data_dir = join(OUTPUT_PATH, run_id)
-    for f in os.listdir(OUTPUT_PATH):
-        if f.endswith('.png') or f.endswith('.mp4') or f.endswith('.json'):
-            shutil.move(join(OUTPUT_PATH, f), join(data_dir, f))
+    # data_dir = join(OUTPUT_PATH, run_id)
+    # for f in os.listdir(OUTPUT_PATH):
+    #     if f.endswith('.png') or f.endswith('.mp4') or f.endswith('.json'):
+    #         shutil.move(join(OUTPUT_PATH, f), join(data_dir, f))
 
-def visualize_energy_field_unmasked(n_objs, name="aligned_bottom", mode="fixed", single_mode=True, t=0, save_png=True, render_history=True, EBM=False, test_tasks={}, **kwargs):
+def visualize_energy_field_unmasked(n_objs, model_name, optimized_relation, plot_relation, t=0, save_png=True, render_history=True, EBM=False, test_tasks={}, **kwargs):
     
-    input_mode, run_id, milestone, timesteps, single_relation = get_tidy_config(single_mode, name)
+    run_id, milestone, model_relation, evaluate_relation, test_tasks = get_tidy_config(model_name, optimized_relation)
 
-    test_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_split' for i in range(2, 11)}
+    input_mode = "tidy"
 
-
-    if name == "aligned_bottom":
-        evaluate_single_relation = True
-    elif name == "cfree":
-        evaluate_single_relation = False
-  
-    trainer = load_trainer(run_id, milestone, test_tasks=test_tasks, visualize=False, test_model=False, verbose=False, single_relation=single_relation, evaluate_single_relation=evaluate_single_relation, EBM=EBM, **kwargs)
+    trainer = load_trainer(run_id, milestone, test_tasks=test_tasks, visualize=False, test_model=False, verbose=False, model_relation=model_relation, evaluate_relation=evaluate_relation, EBM=EBM, **kwargs)
     trainer.model.eval()
 
     # data, geoms_in, world_name = get_tidy_test_data(input_mode, name, use_container=use_container)
 
     data_list = trainer.get_unmasked_testing_data(n_objs=n_objs)
-    
-    output_dir = join(OUTPUT_PATH, run_id, "optimized", f'n={n_objs}')
+
+    output_dir = join(OUTPUT_PATH, run_id, f"m={model_name}_opt_for_{optimized_relation}_full", f"{plot_relation}", f"n={n_objs}")
     os.makedirs(output_dir, exist_ok=True)
 
     for idx, ele in enumerate(data_list):
@@ -1020,7 +1057,7 @@ def visualize_energy_field_unmasked(n_objs, name="aligned_bottom", mode="fixed",
             render_kwargs = dict(world_dims=(3, 2), world_name="RandomSplitSparseWorld", log=True, show=False)
                 
             render_kwargs['constraints'] = [('aligned_bottom', 1, 2)]
-            evaluations = render_world_from_graph(pose_features, save=True, png_name=png_name, evaluate_single_relation=True, **render_kwargs)
+            evaluations = render_world_from_graph(pose_features, save=True, png_name=png_name, evaluate_relation=evaluate_relation, **render_kwargs)
             # print(name, '\tviolated constraints:', evaluations)
 
             # pdb.set_trace()
@@ -1041,7 +1078,7 @@ def visualize_energy_field_unmasked(n_objs, name="aligned_bottom", mode="fixed",
             
             """ get energy field """
             denoise_fn, use_EBM_wrapper = get_denoise_fn(trainer)
-            c_idx = denoise_fn.constraint_sets.index(name)
+            c_idx = denoise_fn.constraint_sets.index(plot_relation)
 
             # geoms_in = torch.tensor(geoms_in).float().to(denoise_fn.device)
             geoms_in = geoms_in.clone().detach().to(denoise_fn.device)
@@ -1056,30 +1093,29 @@ def visualize_energy_field_unmasked(n_objs, name="aligned_bottom", mode="fixed",
             def energy_fn(x, y):
                 return make_tidy_energy_fn(x, y, denoise_fn, trainer, c_idx, geoms_emb, time_emb, use_EBM_wrapper, pose_A_idx, poses_in)
 
-            make_plot(energy_fn, run_id=run_id, name=name, input_mode=input_mode, t=t, save_png=save_png, use_toy_data=False, output_dir=curr_dir)
+            make_plot(energy_fn, run_id=run_id, name=plot_relation, input_mode=input_mode, t=t, save_png=save_png, use_toy_data=False, output_dir=curr_dir)
 
-    data_dir = join(OUTPUT_PATH, run_id)
-    for f in os.listdir(OUTPUT_PATH):
-        if f.endswith('.png') or f.endswith('.mp4') or f.endswith('.json'):
-            shutil.move(join(OUTPUT_PATH, f), join(data_dir, f))
+    # data_dir = join(OUTPUT_PATH, run_id)
+    # for f in os.listdir(OUTPUT_PATH):
+    #     if f.endswith('.png') or f.endswith('.mp4') or f.endswith('.json'):
+    #         shutil.move(join(OUTPUT_PATH, f), join(data_dir, f))
 
 
-def visualize_energy_field_unmasked_both(n_objs, t=0, save_png=True, render_history=True, EBM=False, test_tasks={}, **kwargs):
+def visualize_energy_field_unmasked_both(n_objs,  model_name, optimized_relation, plot_relation, t=0, save_png=True, render_history=True, EBM=False, **kwargs):
     import torch
     from envs.data_utils import render_world_from_graph, tidy_constraint_from_edge_attr
 
-    name1 = 'aligned_bottom'
-    name2 = 'cfree'
-    input_mode, run_id, milestone, timesteps = get_tidy_config()
+    name1, name2 = plot_relation.split('&')
+    run_id, milestone, model_relation, evaluate_relation, test_tasks = get_tidy_config(model_name, optimized_relation)
 
-    test_tasks = {i: f'RandomSplitSparseWorld(5)_aligned_bottom_test_{i}_split' for i in range(2, 11)}
-  
-    trainer = load_trainer(run_id, milestone, test_tasks=test_tasks, visualize=False, test_model=False, verbose=False, single_relation=True, evaluate_single_relation=True, EBM=EBM, **kwargs)
+    input_mode = "tidy"
+
+    trainer = load_trainer(run_id, milestone, test_tasks=test_tasks, visualize=False, test_model=False, verbose=False, model_relation=model_relation, evaluate_relation=evaluate_relation, EBM=EBM, **kwargs)
     trainer.model.eval()
 
     data_list = trainer.get_unmasked_testing_data(n_objs=n_objs)
 
-    output_dir = join(f"{OUTPUT_PATH}_both", run_id, f'n={n_objs}')
+    output_dir = join(OUTPUT_PATH, run_id, f"m={model_name}_opt_for_{optimized_relation}", f"{plot_relation}", f"n={n_objs}")
     os.makedirs(output_dir, exist_ok=True)
 
     for idx, ele in enumerate(data_list):
@@ -1101,7 +1137,7 @@ def visualize_energy_field_unmasked_both(n_objs, t=0, save_png=True, render_hist
             render_kwargs = dict(world_dims=(3, 2), world_name="RandomSplitSparseWorld", log=True, show=False)
                 
             render_kwargs['constraints'] = [('aligned_bottom', 1, 2)]
-            evaluations = render_world_from_graph(pose_features, save=True, png_name=png_name, evaluate_single_relation=True, **render_kwargs)
+            evaluations = render_world_from_graph(pose_features, save=True, png_name=png_name, evaluate_relation=evaluate_relation, **render_kwargs)
             # print(name, '\tviolated constraints:', evaluations)
 
             # pdb.set_trace()
@@ -1143,8 +1179,8 @@ def visualize_energy_field_unmasked_both(n_objs, t=0, save_png=True, render_hist
                        output_dir=curr_dir, use_toy_data=False)
             
             images = {}
-            images[name1] = make_plot(energy_fn_1, name="aligned_bottom", **plot_kwargs)
-            images[name2] = make_plot(energy_fn_2, name="cfree", **plot_kwargs)
+            images[name1] = make_plot(energy_fn_1, name=name1, **plot_kwargs)
+            images[name2] = make_plot(energy_fn_2, name=name2, **plot_kwargs)
 
             def noise_function(sshape):
                 return torch.randn(sshape, device=denoise_fn.device)
@@ -1153,8 +1189,6 @@ def visualize_energy_field_unmasked_both(n_objs, t=0, save_png=True, render_hist
 
             def composed_energy_fn(x, y):
                 """ x: [10, 10], grad : [2, 10, 10] """
-                poses_in = get_poses_in(x, y, denoise_fn)[:, 0, :2]  ## [100, 2]
-
                 n = x.shape[0] * x.shape[1]
 
                 emb_dict = {
@@ -1162,27 +1196,28 @@ def visualize_energy_field_unmasked_both(n_objs, t=0, save_png=True, render_hist
                     'time_emb': time_emb
                 }
 
-                input_dict, poses_all = get_tidy_poses_in(x, y, denoise_fn, poses_A_idx=poses_A_idx, poses_in=poses_in, emb_dict=emb_dict) 
-
+                input_dict, poses_all = get_tidy_poses_in(x, y, denoise_fn, poses_A_idx=pose_A_idx, poses_in=poses_in, emb_dict=emb_dict) 
+                # poses_in = input_dict['poses_emb'][:, :2]  ## [100, 2]
+                poses_all = poses_all.reshape(n, -1, 2, 4)[:, 0, 0, :2]
                 outputs = torch.stack([torch.tensor(x).flatten(), torch.tensor(y).flatten()], dim=1).to(denoise_fn.device)  ## [600, 2]
                 for i in range(trainer.model.samples_per_step):
                     ss = step_sizes[t]
                     std = (2 * ss) ** .5
-                    grad = energy_fn_1(x, y)[2] + energy_fn_2(x, y)[2]
+                    grad = ((energy_fn_1(x, y)[2] + energy_fn_2(x, y)[2])/2).reshape(outputs.shape[0], -1, 4)
                     grad = grad[:, 0, :2] * trainer.model._sqrt_recipm1_alphas_cumprod_custom[t]
                     noise = noise_function(outputs.shape) * std
                     outputs = outputs + grad * ss + noise
-                    x = outputs[:, 0].reshape(30, 20).cpu().detach().numpy()
-                    y = outputs[:, 1].reshape(30, 20).cpu().detach().numpy()
+                    x = outputs[:, 0].reshape(20, 30).cpu().detach().numpy()
+                    y = outputs[:, 1].reshape(20, 30).cpu().detach().numpy()
+            
                 energy = - torch.sum(outputs ** 2, dim=1)
                 gradients = poses_all - outputs
                 energy = energy.reshape(x.shape).cpu().detach().numpy()
-                gradients = gradients.cpu().detach().numpy()  ## torch.Size([100, 2, 4]) -> (100, 2)
+                gradients = gradients.cpu().detach().numpy() 
                 return energy, gradients, outputs  ## [100, 2]
 
             images["composed"] = make_plot(composed_energy_fn, name="composed", **plot_kwargs)
-    
-    return images
+
 
 def generate_qualitative_plots_one_fold(save_gif=False, use_saved_data=False, render_history=False, EBM="ULA", **kwargs):
     input_mode, run_id, milestone, timesteps = get_qualitative_config()
@@ -1312,11 +1347,33 @@ if __name__ == '__main__':
     # train_task = "RandomSplitQualitativeWorld(20000)_qualitative_test"
     # generate_tidy_plots_one_fold(train_task=train_task, render_history=True, EBM="ULA")
     # generate_tidy_plots_one_fold(render_history=True, EBM=False)
-    # for i in range(2, 11):
-    #     visualize_energy_field_masked(n_objs=i, name="cfree", mode="random", single_mode=True)
+    # model_name = "integrated_cfree&ccollide"
+    # optimized_relation = "integrated_cfree&ccollide"
 
-    for i in range(2, 11):
+    tests = [
+        ("aligned_bottom", "aligned_bottom", "aligned_bottom"),
+        ("cfree", "cfree", "cfree"),
+        ("ccollide", "ccollide", "ccollide"),
+        ("mixed_ccollide", "integrated_ccollide", "aligned_bottom"),
+        ("mixed_ccollide", "integrated_ccollide", "ccollide"),
+        ("integrated_cfree&ccollide", "integrated_cfree", "aligned_bottom"),
+        ("integrated_cfree&ccollide", "integrated_cfree", "cfree"),
+        ("integrated_cfree&ccollide", "integrated_ccollide", "aligned_bottom"),
+        ("integrated_cfree&ccollide", "integrated_ccollide", "ccollide"),
+        ("integrated_cfree&ccollide", "integrated_ccollide", "aligned_bottom&ccollide"),
+        ("integrated_cfree&ccollide", "integrated_cfree", "aligned_bottom&cfree"),
+    ]
+    
+    for model_name, optimized_relation, plot_relation in tests[7:9]:
+        for n_objs in [8]:
+            visualize_energy_field_masked(n_objs, model_name=model_name, optimized_relation=optimized_relation, plot_relation=plot_relation)
 
-        visualize_energy_field_unmasked(n_objs=i, name="cfree", single_mode=True)
+    # model_name, optimized_relation, plot_relation = tests[10]
 
-    # generate_qualitative_plots_two_fold()
+    # for model_name, optimized_relation, plot_relation in tests[6:9]:
+    #     for n_objs in [2, 3, 5]:
+    #         visualize_energy_field_unmasked(n_objs, model_name=model_name, optimized_relation=optimized_relation, plot_relation=plot_relation)
+
+    # for n_objs in [2, 3, 5, 8]:
+
+    #     visualize_energy_field_unmasked_both(n_objs,  model_name, optimized_relation, plot_relation, t=0, save_png=True, render_history=True, EBM=False)

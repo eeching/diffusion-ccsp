@@ -243,9 +243,9 @@ def regions_to_meshes(regions, width, length, height,
             continue
 
         
-        if relation == "aligned_bottom":            
+        if "aligned_bottom" in relation or "ccollide" in relation:        
             ps = [0, 0, 0, 0]
-        elif relation == "cfree":
+        elif "cfree" in relation:
             ps = [0, 0, 0, 0]
             if w < 0.2: # is the rectangle is already very thin
                 w_ratio = [0.05, 0.01]
@@ -258,8 +258,6 @@ def regions_to_meshes(regions, width, length, height,
                 l_ratio = [0.1, 0.45]
 
             ps = [np.random.uniform(l_ratio[0]*l, l_ratio[1]*l), np.random.uniform(w_ratio[0]*w, w_ratio[1]*w), np.random.uniform(l_ratio[0]*l, l_ratio[1]*l), np.random.uniform(w_ratio[0]*w, w_ratio[1]*w)]
-        elif relation == "ccollide":
-            ps = [0, 0, 0, 0] 
         else:
             ps = np.random.uniform(max_offset*min_offset_perc, max_offset, 4)  ## padding [top, left, bottom, right]
         

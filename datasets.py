@@ -111,8 +111,8 @@ class GraphDataset(InMemoryDataset): ## Dataset | InMemoryDataset
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
             if self.pre_transform is not None:
-                data = self.pre_transform(data, idx, input_mode=self.input_mode,
-                                          dir_name=self.dir_name, visualize=self.visualize, model_relation=self.model_relation)
+                data = self.pre_transform(data, idx, input_mode=self.input_mode, model_relation=self.model_relation,
+                                          dir_name=self.dir_name, visualize=self.visualize)
                 if data is None:
                     continue
 

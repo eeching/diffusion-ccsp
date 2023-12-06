@@ -537,6 +537,8 @@ class ConstraintDiffuser(torch.nn.Module):
             relation_idx_mapping = {0: 0, 1: 1}
         elif self.model_relation == [0, 2]:
             relation_idx_mapping = {0: 0, 1: 2}
+        elif self.model_relation == [0, 1, 2]:
+            relation_idx_mapping = {0: 0, 1: 1, 2: 2}
         
         for i in range(len(self.mlps)):
 

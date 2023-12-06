@@ -12,10 +12,10 @@ import pdb
 ####################################################################################################
 
 
-def pre_transform(data, data_idx, input_mode, debug_mode=0, **kwargs):
+def pre_transform(data, data_idx, input_mode, model_relation, debug_mode=0, **kwargs):
     if 'diffuse_pairwise' in input_mode or 'robot' in input_mode or 'stability' in input_mode \
             or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints:
-        return data_transform_cn_diffuse_batch(data, data_idx, input_mode, **kwargs)
+        return data_transform_cn_diffuse_batch(data, data_idx, input_mode, model_relation=model_relation, **kwargs)
     if input_mode == 'collisions':
         return data_transform_cn_graph(data, data_idx, **kwargs)
     return data_transform_pose_gen(data, data_idx, input_mode, debug_mode=debug_mode)
@@ -23,7 +23,7 @@ def pre_transform(data, data_idx, input_mode, debug_mode=0, **kwargs):
 
 ####################################################################################################
 
-def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, visualize=False, verbose=False, model_relation=[0]):
+def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, visualize=False, verbose=False, model_relation=[]):
     """
         excluding the first feature on type [0 (container) / 1 (tiles)]
         for BoxWorld: each object has 4 features
@@ -173,7 +173,7 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
 
             if 'robot' in input_mode and 'qualitative' in input_mode:
                 all_constraints = robot_qualitative_constraints
-            if 'tidy' in input_mode or input_mode in tidy_constraints:
+            if 'tidy' in input_mode:
                 all_constraints = np.array(tidy_constraints)[model_relation].tolist()
                 
         feature = geom + pose

@@ -175,7 +175,7 @@ class CSPWorld(object):
         """ generate constraints for the scene """
         objects = [mesh['label'] for mesh in objects.values() if mesh['label'] not in self.ignore_nodes]
 
-        print("collisions: ", collisions)
+        # print("collisions: ", collisions)
         if sequential_sampling:
             constraints = []
             for i in range(1, len(objects)):
@@ -197,7 +197,7 @@ class CSPWorld(object):
 
     def generate_json(self, input_mode='collisions', json_name=None,
                       constraints={}, world={}, same_order=True, test_only=False, 
-                      collisions=[], model_relation=[0], generating_data=False):
+                      collisions=[], model_relation=[], generating_data=False):
         """ record in a json file for collision checking """
         world.update({
             'name': self.name,
@@ -280,6 +280,7 @@ class CSPWorld(object):
         from networks.denoise_fn import tidy_constraints
 
         if len(world['constraints']) == 0:
+            world['constraints'] = []
             if input_mode != "tidy":
                 world['constraints'] = self.generate_constraints(world['objects'], same_order=same_order)
             else: 
@@ -292,8 +293,15 @@ class CSPWorld(object):
                 if 1 in model_relation: # or 0 in model_relation:
                     world['constraints'] = self.generate_c_free_constraints(world['objects'], collisions, same_order=same_order)
                 if 2 in model_relation:
-                    world['constraints'] = self.generate_c_collide_constraints(world['objects'], collisions, same_order=same_order)
+                    world['constraints'] += self.generate_c_collide_constraints(world['objects'], collisions, same_order=same_order)
+                
                 if len(world['constraints']) == 0:
+                    # pdb.set_trace()
+
+                    # if 1 in model_relation: # or 0 in model_relation:
+                    #     world['constraints'] = self.generate_c_free_constraints(world['objects'], collisions, same_order=same_order)
+                    # if 2 in model_relation:
+                    #     world['constraints'] += self.generate_c_collide_constraints(world['objects'], collisions, same_order=same_order)
                     world['constraints'] = []
     
         if 'tidy' in input_mode and 0 in model_relation:
@@ -854,10 +862,11 @@ class RandomSplitSparseWorld(RandomSplitWorld):
         self.tiles.extend(meshes)
 
         from networks.denoise_fn import tidy_constraints
-        model_relation = [tidy_constraints.index(relation)]
+        relations = relation.split('&')
+        model_relation = [tidy_constraints.index(r) for r in relations]
         return model_relation
             
-    def get_current_constraints(self, evaluate_relation, collisions=[]):
+    def get_current_constraints(self, evaluate_relation, collisions):
         from networks.denoise_fn import ignored_constraints
         data = self.generate_json(input_mode="tidy", model_relation=evaluate_relation, collisions=collisions)
         return [tuple(d) for d in data['constraints'] if d[0] not in ignored_constraints]

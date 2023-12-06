@@ -19,11 +19,11 @@ def check_data_graph(dataset_name):
 
 def evaluate_model(run_id, milestone, tries=(10, 0), json_name='eval', save_log=True,
                    run_all=False, render=True, run_only=False, resume_eval=False, render_name_extra=None,
-                   return_history=False, **kwargs):
+                   return_history=False, n_tasks=None, test_name=None, **kwargs):
     
     trainer = load_trainer(run_id, milestone, **kwargs)
 
-    trainer.render_dir = trainer.render_dir.replace('train', 'test_(10)')
+    trainer.render_dir = trainer.render_dir.replace('train', f'test_{test_name}({n_tasks})')
     os.makedirs(trainer.render_dir, exist_ok=True)
     
     if render_name_extra is not None:
@@ -112,25 +112,77 @@ def indie_runs():
     #     # evaluate_model('4xt8u4n7', milestone=20, tries=(1, 0), test_tasks=test_tasks, json_name=f'tamp_{k}', run_all=True)  ## 0.005-0.01 sec per graph
 
 def eval_new_set():
-    # partial_constraints = False
-    # eval_10_kwargs = dict(tries=(5, 0), json_name='eval', save_log=False, visualize=True, test_set=True, return_history=False, partial_constraints=partial_constraints)
-    eval_10_kwargs = dict(tries=(10, 0), json_name='eval', save_log=False, visualize=False, test_set=True, return_history=False, run_all=True, model_relation=[0], evaluate_relation=[0], EBM=False, samples_per_step=20, eval_only=True)
-    # if partial_constraints:
-    #     test_10_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_partial_constraints_True_split' for i in range(2, 6)}
-    # else:
-    #     test_10_tasks = {i: f'RandomSplitSparseWorld(10)_aligned_bottom_test_{i}_split' for i in range(2, 6)}
-    test_10_tasks = {i: f'RandomSplitSparseWorld(100)_tidy_test_{i}_split/aligned_bottom' for i in range(2, 11)}
+    # relation = "integrated_cfree&ccollide"
+
+    # relation = "mixed_ccollide"
+    relation = "ccollide"
+    eval_relation = None
+    # eval_relation = "integrated_ccollide"
+
+    if eval_relation is None:
+        eval_relation = relation
+    small_task = False
+    EBM = False
+    if small_task:
+        n = 10
+        visualize = True
+    else:
+        n = 100
+        visualize = False
+
+    if relation == "aligned_bottom":
+        model_relation = [0]
+        evaluate_relation = [0]
+        end_idx = 11
+        model_id = '5ckl6qnj'
+        milestone = 11
+    elif relation == "cfree":
+        model_relation = [1]
+        evaluate_relation = [1]
+        end_idx = 11
+        model_id = '6b95pov5'
+        milestone = 13
+    elif relation == "ccollide":
+        model_relation = [2]
+        evaluate_relation = [2]
+        end_idx = 11
+        model_id = 'cvh3bsux'
+        milestone = 13
+    elif relation == "mixed_cfree":
+        model_relation = [0, 1]
+        evaluate_relation = [0, 1]
+        end_idx = 11
+        model_id = 'nlx9uk0b'
+        # model_id = 'p507ks09'
+        milestone = 13
+    elif relation == "mixed_ccollide":
+        model_relation = [0, 2]
+        evaluate_relation = [0, 2]
+
+        if eval_relation != relation:
+            end_idx = 11
+        else:
+            end_idx = 3
+        model_id = 'kx2ig70z'
+        milestone = 17
+    elif relation == "integrated_cfree&ccollide":
+        model_relation = [0, 1, 2]
+
+        if eval_relation != relation:
+            end_idx = 11
+        else:
+            end_idx = 3
+        evaluate_relation = [0, 1, 2]
+        model_id = 'qnoni470'
+        milestone = 13
+
+
+    eval_10_kwargs = dict(tries=(10, 0), json_name='eval', save_log=False, visualize=visualize, test_set=True, return_history=False,
+                        run_all=True, model_relation=model_relation, evaluate_relation=evaluate_relation, EBM=EBM, samples_per_step=20, eval_only=True)
+ 
+    test_10_tasks = {i: f'RandomSplitSparseWorld({n})_tidy_test_{i}_split/{eval_relation}' for i in range(2, end_idx)}
     # evaluate_model('qsd3ju74', input_mode="aligned_bottom", milestone=7, test_tasks=test_5_tasks, **eval_5_kwargs)
-    
-    # evaluate_model('tfpwxhwc', input_mode="aligned_bottom", milestone=7, test_tasks=test_10_tasks, **eval_10_kwargs)
-    # evaluate_model('e65kirak', input_mode="aligned_bottom", milestone=5, test_tasks=test_10_tasks, **eval_10_kwargs)
-    # evaluate_model('8j4sp2eg', input_mode="aligned_bottom", milestone=15, test_tasks=test_10_tasks, **eval_10_kwargs)
-    # evaluate_model('opq3cr2l', input_mode="aligned_bottom", milestone=2, test_tasks=test_10_tasks, **eval_10_kwargs)
-    # evaluate_model('dx8vkgz9', input_mode="aligned_bottom", milestone=1, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, single
-    # evaluate_model('lwxp9l76', input_mode="aligned_bottom", milestone=0, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, both
-    # evaluate_model('hz8snjdg', input_mode="aligned_bottom", milestone=3, test_tasks=test_10_tasks, **eval_10_kwargs) # False, single
-    # evaluate_model('smuob4no', input_mode="aligned_bottom", milestone=2, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
-    
+
 
     # evaluate_model('cegzrggl', input_mode="aligned_bottom", milestone=2, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, single
     # evaluate_model('mun5fyd7', input_mode="aligned_bottom", milestone=1, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, both
@@ -139,9 +191,10 @@ def eval_new_set():
     
     
     # evaluate_model('urnb8iua', input_mode="aligned_bottom", milestone=13, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
-
     # evaluate_model('trci7w1x', input_mode="aligned_bottom", milestone=11, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
-    evaluate_model('5ckl6qnj', input_mode="tidy", relation="aligned_bottom", milestone=11, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
+
+   
+    evaluate_model(model_id, input_mode="tidy", relation=relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks=n, test_name=eval_relation, **eval_10_kwargs) # False, both
 
 if __name__ == '__main__':
     # indie_runs()

@@ -48,8 +48,8 @@ if __name__ == '__main__':
     # )
 
     energy_wrapper = False
-    model_relation = [2]
-    evaluate_relation = [2]
+    model_relation = [0, 1, 2]
+    evaluate_relation = [0, 1, 2]
     # EBM = "ULA" 
     EBM = False
 

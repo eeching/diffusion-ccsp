@@ -681,8 +681,9 @@ class Trainer(object):
 
                             # ## debug ## TODO: remove
                             # features = batch.x[torch.where(batch.x_extract == j)]
-
-                            world_dims = batch.world_dims[j]
+                          
+                            world_dims = (3, 2)
+                            
                             if torch.isnan(features).any():
                                 continue
                             if m == 0 and j in succeeded_graph_indices:
@@ -750,6 +751,7 @@ class Trainer(object):
                                     edge_index -= (offset - 1)
                                     constraints = tidy_constraint_from_edge_attr(edge_attr, edge_index, evaluate_relation=self.evaluate_relation)
                                     render_kwargs.update(dict(constraints=constraints))
+
 
                                 evaluations, success_ratio = render_world_from_graph(features, evaluate_relation=self.evaluate_relation, **render_kwargs)
                                 

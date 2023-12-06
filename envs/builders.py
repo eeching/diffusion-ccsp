@@ -103,6 +103,55 @@ def get_aligned_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, m
 
             return regions, 'aligned_bottom'
         
+        def get_pairwise_aligned_cfree():
+
+            regions = []
+            n = rn.randint(2, 11)
+
+            y_bottom = rn.uniform(0.2, 0.95)*(L - 2* offset) 
+            xs = np.sort(rn.uniform(0+offset, W - 2*offset, size = n * 2))
+            ys = rn.uniform(0, L - y_bottom, size = n)
+
+            for i in rn.choice(n, size = 2, replace = False):
+                x1 = xs[i * 2]
+                w1 = xs[i * 2 + 1] - x1
+                l1 = ys[i] 
+                regions.append((x1, y_bottom, w1, l1))
+
+            return regions, 'aligned_bottom&cfree'
+        
+        def get_pairwise_aligned_ccollide():
+
+            import math
+
+            p = np.array([1, 3, 6, 10, 15, 21, 28, 36, 45])/165
+
+            sqrt_n_1 = math.sqrt(np.random.choice(np.arange(2, 11), p = p))
+            sqrt_n_2 = math.sqrt(np.random.choice(np.arange(2, 11), p = p))
+
+            # sample the poses of the first object            
+            w, l = np.clip(rn.uniform(0.45, 1)*W/sqrt_n_1, 0.2*W, 0.8*W), np.clip(rn.uniform(0.45, 1)*L/sqrt_n_1, 0.2*L, 0.8*L)
+
+            x1 = rn.uniform(offset, W - w - offset)
+            y_bottom = rn.uniform(offset, L - l - offset)
+
+            regions = [(x1, y_bottom, w, l)]
+
+            l2 = rn.uniform(0, L - y_bottom - offset)
+
+            c_x2 = rn.uniform(x1, x1 + w)
+
+            if rand() < 0.5: # right
+                w2 = rn.uniform(0, (W - offset-c_x2)/sqrt_n_2)
+                x2 = c_x2
+            else: # left       
+                w2 = rn.uniform(0, (c_x2 - offset)/sqrt_n_2)            
+                x2 = c_x2 - w2
+
+            regions.append((x2, y_bottom, w2, l2))
+
+            return regions, 'aligned_bottom&ccollide'
+
         def get_cfree_regions(max_depth):
 
             regions = []
@@ -165,23 +214,39 @@ def get_aligned_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, m
                 relation = relation_1
             else:
                 relation = relation_2
+        elif "integrated" in relation:
+            relation = relation.split("_")[1]
+            relation_list = relation.split("&")
+            if len(relation_list) == 2:
+                if rand() < 0.5:
+                    relation = "integrated_cfree"
+                else:
+                    relation = "integrated_ccollide"
+            else:
+                relation = f"integrated_{relation_list[0]}"
         
         while True:
             if relation == "aligned_bottom":
-                regions, relation = get_aligned_regions()
+                regions, relation_mode = get_aligned_regions()
             elif relation == "cfree":
-                regions, relation = get_cfree_regions(max_depth)
+                regions, relation_mode = get_cfree_regions(max_depth)
             elif relation == "ccollide":
-                regions, relation = get_ccollide_regions()
+                regions, relation_mode = get_ccollide_regions()
+                # regions, relation_mode = get_aligned_regions()
+            elif relation == "integrated_cfree":
+                 regions, relation_mode = get_pairwise_aligned_cfree()
+            elif relation == "integrated_ccollide":
+                regions, relation_mode = get_pairwise_aligned_ccollide()
 
-            # print("before: ", len(regions))
             regions = filter_regions(regions, min_size)
-            # print("after filtering: ", len(regions))
             
-            if (relation == "ccollide" and len(regions) == 2) or min_num_regions <= len(regions) <= max_num_regions:
+            # (("ccollide" in relation or "integrated" in relation) and len(regions) == 2) or
+            if min_num_regions <= len(regions) <= max_num_regions:
                 count -= 1
                 print(len(regions), "added!")
-                yield regions, relation
+                # print(regions)
+                # pdb.set_trace()
+                yield regions, relation_mode
             if count == 0:
                 break
         yield None
