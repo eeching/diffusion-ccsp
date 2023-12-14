@@ -227,6 +227,12 @@ class GaussianDiffusion(nn.Module):
 
         self.sample_loop_time = []
 
+    def energy_scale(self, t):
+        return self._sqrt_recipm1_alphas_cumprod[t]
+    
+    def data_scale(self, t):
+        return self._sqrt_recip_alphas_cumprod[t]
+
     def predict_start_from_noise(self, x_t, t, noise):
         return (
             extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
@@ -244,7 +250,11 @@ class GaussianDiffusion(nn.Module):
 
     def p_mean_variance(self, batch, features, t, clip_denoised: bool=False, **kwargs):
         """ batch process ConstraintGraphData """
-        all_noise = self.denoise_fn(features, batch, t, eval=True, **kwargs)
+
+        if self.denoise_fn.energy_wrapper:
+            all_noise, _ = self.denoise_fn(features, batch, t, eval=True, **kwargs)
+        else:
+            all_noise = self.denoise_fn(features, batch, t, eval=True, **kwargs)
         all_features_recon = self.predict_start_from_noise(features, t=t, noise=all_noise)
         clip_denoised = True
         if clip_denoised:
@@ -279,15 +289,19 @@ class GaussianDiffusion(nn.Module):
         if self.EBM:
 
             def gradient_function(x, batch, t):
-                gradient = - self.denoise_fn(x, batch, t, eval=True) \
-                           * self._sqrt_recipm1_alphas_cumprod_custom[t]
+                if self.denoise_fn.energy_wrapper:
+                    grad, _ = self.denoise_fn(x, batch, t, eval=True)
+                else:
+                    grad = self.denoise_fn(x, batch, t, eval=True)
+
+                gradient = - grad * self._sqrt_recipm1_alphas_cumprod_custom[t]
                 # print('gradient_function', x.shape, gradient.shape)
                 return gradient
 
             def energy_function(x, batch, t):
                 score = - self.denoise_fn.neg_logp_unnorm(x, batch, t, eval=True) \
                         * self._sqrt_recipm1_alphas_cumprod_custom[t]
-                print('energy_function', score.shape)
+                # print('energy_function', score.shape)
                 return score
 
             def noise_function():
@@ -310,7 +324,7 @@ class GaussianDiffusion(nn.Module):
                 0.0000086 -> 0.94, 0.000008 -> 0.945, 0.00001 -> 0.939
                 """
                 sampler = AnnealedMALASampler(samples_per_step, step_sizes, gradient_function, noise_function,
-                                              energy_function)
+                                              energy_function, clip_denoised=True)
 
             elif self.EBM == 'HMC':
                 samples_per_step = 4
@@ -325,39 +339,20 @@ class GaussianDiffusion(nn.Module):
         if return_history:
             history = [pose_features]
 
-        # tmp_stat_filename = '/tmp/denoise_n=6.pkl'
-        # tmp_stats = list()
         for j in reversed(range(0, self.num_timesteps)):
             t = torch.full((1, ), j, device=device, dtype=torch.long)
 
             assert not self.training
             
-            # if pose_features.shape[0] > 0:
-            #     print(f'Current number of objects: {pose_features.shape[0] / 10}; Diffusion step: {j}')
-            #     import ipdb; ipdb.set_trace()
             pose_features, mean = self.p_sample(batch, pose_features, t, tag='EBM', **kwargs)  ## , tag=f'test_{j}'
-            # print(f'Step {j}', pose_features.mean().item(), pose_features.std().item())
-            # if pose_features.std().item() > 10:
-            #     import ipdb; ipdb.set_trace()
 
             if self.EBM and j % self.denoise_fn.ebm_per_steps == 0:
                 pose_features = sampler.sample_step(pose_features, batch, t)
-                # print(pose_features)
-                # print(f'p_sample_loop {j}/{self.num_timesteps}')
-            # else:
-            #     pose_features = self.p_sample(batch, pose_features, t, tag='EBM', **kwargs)  ## , tag=f'test_{j}'
-
+        
             pose_features[m.bool()] = gt_features[m.bool()].clone()
-
-            # import jactorch
-            # tmp_stats.append({'step': j, 'tstat': jactorch.tstat(mean)})
 
             if return_history:
                 history.append(pose_features)
-
-        # import jacinle; jacinle.dump(tmp_stat_filename, tmp_stats)
-        # print(f'stat dumped: {tmp_stat_filename}')
-        # exit(1)
 
         if return_history:
             return pose_features, history
@@ -393,7 +388,10 @@ class GaussianDiffusion(nn.Module):
         all_features_noisy = self.q_sample(pose_features, m, t=t, noise=all_noise)
 
         """ reconstruct the unconditioned """
-        all_features_recon = self.denoise_fn(all_features_noisy, batch, t, **kwargs)
+        if self.denoise_fn.energy_wrapper:
+            all_features_recon, _ = self.denoise_fn(all_features_noisy, batch, t, **kwargs)
+        else:
+            all_features_recon = self.denoise_fn(all_features_noisy, batch, t, **kwargs)
 
         if kwargs['debug']:
             print_tensor('all_noise', all_noise[:3])
@@ -408,6 +406,18 @@ class GaussianDiffusion(nn.Module):
             raise NotImplementedError()
         return loss
 
+    def p_gradient(self, poses_in, batch, t, **kwargs):
+        gradient = self.denoise_fn(poses_in, batch, t, **kwargs)
+        gradient = gradient * extract(self._sqrt_recipm1_alphas_cumprod_custom, t, gradient.shape)
+        return gradient
+
+    def p_energy(self, poses_in, batch, t, **kwargs):
+
+        energy = self.denoise_fn.neg_logp_unnorm(poses_in, batch, t, **kwargs)
+        energy = energy * extract(self._sqrt_recipm1_alphas_cumprod_custom, t, energy.shape)
+
+        return energy
+    
     def forward(self, batch, **kwargs):
         t = torch.randint(0, self.num_timesteps, (1, ), device=self.device).long()
         return self.p_losses(batch, t, **kwargs)
@@ -648,7 +658,7 @@ class Trainer(object):
                         result = self.model.sample(batch, debug=once, return_history=return_history) 
                         once = False
                         passed = time.time() - start
-
+                     
                         if return_history:
                             all_features, history = result
                         else:
@@ -681,9 +691,10 @@ class Trainer(object):
 
                             # ## debug ## TODO: remove
                             # features = batch.x[torch.where(batch.x_extract == j)]
-                          
-                            world_dims = (3, 2)
-                            
+                            try:
+                                world_dims = (3, 2)
+                            except:
+                                pdb.set_trace()
                             if torch.isnan(features).any():
                                 continue
                             if m == 0 and j in succeeded_graph_indices:
@@ -1205,11 +1216,13 @@ class AnnealedMALASampler(MetropolisSampler):
                  step_sizes,
                  gradient_function,
                  noise_function,
-                 energy_function):
+                 energy_function,
+                 clip_denoised):
         super().__init__(num_samples_per_step, step_sizes)
         self._gradient_function = gradient_function
         self._noise_function = noise_function
         self._energy_function = energy_function
+        self._clip_denoised = clip_denoised
 
     def sample_step(self, x, batch, t):
 
@@ -1244,7 +1257,12 @@ class AnnealedMALASampler(MetropolisSampler):
             accept_rate.append(accept.sum() / accept.shape[0])
         accept_rate = sum(accept_rate) / len(accept_rate)
         self._update_acceptance_rate(accept_rate.item(), t)
+
+        if self._clip_denoised:
+               x.clamp_(-1., 1.)
+
         x = x.detach()
+
         return x
 
 

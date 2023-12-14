@@ -24,7 +24,7 @@ from envs.data_utils import get_grid_index, get_grid_offset, save_graph_data, ge
     print_line, compute_pairwise_collisions, apply_grid_mask, print_tensor, grid_offset_to_pose, r, \
     compute_world_constraints, expand_unordered_constraints, compute_tidy_constraints
 from envs.render_utils import export_gif
-from envs.builders import get_tray_splitting_gen, get_sub_region_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen, get_aligned_data_gen
+from envs.builders import get_tray_splitting_gen, get_sub_region_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen, get_tidy_data_gen
 
 
 def get_world_class(world_name):
@@ -277,7 +277,7 @@ class CSPWorld(object):
                 world['objects'][name]['grid_label'] = grid_label
 
         """ compute constraints """
-        from networks.denoise_fn import tidy_constraints
+        from networks.denoise_fns import tidy_constraints
 
         if len(world['constraints']) == 0:
             world['constraints'] = []
@@ -287,26 +287,18 @@ class CSPWorld(object):
                 if generating_data:
                     world['collisions'] = self.check_collisions_in_scene(world['objects'], verbose=False)
                     collisions = world['collisions']
-                    if len(collisions) == 0 and 2 in model_relation:
-                        print("empty collisions")
-                        pdb.set_trace()
-                if 1 in model_relation: # or 0 in model_relation:
-                    world['constraints'] = self.generate_c_free_constraints(world['objects'], collisions, same_order=same_order)
-                if 2 in model_relation:
+                   
+                if 1 in model_relation: # generating c-collide
+                #     world['constraints'] = self.generate_c_free_constraints(world['objects'], collisions, same_order=same_order)
+                # if 2 in model_relation:
                     world['constraints'] += self.generate_c_collide_constraints(world['objects'], collisions, same_order=same_order)
                 
                 if len(world['constraints']) == 0:
-                    # pdb.set_trace()
-
-                    # if 1 in model_relation: # or 0 in model_relation:
-                    #     world['constraints'] = self.generate_c_free_constraints(world['objects'], collisions, same_order=same_order)
-                    # if 2 in model_relation:
-                    #     world['constraints'] += self.generate_c_collide_constraints(world['objects'], collisions, same_order=same_order)
                     world['constraints'] = []
     
-        if 'tidy' in input_mode and 0 in model_relation:
+        if 'tidy' in input_mode:
             scale = min([self.w / 3, self.l / 2])
-            world = compute_tidy_constraints(world, model_relation=model_relation, rotations=self.rotations, same_order=same_order, scale=scale, test_only=test_only)
+            world = compute_tidy_constraints(world, rotations=self.rotations, same_order=same_order, scale=scale, test_only=test_only)
 
         if 'qualitative' in input_mode:
             scale = min([self.w / 3, self.l / 2])
@@ -419,7 +411,7 @@ class CSPWorld(object):
             return np.array(nodes)
 
         ## add edge_index
-        from networks.denoise_fn import tidy_constraints
+        from networks.denoise_fns import tidy_constraints
         if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints:
             edge_index = data['constraints']
             class_counts[len(nodes)-1] = 1
@@ -732,15 +724,12 @@ class RandomSplitWorld(ShapeSettingWorld):
     def sample_scene(self, min_num_objects=2, max_num_objects=6, min_offset_perc=0.15, **kwargs):
         """ first get region boxes from `get_tray_spliting_gen` """
         max_depth = math.ceil(math.log2(max_num_objects)) + 1
-        gen = get_sub_region_tray_splitting_gen(num_samples=2, min_num_regions=min_num_objects,
+        
+        gen = get_tray_splitting_gen(num_samples=2, min_num_regions=min_num_objects,
                                      max_num_regions=max_num_objects, max_depth=max_depth)
-        # gen = get_tray_splitting_gen(num_samples=2, min_num_regions=min_num_objects,
-        #                              max_num_regions=max_num_objects, max_depth=max_depth)
         regions = next(gen(self.w, self.l))
 
-        # start_idx = np.random.randint(0, len(regions)-1)
-        # regions = [regions[start_idx],regions[start_idx+1]]
-        meshes = regions_to_meshes(regions, self.w, self.l, self.h, min_offset_perc=min_offset_perc, align="top", max_offset=0.1)
+        meshes = regions_to_meshes(regions, self.w, self.l, self.h, min_offset_perc=min_offset_perc, max_offset=0.1)
         self.tiles.extend(meshes)
 
     def construct_scene_from_objects(self, objects, rotations):
@@ -847,27 +836,28 @@ class RandomSplitSparseWorld(RandomSplitWorld):
         if max_num_objects == 2:
             n = np.random.choice(np.arange(2, 11), p = self.p)
             max_depth = math.ceil(math.log2(n)) + 1 
-            gen = get_aligned_data_gen(num_samples=5, min_num_regions=n,
+            gen = get_tidy_data_gen(num_samples=5, min_num_regions=n,
                                      max_num_regions=n, max_depth=max_depth, relation=relation)
             regions, relation = next(gen(self.w, self.l, relation))
 
-            regions = [regions[idx] for idx in np.random.choice(np.arange(len(regions)), max_num_objects, replace=False)]
+            regions = regions[:2]
+            # regions = [regions[idx] for idx in np.random.choice(np.arange(len(regions)), max_num_objects, replace=False)]
         else: 
             max_depth = math.ceil(math.log2(max_num_objects)) + 1 
-            gen = get_aligned_data_gen(num_samples=12, min_num_regions=min_num_objects,
+            gen = get_tidy_data_gen(num_samples=12, min_num_regions=min_num_objects,
                                      max_num_regions=max_num_objects, max_depth=max_depth, relation=relation)
             regions, relation = next(gen(self.w, self.l, relation))
             
         meshes = regions_to_meshes(regions, self.w, self.l, self.h, relation=relation)
         self.tiles.extend(meshes)
 
-        from networks.denoise_fn import tidy_constraints
+        from networks.denoise_fns import tidy_constraints
         relations = relation.split('&')
         model_relation = [tidy_constraints.index(r) for r in relations]
         return model_relation
             
     def get_current_constraints(self, evaluate_relation, collisions):
-        from networks.denoise_fn import ignored_constraints
+        from networks.denoise_fns import ignored_constraints
         data = self.generate_json(input_mode="tidy", model_relation=evaluate_relation, collisions=collisions)
         return [tuple(d) for d in data['constraints'] if d[0] not in ignored_constraints]
 
@@ -923,12 +913,12 @@ class RandomSplitQualitativeWorld(RandomSplitWorld):
         super().sample_scene(min_offset_perc=min_offset_perc, **kwargs)
 
     def get_current_constraints(self):
-        from networks.denoise_fn import ignored_constraints
+        from networks.denoise_fns import ignored_constraints
         data = self.generate_json(input_mode='qualitative')
         return [tuple(d) for d in data['constraints'] if d[0] not in ignored_constraints]
 
     def check_constraints_satisfied(self, same_order=False, **kwargs):
-        from networks.denoise_fn import ignored_constraints
+        from networks.denoise_fns import ignored_constraints
         collisions = self.check_collisions_in_scene(**kwargs)
         ## check other constraints
         if len(collisions) > 0:

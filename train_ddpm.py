@@ -47,15 +47,15 @@ if __name__ == '__main__':
     #     debug=False, visualize=False, data_only=False
     # )
 
-    energy_wrapper = False
+    energy_wrapper = True
     model_relation = [0, 1, 2]
     evaluate_relation = [0, 1, 2]
     # EBM = "ULA" 
-    EBM = False
+    EBM = "MALA"
 
     train_ddpm(
-        get_args(input_mode='tidy', timesteps=1500, model='Diffusion-CCSP',
-                 EBM=EBM, energy_wrapper=energy_wrapper, samples_per_step=10, wandb_name=f"EBM_{EBM}_model_relation_{model_relation}", model_relation=model_relation, evaluate_relation=evaluate_relation, eval_only=False),
+        get_args(input_mode='tidy', timesteps=1500, model='Diffusion-CCSP', hidden_dim=512,
+                 EBM=EBM, energy_wrapper=energy_wrapper, samples_per_step=3, wandb_name=f"EBM_{EBM}_wrapper_{energy_wrapper}_model_relation_{model_relation}", model_relation=model_relation, evaluate_relation=evaluate_relation, eval_only=False),
         debug=False, visualize=False, data_only=False
     )
 

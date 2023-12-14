@@ -225,7 +225,7 @@ def add_shape(shape, size, height, color=CLOUD, **kwargs):
 
 
 def regions_to_meshes(regions, width, length, height,
-                      max_offset=0.2, min_offset_perc=0.1, relation='cfree'):
+                      max_offset=0.2, min_offset_perc=0.1, relation='ccollide'):
     """ convert 2D regions [top, left, width, height] to 3D meshes centered at origin """
 
     meshes = []
@@ -241,25 +241,13 @@ def regions_to_meshes(regions, width, length, height,
         else:
             assert "what's this region?"
             continue
-
         
-        if "aligned_bottom" in relation or "ccollide" in relation:        
-            ps = [0, 0, 0, 0]
-        elif "cfree" in relation:
-            ps = [0, 0, 0, 0]
-            if w < 0.2: # is the rectangle is already very thin
-                w_ratio = [0.05, 0.01]
-            else:
-                w_ratio = [0.1, 0.45]
-            
-            if l < 0.2:
-                l_ratio = [0.05, 0.01]
-            else:
-                l_ratio = [0.1, 0.45]
-
-            ps = [np.random.uniform(l_ratio[0]*l, l_ratio[1]*l), np.random.uniform(w_ratio[0]*w, w_ratio[1]*w), np.random.uniform(l_ratio[0]*l, l_ratio[1]*l), np.random.uniform(w_ratio[0]*w, w_ratio[1]*w)]
-        else:
-            ps = np.random.uniform(max_offset*min_offset_perc, max_offset, 4)  ## padding [top, left, bottom, right]
+        # if "aligned_bottom" in relation or "ccollide" in relation or "next_to" in relation or "cfree" in relation:        
+        #     ps = [0, 0, 0, 0]
+        
+        # else:
+        #     ps = np.random.uniform(max_offset*min_offset_perc, max_offset, 4)  ## padding [top, left, bottom, right]
+        ps = [0, 0, 0, 0]
         
         if w <= ps[1]+ps[3] or l <= ps[0]+ps[2]: # this will never happen for aligned_bottom
             continue

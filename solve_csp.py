@@ -112,22 +112,23 @@ def indie_runs():
     #     # evaluate_model('4xt8u4n7', milestone=20, tries=(1, 0), test_tasks=test_tasks, json_name=f'tamp_{k}', run_all=True)  ## 0.005-0.01 sec per graph
 
 def eval_new_set():
-    # relation = "integrated_cfree&ccollide"
 
+    relation = "integrated_cfree&ccollide"
     # relation = "mixed_ccollide"
-    relation = "ccollide"
-    eval_relation = None
-    # eval_relation = "integrated_ccollide"
-
+    # relation = "ccollide"
+    # eval_relation = "cfree"
+    eval_relation = "integrated_cfree"
+   
     if eval_relation is None:
         eval_relation = relation
-    small_task = False
+    small_task = True
     EBM = False
+    energy_wrapper = False
     if small_task:
-        n = 10
+        n = 20
         visualize = True
     else:
-        n = 100
+        n = 200
         visualize = False
 
     if relation == "aligned_bottom":
@@ -144,10 +145,15 @@ def eval_new_set():
         milestone = 13
     elif relation == "ccollide":
         model_relation = [2]
-        evaluate_relation = [2]
+        if eval_relation == "cfree":
+            evaluate_relation = [1]
+        elif eval_relation == "ccollide":
+            evaluate_relation = [2]
+
         end_idx = 11
         model_id = 'cvh3bsux'
         milestone = 13
+
     elif relation == "mixed_cfree":
         model_relation = [0, 1]
         evaluate_relation = [0, 1]
@@ -173,12 +179,16 @@ def eval_new_set():
         else:
             end_idx = 3
         evaluate_relation = [0, 1, 2]
-        model_id = 'qnoni470'
-        milestone = 13
+        if EBM == "MALA":
+            model_id = 'xpandggr'
+            milestone = 8
+        else:
+            model_id = 'qnoni470'
+            milestone = 13
 
 
     eval_10_kwargs = dict(tries=(10, 0), json_name='eval', save_log=False, visualize=visualize, test_set=True, return_history=False,
-                        run_all=True, model_relation=model_relation, evaluate_relation=evaluate_relation, EBM=EBM, samples_per_step=20, eval_only=True)
+                        run_all=True, model_relation=model_relation, evaluate_relation=evaluate_relation, EBM=EBM, energy_wrapper=energy_wrapper, samples_per_step=3, eval_only=True)
  
     test_10_tasks = {i: f'RandomSplitSparseWorld({n})_tidy_test_{i}_split/{eval_relation}' for i in range(2, end_idx)}
     # evaluate_model('qsd3ju74', input_mode="aligned_bottom", milestone=7, test_tasks=test_5_tasks, **eval_5_kwargs)
@@ -194,7 +204,7 @@ def eval_new_set():
     # evaluate_model('trci7w1x', input_mode="aligned_bottom", milestone=11, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
 
    
-    evaluate_model(model_id, input_mode="tidy", relation=relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks=n, test_name=eval_relation, **eval_10_kwargs) # False, both
+    evaluate_model(model_id, input_mode="tidy", relation=relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks=n, test_name=f"{eval_relation}_neg", **eval_10_kwargs) # False, both
 
 if __name__ == '__main__':
     # indie_runs()

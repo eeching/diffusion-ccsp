@@ -11,7 +11,8 @@ import pdb
 from torch_geometric.loader import DataLoader
 from datasets import GraphDataset, RENDER_PATH
 from networks.ddpm import Trainer, GaussianDiffusion
-from networks.denoise_fn import ConstraintDiffuser, ComposedEBMDenoiseFn, tidy_constraints
+# from  networks.denoise_fnimport ConstraintDiffuser, ComposedEBMDenoiseFn, tidy_constraints
+from networks.denoise_fns import ComposedEBMDenoiseFn, tidy_constraints
 from networks.data_transforms import pre_transform
 from envs.data_utils import print_tensor
 
@@ -165,12 +166,12 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
         # --- for testing
         train_task = f"RandomSplitSparseWorld({n})_tidy_train/{tidy_relations[0]}"
 
-        if 'ccollide' in tidy_relations[0]:
-            end_idx = 3
-        else:
-            end_idx = 11
-
-        test_tasks = {i: f'RandomSplitSparseWorld({int(n/1000)})_tidy_test_{i}_split/{tidy_relations[0]}' for i in range(2, end_idx)}
+        # if 'ccollide' in tidy_relations[0]:
+        #     end_idx = 3
+        # else:
+        #     end_idx = 11
+        end_idx = 11
+        test_tasks = {i: f'RandomSplitSparseWorld({int(n/1000)})_tidy_test_{i}_split/integrated_cfree' for i in range(2, end_idx)}
 
         if 'World' not in args.train_task:
             args.train_task = train_task
@@ -236,9 +237,9 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         train_name = f'm={model}_t={timesteps}'
     else:
         if eval_only:
-            train_name = f'eval_m={EBM}_eval_relation={evaluate_relation}'
+            train_name = f'eval_m={EBM}_wrapper_{energy_wrapper}_eval_relation={evaluate_relation}'
         else:
-            train_name = f'm={EBM}_model_relation={model_relation}'
+            train_name = f'm={EBM}_wrapper_{energy_wrapper}_model_relation={model_relation}'
     if train_name_extra != '' and train_name_extra != train_name:
         train_name += f'_{train_name_extra}'
 
@@ -307,11 +308,15 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
             begin = dims[0][2] + image_dim
             dims = tuple([dims[0], (image_dim, dims[0][2], begin), (dims[1][0], begin, begin + dims[1][0])])
 
-    denoise_fn = ConstraintDiffuser(dims=dims, hidden_dim=hidden_dim, EBM=EBM, input_mode=input_mode,
-                                    pretrained=pretrained, normalize=normalize, energy_wrapper=energy_wrapper,
-                                    model=model, verbose=verbose, model_relation=model_relation).cuda()
-    if EBM and denoise_fn.energy_wrapper:
-        denoise_fn = ComposedEBMDenoiseFn(denoise_fn, ebm_per_steps)
+    # denoise_fn = ConstraintDiffuser(dims=dims, hidden_dim=hidden_dim, EBM=EBM, input_mode=input_mode,
+    #                                 pretrained=pretrained, normalize=normalize, energy_wrapper=energy_wrapper,
+    #                                 model=model, verbose=verbose, model_relation=model_relation).cuda()
+    # denoise_fn = ComposedEBMDenoiseFn(denoise_fn, ebm_per_steps)
+    
+    denoise_fn = ComposedEBMDenoiseFn(input_mode=input_mode, dims=dims, hidden_dim=hidden_dim, device='cuda', 
+                                      relation_sets=tidy_constraints, EBM=EBM, pretrained=pretrained, normalize=normalize, energy_wrapper=energy_wrapper, verbose=verbose,
+                   ebm_per_steps=ebm_per_steps, eval_only=eval_only).cuda()
+    
     diffusion = GaussianDiffusion(denoise_fn, timesteps=timesteps, EBM=EBM,
                                   samples_per_step=samples_per_step, step_sizes=step_sizes).cuda()
 

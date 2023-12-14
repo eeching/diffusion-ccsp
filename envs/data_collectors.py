@@ -43,7 +43,7 @@ class DataCollector(object):
         name = f"{world.name}({n})"
         if len(label) > 0:
             name += f"_{label}"
-        from networks.denoise_fn import tidy_constraints
+        from networks.denoise_fns import tidy_constraints
         ## accounting for data distribution
         if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode:
             class_counts = defaultdict(int)
@@ -120,8 +120,9 @@ class DataCollector(object):
         counts = defaultdict(int)
         min_n = self.scene_sampler_args['min_num_objects']
         max_n = self.scene_sampler_args['max_num_objects']
-        if 'tidy' in input_mode or input_mode in tidy_constraints:
+        if 'tidy' in input_mode:
             self.scene_sampler_args['input_mode'] = input_mode
+            self.scene_sampler_args['relation'] = relation
 
         scene_sampler_args = copy.deepcopy(self.scene_sampler_args)
         count_threshold = math.ceil(n / (max_n - min_n + 1))

@@ -386,9 +386,10 @@ class ConstraintDiffuser(torch.nn.Module):
 
     def _compute_energy(self, i, input_dict, poses_in, outputs):  # noqa
         input_poses_in = poses_in[input_dict['args']]
-        return ((outputs - input_poses_in) ** 2).sum()
+        # return ((outputs - input_poses_in) ** 2).sum()
+        return ((outputs) ** 2).sum()
 
-    def _add_constraints_outputs(self, i, input_dict, outputs, all_poses_out, all_counts_out=None):
+    def  _add_constraints_outputs(self, idx, input_dict, outputs, all_poses_out, all_counts_out=None):
     
         n_features = all_poses_out.shape[0]
 
@@ -539,7 +540,7 @@ class ConstraintDiffuser(torch.nn.Module):
             relation_idx_mapping = {0: 0, 1: 2}
         elif self.model_relation == [0, 1, 2]:
             relation_idx_mapping = {0: 0, 1: 1, 2: 2}
-        
+
         for i in range(len(self.mlps)):
 
             idx = relation_idx_mapping[i]
@@ -551,6 +552,9 @@ class ConstraintDiffuser(torch.nn.Module):
             outputs = self._process_constraint(i, input_dict)
             
             if tag == 'EBM' and self.energy_wrapper:
+                # if idx == 1:
+                #     total_energy -= self._compute_energy(i, input_dict, poses_in, outputs)
+                # else:
                 total_energy += self._compute_energy(i, input_dict, poses_in, outputs)
             else:
                 self._add_constraints_outputs(idx, input_dict, outputs, all_poses_out, all_counts_out) ##
@@ -575,6 +579,8 @@ class ConstraintDiffuser(torch.nn.Module):
 
             if debug:
                 self.print_debug_info(batch, x, poses_in, x[:, :self.dims[0][2]], all_poses_out, tag=tag)
+            
+            all_poses_out = all_poses_out
             return all_poses_out
 
     def _get_EBM_gradients(self, poses_in, total_energy, **kwargs):

@@ -136,7 +136,7 @@ def get_plot_name(run_id, input_mode, name, t, output_dir=None):
     title = f'{input_mode} constraint [ {name} ]'  ##  (t={t})
     if output_dir is None:
         output_dir = join(OUTPUT_PATH, run_id)
-    file_name = f'{input_mode}_{PLACE_HOLDER}_{t}' + '_large'
+    file_name = f'{input_mode}_{name}_{PLACE_HOLDER}_{t}' + '_large'
     file_name = join(output_dir, f'{file_name}.png')
     return title, file_name
 
@@ -664,6 +664,9 @@ def make_tidy_energy_fn(x, y, denoise_fn, trainer, c_idx, geoms_emb, time_emb,
     
     outputs = outputs.reshape(n, -1, 2, 4) ## torch.Size([600, n_objs-1, 2, 4])
     
+    # if c_idx == 1:
+    #     outputs = 1 - outputs
+        
     if use_EBM_wrapper:
         energy = - torch.sum((outputs - poses_in) ** 2, dim=(1, 2))
                  # * trainer.model._sqrt_recipm1_alphas_cumprod_custom[t]
@@ -1079,7 +1082,7 @@ def visualize_energy_field_unmasked(n_objs, model_name, optimized_relation, plot
             """ get energy field """
             denoise_fn, use_EBM_wrapper = get_denoise_fn(trainer)
             c_idx = denoise_fn.constraint_sets.index(plot_relation)
-
+         
             # geoms_in = torch.tensor(geoms_in).float().to(denoise_fn.device)
             geoms_in = geoms_in.clone().detach().to(denoise_fn.device)
             geoms_emb = denoise_fn.geom_encoder(geoms_in)  ## torch.Size([n_objs, 256])
@@ -1199,18 +1202,32 @@ def visualize_energy_field_unmasked_both(n_objs,  model_name, optimized_relation
                 input_dict, poses_all = get_tidy_poses_in(x, y, denoise_fn, poses_A_idx=pose_A_idx, poses_in=poses_in, emb_dict=emb_dict) 
                 # poses_in = input_dict['poses_emb'][:, :2]  ## [100, 2]
                 poses_all = poses_all.reshape(n, -1, 2, 4)[:, 0, 0, :2]
+                
+                orig_outputs = torch.stack([torch.tensor(x).flatten(), torch.tensor(y).flatten()], dim=1).to(denoise_fn.device)  ## [600, 2]
                 outputs = torch.stack([torch.tensor(x).flatten(), torch.tensor(y).flatten()], dim=1).to(denoise_fn.device)  ## [600, 2]
-                for i in range(trainer.model.samples_per_step):
+                
+                # outputs = ((energy_fn_1(x, y)[2] + energy_fn_2(x, y)[2])/2).reshape(n, -1, 4)[:, 0, :2]
+
+                # energy = - torch.sum(outputs ** 2, dim=(1, 2, 3))
+                
+                # gradients = poses_all - outputs
+                # gradients = torch.sum(gradients, dim=(1)) ## torch.Size([600, 2, 4])
+
+                
+                # # for i in range(trainer.model.samples_per_step):
+                for i in range(3):
                     ss = step_sizes[t]
-                    std = (2 * ss) ** .5
+                    # std = (2 * ss) ** .5
                     grad = ((energy_fn_1(x, y)[2] + energy_fn_2(x, y)[2])/2).reshape(outputs.shape[0], -1, 4)
-                    grad = grad[:, 0, :2] * trainer.model._sqrt_recipm1_alphas_cumprod_custom[t]
-                    noise = noise_function(outputs.shape) * std
-                    outputs = outputs + grad * ss + noise
+                    grad = grad[:, 0, :2] 
+                #     grad = grad[:, 0, :2] * trainer.model._sqrt_recipm1_alphas_cumprod_custom[t]
+                #     # noise = noise_function(outputs.shape) * std
+                #     # outputs = outputs + grad * ss + noise
+                    outputs = outputs + grad * ss 
                     x = outputs[:, 0].reshape(20, 30).cpu().detach().numpy()
                     y = outputs[:, 1].reshape(20, 30).cpu().detach().numpy()
             
-                energy = - torch.sum(outputs ** 2, dim=1)
+                energy = - torch.sum((outputs-orig_outputs) ** 2, dim=1)
                 gradients = poses_all - outputs
                 energy = energy.reshape(x.shape).cpu().detach().numpy()
                 gradients = gradients.cpu().detach().numpy() 
@@ -1362,17 +1379,20 @@ if __name__ == '__main__':
         ("integrated_cfree&ccollide", "integrated_ccollide", "ccollide"),
         ("integrated_cfree&ccollide", "integrated_ccollide", "aligned_bottom&ccollide"),
         ("integrated_cfree&ccollide", "integrated_cfree", "aligned_bottom&cfree"),
+        ("integrated_cfree&ccollide", "cfree", "cfree"),
+        ("integrated_cfree&ccollide", "ccollide", "ccollide"),
+        ("ccollide", "cfree", "cfree"),
     ]
     
-    for model_name, optimized_relation, plot_relation in tests[7:9]:
-        for n_objs in [8]:
-            visualize_energy_field_masked(n_objs, model_name=model_name, optimized_relation=optimized_relation, plot_relation=plot_relation)
+    # for model_name, optimized_relation, plot_relation in tests[8:9]:
+    #     for n_objs in [8]:
+    #         visualize_energy_field_masked(n_objs, model_name=model_name, optimized_relation=optimized_relation, plot_relation=plot_relation)
 
-    # model_name, optimized_relation, plot_relation = tests[10]
+    model_name, optimized_relation, plot_relation = tests[12]
 
     # for model_name, optimized_relation, plot_relation in tests[6:9]:
-    #     for n_objs in [2, 3, 5]:
-    #         visualize_energy_field_unmasked(n_objs, model_name=model_name, optimized_relation=optimized_relation, plot_relation=plot_relation)
+    # for n_objs in [2, 5, 8]:
+    #     visualize_energy_field_unmasked(n_objs, model_name=model_name, optimized_relation=optimized_relation, plot_relation=plot_relation)
 
     # for n_objs in [2, 3, 5, 8]:
 

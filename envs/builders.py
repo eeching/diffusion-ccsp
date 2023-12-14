@@ -9,22 +9,23 @@ from envs.data_utils import compute_qualitative_constraints, summarize_constrain
 import pdb
 
 
-def get_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.4):
+def get_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.3):
 
     Region = Tuple[float, float, float, float]  # l, t, w, h
 
     def partition(box: Region, depth: int = 3) -> Iterable[Region]:
-        if rand() < 0.2 or depth == 0:
+        if rand() < 0.3 or depth == 0:
             yield box
 
         else:
-            # if rand() < 0.5:
-            if rand() < 1:
+            if rand() < 0.5:
                 axis = 0
             else:
                 axis = 1
 
-            split_point = rand() * box[axis + 2]
+            
+            split_point = int(rand() * box[axis + 2] * 5)/5
+             
             if axis == 0:
                 yield from partition((box[0], box[1], split_point, box[3]), depth - 1)
                 yield from partition((box[0] + split_point, box[1], box[2] - split_point, box[3]), depth - 1)
@@ -54,7 +55,7 @@ def get_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6,
         yield None
     return gen
 
-def get_aligned_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.075, relation="mixed"):
+def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.075, relation="mixed"):
 
     Region = Tuple[float, float, float, float] # x, y, w, l
 
@@ -152,10 +153,28 @@ def get_aligned_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, m
 
             return regions, 'aligned_bottom&ccollide'
 
-        def get_cfree_regions(max_depth):
+        def get_cfree_regions(max_depth, X, Y, W, L, offset, offset_grid=True):
 
             regions = []
-            for region in partition((offset, offset, W - 2*offset, L - 2*offset), max_depth):
+            for region in partition((X + offset, Y + offset, W - 2*offset, L - 2*offset), max_depth):
+
+                if offset_grid:
+                    x, y, w, l = region
+                    ps = [0, 0, 0, 0]
+                    if w < 0.2: # is the rectangle is already very thin
+                        w_ratio = [0.05, 0.01]
+                    else:
+                        w_ratio = [0.1, 0.25]
+                
+                    if l < 0.2:
+                        l_ratio = [0.05, 0.01]
+                    else:
+                        l_ratio = [0.1, 0.25]
+
+                    y_offset = np.random.uniform(l_ratio[0], l_ratio[1], size=2) * l
+                    x_offset = np.random.uniform(w_ratio[0], w_ratio[1], size = 2) * w
+
+                    region = (x + x_offset[0], y + y_offset[0], w - x_offset[0] - x_offset[1], l - y_offset[0] - y_offset[1]) 
                 regions.append(region)
 
             return regions, 'cfree'
@@ -203,7 +222,160 @@ def get_aligned_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, m
             regions.append((x2, y2, w2, l2))
 
             return regions, 'ccollide'
-           
+
+        def get_next_to_regions(W, L, offset):
+            
+            mac_regions, _ = get_cfree_regions(max_depth=max(max_depth, 2), X=0, Y=0, W=W, L=L, offset=offset, offset_grid=False)
+
+            regions = []
+            if len(mac_regions) > max_num_regions//2:
+                mac_regions_idx = rn.choice(np.arange(len(mac_regions)), size = max(len(mac_regions), max_num_regions)//2, replace = False)
+
+                for idx in mac_regions_idx:
+                    x, y, w, l = mac_regions[idx]
+                    if rand() < 0.5:
+                        axis = 0
+                    else:
+                        axis = 1
+                
+                    split_point = rand() * mac_regions[idx][axis + 2]
+                    if axis == 0:
+                        left_offset = rn.uniform(0.2, 0.3) * split_point
+                        right_offset = rn.uniform(0.2, 0.3) * (w - split_point)
+                        interval_offset = rn.uniform(0.025, 0.05, size=2) 
+                        y_offset = rn.uniform(0.05, 0.2, size=4) * l
+
+                        r1 = (x + left_offset, y + y_offset[0], split_point - left_offset - interval_offset[0], l-y_offset[0]-y_offset[1])
+                        r2 = (x + split_point + interval_offset[1], y + y_offset[2], 
+                            w - split_point - right_offset - interval_offset[1], l - y_offset[2] - y_offset[3])
+                    else:
+                        top_offset = rn.uniform(0.2, 0.3) * split_point
+                        bottom_offset = rn.uniform(0.2, 0.3) * (l - split_point)
+                        interval_offset = rn.uniform(0.025, 0.05, size=2) 
+                        x_offset = rn.uniform(0.1, 0.3, size=4) * w
+                        r1 = (x + x_offset[0], y + top_offset, w - x_offset[0] - x_offset[1], split_point - top_offset - interval_offset[0])
+                        r2 = (x + x_offset[2], y + split_point + interval_offset[1], w - x_offset[2] - x_offset[3], l - split_point - bottom_offset - interval_offset[1])
+
+                    regions.append(r1)
+                    regions.append(r2)
+          
+            return regions, 'next_to'
+        
+        def get_on_top_of_regions(W, L, offset):
+
+            mac_regions, _ = get_cfree_regions(max_depth = 3, X=0, Y=0, W=W, L=L, offset=offset)
+
+            regions = []
+            if len(mac_regions) > max_num_regions/2:
+                mac_regions_idx = rn.choice(np.arange(len(mac_regions)), size = max_num_regions//2, replace = False)
+
+                for idx in mac_regions_idx:
+                    x, y, w, l = mac_regions[idx]
+                    sub_regions, _ = get_cfree_regions(max_depth = 2, X=x, Y=y, W=w, L=l, offset=0)
+                    regions.append(mac_regions[idx])
+                    regions.extend(sub_regions)
+            
+            return regions, 'on_top_of'
+
+        def get_centered_regions(W, L, offset):
+
+            regions = []
+
+            if rand() < 0.6:
+
+                w, l = rn.uniform(0.15, 0.4)*W, rn.uniform(0.15, 0.4)*L
+
+                regions.append((W/2 - w/2, L/2 - l/2,  w, l))
+            
+            base_regions = []
+            if len(regions) > 0:
+
+                x_0, y_0, w_0, l_0 = regions[0]
+
+                sub_regions, _ = get_cfree_regions(max_depth = 2, X=0, Y=0, W=x_0 + w_0, 
+                                                   L=y_0, offset=offset)
+                
+                base_regions.extend(sub_regions)
+                
+                sub_regions, _ = get_cfree_regions(max_depth = 2, X=0, Y=y_0, W=x_0, 
+                                                   L=L-y_0, offset=offset)
+                
+                base_regions.extend(sub_regions)
+
+                sub_regions, _ = get_cfree_regions(max_depth = 2, X=x_0, Y=y_0+l_0, W=W-x_0, 
+                                                   L=L-y_0-l_0, offset=offset)
+                
+                base_regions.extend(sub_regions)
+
+                sub_regions, _ = get_cfree_regions(max_depth = 2, X=x_0+w_0, Y=y_0, W=W-x_0-w_0, 
+                                                   L=y_0+l_0, offset=offset)
+                
+                base_regions.extend(sub_regions)
+
+            else:
+
+                sub_regions, _ = get_cfree_regions(max_depth = 4, X=0, Y=0, W=W, 
+                                                   L=L, offset=offset)
+                
+                base_regions.extend(sub_regions)
+
+            if len(base_regions) > max_num_regions//2:
+                base_regions_idx = rn.choice(np.arange(len(base_regions)), size = max_num_regions//2, replace = False)
+
+                for idx in base_regions_idx:
+                    x, y, w, l = base_regions[idx]
+
+                    c_x = x + w/2
+                    c_y = y + l/2
+
+                    w_, l_ = rn.uniform(0.2, 0.5)*w, rn.uniform(0.2, 0.5)*l
+
+                    regions.append(base_regions[idx])
+                    regions.append((c_x - w_/2, c_y - l_/2, w_, l_))
+                    
+            
+            return regions, 'centered'
+
+        def get_edge_regions():
+            # when the edge is between 0.5 to the edges
+            regions = []
+
+            n = rn.randint(3, 10)
+
+            y_bottoms = rn.uniform(0.05, 0.1, size=n) 
+            xs = np.sort(rn.uniform(0+offset, W - 2*offset, size = n * 2))
+            ys = rn.uniform(0, 0.3*L-0.15, size = n)
+
+            for i in range(n):
+                x1 = xs[i * 2]
+                w1 = xs[i * 2 + 1] - x1
+                l1 = ys[i] 
+
+                if rand() < 0.5:
+                    y1 = y_bottoms[i]
+                else:
+                    y1 = L - y_bottoms[i] - l1
+                regions.append((x1, y1, w1, l1))
+
+            m = rn.randint(3, 7)
+
+            x_bottoms = rn.uniform(0.05, 0.1, size=m) 
+            ys = np.sort(rn.uniform(0+offset, L - 2*offset, size = m * 2))
+            xs = rn.uniform(0, 0.3*W-0.15, size = m)
+
+            for i in range(m):
+                y1 = ys[i * 2]
+                l1 = ys[i * 2 + 1] - y1
+                w1 = xs[i] 
+
+                if rand() < 0.5:
+                    x1 = x_bottoms[i]
+                else:
+                    x1 = W - x_bottoms[i] - w1
+                regions.append((x1, y1, w1, l1))
+
+            return regions, 'next_to_edge'        
+        
         count = num_samples
 
         if "mixed" in relation:
@@ -229,16 +401,25 @@ def get_aligned_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, m
             if relation == "aligned_bottom":
                 regions, relation_mode = get_aligned_regions()
             elif relation == "cfree":
-                regions, relation_mode = get_cfree_regions(max_depth)
+                regions, relation_mode = get_cfree_regions(max_depth, 0, 0, W, L, offset)
             elif relation == "ccollide":
                 regions, relation_mode = get_ccollide_regions()
-                # regions, relation_mode = get_aligned_regions()
+            elif relation == "next_to":
+                regions, relation_mode = get_next_to_regions(W, L, offset)
+            elif relation == "on_top_of":
+                regions, relation_mode = get_on_top_of_regions(W, L, offset)
+            elif relation == "centered":
+                regions, relation_mode = get_centered_regions(W, L, offset)
+            elif relation == "next_to_edge":
+                regions, relation_mode = get_edge_regions()
             elif relation == "integrated_cfree":
                  regions, relation_mode = get_pairwise_aligned_cfree()
             elif relation == "integrated_ccollide":
                 regions, relation_mode = get_pairwise_aligned_ccollide()
 
             regions = filter_regions(regions, min_size)
+
+            print("number of regions: ", len(regions))
             
             # (("ccollide" in relation or "integrated" in relation) and len(regions) == 2) or
             if min_num_regions <= len(regions) <= max_num_regions:
