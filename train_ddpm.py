@@ -64,8 +64,8 @@ if __name__ == '__main__':
     # next_to
     # regular_grid
 
-    energy_wrapper = False
-    model_relation = "all_composed_False"
+    energy_wrapper = True
+    model_relation = "regular_grid"
     evaluate_relation = model_relation
     # EBM = "ULA" 
     EBM = False
@@ -77,10 +77,10 @@ if __name__ == '__main__':
     # model_id = "pgbbzyor" # composed True
     # milestone = 5
 
-    pretrained = True
+    # pretrained = True
 
-    model_id = "c3jdremi"
-    milestone = 0
+    # model_id = "c3jdremi"
+    # milestone = 0
 
     # if energy_wrapper:
     #     model_id = "tvvpzowp"
@@ -90,18 +90,18 @@ if __name__ == '__main__':
     #     model_id = "ekegfe6v"
     #     milestone = 8
 
-    train_ddpm(
-        get_args(input_mode='tidy', timesteps=1500, EBM=EBM, energy_wrapper=energy_wrapper, 
-                 samples_per_step=3, wandb_name=f"ctd_EBM_{EBM}_wrapper_{energy_wrapper}_model_relation_{model_relation}", 
-                 model_relation=model_relation, evaluate_relation=evaluate_relation, eval_only=False,
-                 pretrained=pretrained, run_id=model_id),
-        debug=False, visualize=True, data_only=False, milestone=milestone
-    )
-
     # train_ddpm(
     #     get_args(input_mode='tidy', timesteps=1500, EBM=EBM, energy_wrapper=energy_wrapper, 
-    #              samples_per_step=3, wandb_name=f"EBM_{EBM}_wrapper_{energy_wrapper}_model_relation_{model_relation}", 
-    #              model_relation=model_relation, evaluate_relation=evaluate_relation, eval_only=False),
-    #     debug=False, visualize=True, data_only=False, 
+    #              samples_per_step=3, wandb_name=f"ctd_EBM_{EBM}_wrapper_{energy_wrapper}_model_relation_{model_relation}", 
+    #              model_relation=model_relation, evaluate_relation=evaluate_relation, eval_only=False,
+    #              pretrained=pretrained, run_id=model_id),
+    #     debug=False, visualize=True, data_only=False, milestone=milestone
     # )
+
+    train_ddpm(
+        get_args(input_mode='tidy', timesteps=1500, EBM=EBM, energy_wrapper=energy_wrapper, 
+                 samples_per_step=3, wandb_name=f"EBM_{EBM}_wrapper_{energy_wrapper}_model_relation_{model_relation}", 
+                 model_relation=model_relation, evaluate_relation=evaluate_relation, eval_only=False),
+        debug=False, visualize=True, data_only=False, 
+    )
 

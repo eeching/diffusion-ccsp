@@ -883,8 +883,9 @@ class RandomSplitSparseWorld(RandomSplitWorld):
 
         # # print("checking collisions ... ")
         # collisions = self.check_collisions_in_scene(**kwargs)
-        collisions = []            
-        given_constraints = self.tidy_constraints
+        collisions = []   
+        from networks.denoise_fns import ignored_constraints         
+        given_constraints = [d for d in self.tidy_constraints if d[0] not in ignored_constraints]
 
         current_constraints = self.get_current_constraints(collisions) # current constraints satisfied
         current_constraints = get_ordered_constraints(current_constraints)
@@ -895,7 +896,7 @@ class RandomSplitSparseWorld(RandomSplitWorld):
         missing = []
         success_ratio = dict()
         from networks.denoise_fns import tidy_constraints
-        for relation in tidy_constraints:
+        for relation in tidy_constraints[:-2]:
             missing_dict[relation] = [ct for ct in given_constraints[relation] if ct not in current_constraints[relation]]
             if len(given_constraints[relation]) == 0:
                 success_ratio[relation] = 0

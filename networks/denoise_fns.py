@@ -23,7 +23,7 @@ qualitative_constraints = [
     'close-to', 'away-from', 'h-aligned', 'v-aligned'
 ]
 robot_qualitative_constraints = robot_constraints + qualitative_constraints
-ignored_constraints = ['right-of', 'bottom-of']
+ignored_constraints = ['regular_grid_v', 'regular_grid_h']
 # tidy_constraints = ['aligned_bottom', 'aligned_top', 'aligned_left', 'aligned_right' 'left_of', 'right_of', 'centered', 'avoid_edge',
 #                      'not_obstructed', 'in_container', 'on_top_of', 'regular_grid', 'stacked', 'ordered']
 # v0

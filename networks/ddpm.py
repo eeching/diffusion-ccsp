@@ -15,6 +15,7 @@ from os.path import join, isdir, abspath, isfile, dirname, basename
 from torch_geometric.loader import DataLoader
 from pathlib import Path
 from torch.optim import Adam, lr_scheduler
+import pytorch_warmup as warmup
 from torchvision import transforms, utils
 import imageio
 from PIL import Image
@@ -502,6 +503,9 @@ class Trainer(object):
             self.world_name = 'RandomSplitSparseWorld'
 
         self.opt = Adam(denoise_fn.parameters(), lr=train_lr)
+        self.lr_scheduler = lr_scheduler.CosineAnnealingLR(self.opt, T_max=10000)
+        self.warmup_scheduler = warmup.UntunedLinearWarmup(self.opt)
+
         # self.scheduler = lr_scheduler.CosineAnnealingLR(self.opt, T_max=10000)
         # self.scheduler = lr_scheduler.StepLR(self.opt, step_size=1000, gamma=0.99)
         self.step = 0
@@ -584,7 +588,8 @@ class Trainer(object):
 
             self.opt.step()
             self.opt.zero_grad()
-            # self.scheduler.step()
+            with self.warmup_scheduler.dampening():
+                self.lr_scheduler.step()
 
             if self.step % self.update_ema_every == 0:
                 self.step_ema()
