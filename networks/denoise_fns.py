@@ -745,6 +745,9 @@ class ConstraintDiffuser(torch.nn.Module):
             start_idx += edge_lens[j]
             seq = obj_embs[obj_list]  ## [n, 512] ## all objects from the same scene
 
+            pe = self.pe[:, :seq.shape[0], :]
+            seq += rearrange(pe, 'b n c -> (b n) c')
+
             x = self.ln_pre(seq)
             padding_len = self.max_seq_len - x.shape[0]
             # indices.append(x.shape[0])

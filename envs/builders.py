@@ -619,8 +619,9 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
             
             # symmetry_object
             mac_regions = []
-            mac_regions, _ = get_cfree_regions(max_depth = _max_depth, X=0, Y=0, W=W, L=L, offset=offset)
-            mac_regions = filter_regions(mac_regions, 0.5)
+            mac_regions, _ = get_cfree_regions(max_depth = 5, X=0, Y=0, W=W, L=L, offset=offset, offset_grid=False)
+            mac_regions = filter_regions(mac_regions, 0.40)
+            random.shuffle(mac_regions)
 
             while n_2 > 0:
                 if len(mac_regions) == 0:
@@ -887,8 +888,10 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
             elif "regular_grid" in relation:
                 regions, relation_mode = get_in_regular_grid(W, L, offset)
 
-            regions = filter_regions(regions, min_size)
-        
+            try:
+                regions = filter_regions(regions, min_size)
+            except:
+                pdb.set_trace()
             # (("ccollide" in relation or "integrated" in relation) and len(regions) == 2) or
             if min_num_regions <= len(regions) <= max_num_regions:
                 count -= 1

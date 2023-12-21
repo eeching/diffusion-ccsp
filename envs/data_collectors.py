@@ -134,9 +134,11 @@ class DataCollector(object):
         count_threshold = math.ceil(n / (max_n - min_n + 1))
         if max_n <= 10:
             count_threshold = math.ceil(n / (max_n - min_n + 1)) 
-        else:
+        elif min_n < 12:
             count_threshold = math.ceil(0.9 * n / (10 - min_n + 1))
-            count_threshold_ = math.ceil(0.1 * n / (max_n - 12 + 1)) 
+            count_threshold_ = math.ceil(0.1 * n / (max_n - 12 + 1))
+        else: 
+            count_threshold_ = math.ceil(n / (max_n - 12 + 1))
     
         if "regular_grid" not in relation:
             current_n = min_n
