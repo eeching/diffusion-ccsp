@@ -195,9 +195,8 @@ class CSPWorld(object):
                             constraints.append(('ccollide', j, i))
         return constraints
 
-    def generate_json(self, input_mode='collisions', json_name=None,
-                      constraints={}, world={}, same_order=True, test_only=False, 
-                      collisions=[], generating_data=False, model_relation=None, composed_relation=None):
+    def generate_json(self, input_mode='collisions', json_name=None, constraints={}, world={}, same_order=True, 
+                      test_only=False, collisions=[], generating_data=False, model_relation=None, composed_relation=None):
         """ record in a json file for collision checking """
         world.update({
             'name': self.name,
@@ -318,8 +317,8 @@ class CSPWorld(object):
     
         if 'tidy' in input_mode:
             scale = min([self.w / 3, self.l / 2])
-            world = compute_tidy_constraints(world, rotations=self.rotations, same_order=same_order, scale=scale, 
-                                             test_only=test_only, model_relation=model_relation, composed_relation=composed_relation)
+            world = compute_tidy_constraints(world, rotations=self.rotations, same_order=same_order, scale=scale, test_only=test_only, 
+                                             model_relation=model_relation, composed_relation=composed_relation, generating_data=generating_data)
 
         if 'qualitative' in input_mode:
             scale = min([self.w / 3, self.l / 2])
@@ -798,9 +797,9 @@ class RandomSplitWorld(ShapeSettingWorld):
             elif nodes[i].shape[0] == 8:
                 t, bw, bl, x, y, g, dx, dy = nodes[i]
 
-            from envs.mesh_utils import CUSTOMIZED_COLORS
+            from envs.mesh_utils import RAINBOW_COLORS, DARKER_COLORS, CLASSIC_COLORS
             # color = RAINBOW_COLORS[i - 1]
-            color = CUSTOMIZED_COLORS[i - 1]
+            color = RAINBOW_COLORS+DARKER_COLORS+CLASSIC_COLORS[i - 1]
             prediction = None
             if phase == 'prediction' and nodes[i, 0] == 2:
                 g = predictions[0]

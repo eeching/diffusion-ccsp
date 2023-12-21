@@ -160,6 +160,8 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
 
         if args.model_relation == "regular_grid":
             test_idxs = [4, 8, 12, 16]
+        elif "all" in args.model_relation:
+            test_idxs = [3, 6, 9, 10]
         else:
             test_idxs = [3, 6, 8]
         args.train_proj = f'tidy_{args.model_relation}'

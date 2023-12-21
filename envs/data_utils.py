@@ -664,7 +664,7 @@ def compute_qualitative_constraints(objects, rotations=None, debug=False, scale=
         summarize_constraints(constraints)
     return constraints
 
-def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=1, test_only=False, model_relation=None, composed_relation=None): # if the relation is None, compute all relations, if not, only compute the specified relations
+def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=1, test_only=False, model_relation=None, composed_relation=None, generating_data=False): # if the relation is None, compute all relations, if not, only compute the specified relations
     """ objects is a dictionary of tile_name: {center, extents} """
 
     sides = ['east', 'west', 'north', 'south']
@@ -682,47 +682,47 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
     # print(rotations)
 
     """in regular grid"""
-
-    if "regular_grid" in model_relation:
-        n_to_set_mapping = {4: [[4]], 6: [[6]], 8: [[8], [4, 4]], 9: [[9]], 10: [[10], [4, 6]],
-                                12: [[6, 6], [4, 8], [4, 4, 4]], 13: [[4, 9]], 14: [[6, 8], [6, 4, 4], [4, 10]], 15: [[6, 9]], 
-                                16: [[16], [6, 10], [4, 6, 6], [8, 8], [8, 4, 4]]}
-        _, _, n_obj, n_combi_idx = model_relation.split("_")
-        n_obj = int(n_obj)
-        n_combi_idx = int(n_combi_idx)
-        n_combi = n_to_set_mapping[n_obj][n_combi_idx]
-        idx = 1
-        for k in n_combi:
-            start_obj = objects[names[idx]]
-            x1, y1, z1 = start_obj['center']
-            lx1, ly1, lz1 = start_obj['extents']
-            if rotations is not None and names[idx] in rotations:
-                if abs(abs(rot1) - np.pi /2) < 0.2:
-                    ly1, lx1, lz1 = start_obj['extents']
-        
-            x1_left = x1 - lx1 / 2
-            y1_bottom = y1 - ly1 / 2
-
-            end_obj = objects[names[idx + k - 1]]
-            x2, y2, z2 = end_obj['center']
-            lx2, ly2, lz2 = end_obj['extents']
-            if rotations is not None and names[idx + k - 1] in rotations:
-                if abs(abs(rot2) - np.pi /2) < 0.2:
-                    ly2, lx2, lz2 = end_obj['extents']
+    if generating_data:
+        if "regular_grid" in model_relation:
+            n_to_set_mapping = {4: [[4]], 6: [[6]], 8: [[8], [4, 4]], 9: [[9]], 10: [[10], [4, 6]],
+                                    12: [[6, 6], [4, 8], [4, 4, 4]], 13: [[4, 9]], 14: [[6, 8], [6, 4, 4], [4, 10]], 15: [[6, 9]], 
+                                    16: [[16], [6, 10], [4, 6, 6], [8, 8], [8, 4, 4]]}
+            _, _, n_obj, n_combi_idx = model_relation.split("_")
+            n_obj = int(n_obj)
+            n_combi_idx = int(n_combi_idx)
+            n_combi = n_to_set_mapping[n_obj][n_combi_idx]
+            idx = 1
+            for k in n_combi:
+                start_obj = objects[names[idx]]
+                x1, y1, z1 = start_obj['center']
+                lx1, ly1, lz1 = start_obj['extents']
+                if rotations is not None and names[idx] in rotations:
+                    if abs(abs(rot1) - np.pi /2) < 0.2:
+                        ly1, lx1, lz1 = start_obj['extents']
             
-            x2_right = x2 + lx2 / 2
-            y2_top = y2 + ly2 / 2
+                x1_left = x1 - lx1 / 2
+                y1_bottom = y1 - ly1 / 2
 
-            region_w = x2_right - x1_left
-            region_h = y2_top - y1_bottom
-             
-            if region_w > region_h:
-                con = ["regular_grid_h"] + [i for i in range(idx, idx + k)]
-            else:
-                con = ["regular_grid_v"] + [i for i in range(idx, idx + k)]
-            
-            constraints.append(tuple(con))
-            idx += k
+                end_obj = objects[names[idx + k - 1]]
+                x2, y2, z2 = end_obj['center']
+                lx2, ly2, lz2 = end_obj['extents']
+                if rotations is not None and names[idx + k - 1] in rotations:
+                    if abs(abs(rot2) - np.pi /2) < 0.2:
+                        ly2, lx2, lz2 = end_obj['extents']
+                
+                x2_right = x2 + lx2 / 2
+                y2_top = y2 + ly2 / 2
+
+                region_w = x2_right - x1_left
+                region_h = y2_top - y1_bottom
+                
+                if region_w > region_h:
+                    con = ["regular_grid_h"] + [i for i in range(idx, idx + k)]
+                else:
+                    con = ["regular_grid_v"] + [i for i in range(idx, idx + k)]
+                
+                constraints.append(tuple(con))
+                idx += k
 
     """ left, right, top, bottom """
     # alignment = 0.05 * scale
