@@ -37,6 +37,7 @@ class DataCollector(object):
                 input_mode: str = 'collisions',
                 test_only: bool = False,
                 relation: str = 'aligned_bottom',
+                composed_relation: bool = False,
                 **kwargs):
         import torch
         world = self.world_class(**self.world_args)
@@ -58,11 +59,15 @@ class DataCollector(object):
             class_counts = {k: 0 for k in classes}
 
         ## dataset directory
-        dataset_dir = join(dataset_dir, name, relation)
+        if relation == 'all':
+            log_relation_name = f'all_composed_{composed_relation}'
+        else:
+            log_relation_name = relation
+        dataset_dir = join(dataset_dir, name, log_relation_name)
         os.makedirs(dataset_dir, exist_ok=True)
         raw_dir = join(dataset_dir, 'raw')
         json_dir = join(dataset_dir, 'json')
-        render_dir = join(RENDER_PATH, name, relation)
+        render_dir = join(RENDER_PATH, name, log_relation_name)
         if isdir(dataset_dir):
             if del_if_exists:
                 shutil.rmtree(dataset_dir)
@@ -77,7 +82,7 @@ class DataCollector(object):
 
         ## images directory
         if pngs or jsons:
-            png_dir = join(RENDER_PATH, name, relation)
+            png_dir = join(RENDER_PATH, name, log_relation_name)
             
             os.makedirs(png_dir, exist_ok=True)
 
@@ -95,12 +100,13 @@ class DataCollector(object):
 
             json_name = None if not jsons else png_path.replace('.png', '.json')
 
-            data = world.generate_json(json_name=json_name, input_mode=input_mode, test_only=test_only, model_relation=model_relation, generating_data=True) # getting constraints for the objects
-            # if label == 'test':
-            #     json_path = data_path.replace('.pt', '.json').replace(raw_dir, json_dir)
-            #     with open(json_path, 'w') as f:
-            #         json.dump(data, f)
-
+            data = world.generate_json(json_name=json_name, input_mode=input_mode, test_only=test_only, generating_data=True, 
+                                       model_relation=model_relation, composed_relation=composed_relation) # getting constraints for the objects
+            
+            if len(data["constraints"]) == 0:
+                pdb.set_trace()
+                return False
+            
             c = world.generate_pt(data=data, data_path=data_path, verbose=verbose, input_mode=input_mode, **kwargs)
             for k, v in c.items():
                 class_counts[k] += v
@@ -126,13 +132,20 @@ class DataCollector(object):
 
         scene_sampler_args = copy.deepcopy(self.scene_sampler_args)
         count_threshold = math.ceil(n / (max_n - min_n + 1))
-        current_n = min_n
-        scene_sampler_args['max_num_objects'] = current_n or input_mode in tidy_constraints
+        if max_n <= 10:
+            count_threshold = math.ceil(n / (max_n - min_n + 1)) 
+        else:
+            count_threshold = math.ceil(0.9 * n / (10 - min_n + 1))
+            count_threshold_ = math.ceil(0.1 * n / (max_n - 12 + 1)) 
+    
+        if "regular_grid" not in relation:
+            current_n = min_n
+            scene_sampler_args['max_num_objects'] = current_n 
         for t in tqdm(range(n)):
             t = t * shake_per_world
             data_path = join(raw_dir, f'data_{t}.pt')
 
-            png_dir = join(RENDER_PATH, name, relation)
+            png_dir = join(RENDER_PATH, name, log_relation_name)
             os.makedirs(png_dir, exist_ok=True)
             png_path = join(png_dir, f'idx={t}.png')
 
@@ -143,16 +156,28 @@ class DataCollector(object):
                     class_counts[g] += 1
             else:
                 world = self.world_class(**self.world_args)
-                model_relation = world.sample_scene(**scene_sampler_args)
 
-                newly_generated = add_one_pt(world, data_path, png_path, newly_generated, model_relation)
-
+                while True:
+                    model_relation = world.sample_scene(**scene_sampler_args)
+                    newly_generated = add_one_pt(world, data_path, png_path, newly_generated, model_relation)
+                    if newly_generated is not False:
+                        break
                 ## balancing the dataset for the boxes dataset
-                if balance_data:
+                if balance_data and "regular_grid" not in relation:
                     n_objects = len(world.tiles)
+                    
                     counts[n_objects] += 1
-                    if counts[n_objects] >= count_threshold:
-                        scene_sampler_args['min_num_objects'] = n_objects + 1
+                    if n_objects <= 10:
+                        active_count_threshold = count_threshold
+                    elif n_objects >= 12:
+                        active_count_threshold = count_threshold_
+
+                    if counts[n_objects] >= active_count_threshold:
+                        if n_objects == 10:
+                            scene_sampler_args['min_num_objects'] = n_objects + 2
+                        else:
+                            scene_sampler_args['min_num_objects'] = n_objects + 1
+                        
                         if scene_sampler_args['min_num_objects'] > scene_sampler_args['max_num_objects']:
                             scene_sampler_args['max_num_objects'] = scene_sampler_args['min_num_objects']
 
@@ -199,7 +224,7 @@ def get_data_collection_args(world_name='RandomSplitWorld', input_mode='diffuse_
                              num_worlds=10, verbose=False, num_shakes=1, data_type='train',
                              min_num_objects=2, max_num_objects=5, pngs=False, jsons=False,
                              del_if_exists=True, world_args=dict(), w=3.0, l=2.0, h=0.5, grid_size=0.5, 
-                             partial_constriants=False, relation="aligned_bottom"):
+                             partial_constriants=False, relation="aligned_bottom", composed_relation=False):
 
     if 'w' in world_args:
         w = world_args['w']
@@ -221,6 +246,7 @@ def get_data_collection_args(world_name='RandomSplitWorld', input_mode='diffuse_
     parser.add_argument('-length', type=float, default=l)
     parser.add_argument('-height', type=float, default=h)
     parser.add_argument('-relation', type=str, default=relation)
+    parser.add_argument('-composed_relation', type=bool, default=composed_relation)
 
     parser.add_argument('-pngs', action='store_true')
     parser.add_argument('-jsons', action='store_true')
@@ -262,7 +288,8 @@ def generate_train_dataset(args=None, debug=False, save_meshes=False, same_order
     collector = DataCollector(world_class, world_args=args.world_args, scene_sampler_args=scene_sampler_args)
     collector.collect(args.num_worlds, shake_per_world=args.num_shakes, label=args.input_mode + '_train',
                       verbose=args.verbose, pngs=args.pngs, jsons=args.jsons, debug=debug,
-                      save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, relation=args.relation)
+                      save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, 
+                      relation=args.relation, composed_relation=args.composed_relation)
     # collector.collect(int(args.num_worlds/10), label='test', **kwargs)
 
 
@@ -282,10 +309,15 @@ def generate_test_dataset(args=None, pngs=True, jsons=True,
     kwargs.update(dict(input_mode=args.input_mode, shake_per_world=1,
                        pngs=args.pngs, jsons=args.jsons, verbose=False))
     for i in range(args.min_num_objects, args.max_num_objects + 1):
+        if "regular_grid" in args.relation and i not in [4, 6, 8, 9, 10, 12, 13, 14, 15, 16]:
+            continue
+        if args.relation == 'all' and i == 11:
+            continue
         scene_sampler_args = dict(min_num_objects=i, max_num_objects=i, relation=args.relation)
         collector = DataCollector(world_class, world_args=args.world_args, scene_sampler_args=scene_sampler_args)
         collector.collect(args.num_worlds, label=f'{args.input_mode}_test_{i}_split', pngs=args.pngs, jsons=args.jsons,
-                          save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, test_only=True, relation=args.relation)
+                          save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, 
+                          test_only=True, relation=args.relation, composed_relation=args.composed_relation)
 
 
 ######################## tests ############################

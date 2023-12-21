@@ -88,13 +88,13 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
              train_num_steps=300000, input_mode=None,
              hidden_dim=256, ebm_per_steps=1, ev='ff', use_wandb=True, pretrained=False, normalize=True,
              run_id=None, train_proj='correct_norm', samples_per_step=10, step_sizes='2*self.betas',
-             energy_wrapper=False, model_relation=[], evaluate_relation=[], eval_only=False, wandb_name=None):
+             energy_wrapper=False, model_relation="all_composed_False", evaluate_relation="all_composed_False", eval_only=False, wandb_name=None):
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-timesteps', type=int, default=timesteps)
     parser.add_argument('-model', type=str, default=model, choices=['Diffusion-CCSP', 'StructDiffusion'])
     parser.add_argument('-EBM', type=str, default=EBM, choices=['False', 'ULA', 'ULA+', 'HMC', 'MALA'])
-    parser.add_argument('-energy_wrapper', type=bool, default=False)
+    parser.add_argument('-energy_wrapper', type=bool, default=energy_wrapper)
     parser.add_argument('-samples_per_step', type=int, default=samples_per_step)
     parser.add_argument('-step_sizes', type=str, default=step_sizes)
 
@@ -113,8 +113,8 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
     parser.add_argument('-run_id', type=str, default=run_id)
     parser.add_argument('-wandb_name', type=str, default=wandb_name)    
     parser.add_argument('-eval_only', type=bool, default=eval_only)
-    parser.add_argument('-model_relation', type=list, default=model_relation)
-    parser.add_argument('-evaluate_relation', type=list, default=evaluate_relation)
+    parser.add_argument('-model_relation', type=str, default=model_relation)
+    parser.add_argument('-evaluate_relation', type=str, default=evaluate_relation)
     args = parser.parse_args()
     if args.EBM == 'False':
         args.EBM = False
@@ -148,30 +148,25 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
         args.test_tasks = {i: f'RandomSplitQualitativeWorld(10)_qualitative_test_{i}_split' for i in range(2, 5)}
     elif args.input_mode == 'tidy':
 
-        tidy_relations = [tidy_constraints[i] for i in args.model_relation]
+        if 'all' in args.model_relation:
+            n_train = 40000
+            n_test = 20
+        else:
+            if args.model_relation == "regular_grid":
+                n_train = 10000
+            else:
+                n_train = 10000
+            n_test = 10
 
-        if len(tidy_relations) == 2:
-            n = 20000
-            if 'cfree' in tidy_relations:
-                tidy_relations = ['mixed_cfree']
-            elif 'ccollide' in tidy_relations:
-                tidy_relations = ['mixed_ccollide']
-        elif len(tidy_relations) == 1:
-            n = 10000
-        elif len(tidy_relations) == 3:
-            n = 20000
-            tidy_relations = ['integrated_cfree&ccollide']
-
-        args.train_proj = f'tidy_{tidy_relations[0]}'
+        if args.model_relation == "regular_grid":
+            test_idxs = [4, 8, 12, 16]
+        else:
+            test_idxs = [3, 6, 8]
+        args.train_proj = f'tidy_{args.model_relation}'
         # --- for testing
-        train_task = f"RandomSplitSparseWorld({n})_tidy_train/{tidy_relations[0]}"
+        train_task = f"RandomSplitSparseWorld({n_train})_tidy_train/{args.model_relation}"
 
-        # if 'ccollide' in tidy_relations[0]:
-        #     end_idx = 3
-        # else:
-        #     end_idx = 11
-        end_idx = 11
-        test_tasks = {i: f'RandomSplitSparseWorld({int(n/1000)})_tidy_test_{i}_split/integrated_cfree' for i in range(2, end_idx)}
+        test_tasks = {i: f'RandomSplitSparseWorld({n_test})_tidy_test_{i}_split/{args.model_relation}' for i in test_idxs}
 
         if 'World' not in args.train_task:
             args.train_task = train_task
@@ -237,11 +232,14 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         train_name = f'm={model}_t={timesteps}'
     else:
         if eval_only:
-            train_name = f'eval_m={EBM}_wrapper_{energy_wrapper}_eval_relation={evaluate_relation}'
+            train_name = f'eval_m={EBM}_wrapper_{energy_wrapper}_eval_relation={evaluate_relation}_steps_{samples_per_step}'
         else:
             train_name = f'm={EBM}_wrapper_{energy_wrapper}_model_relation={model_relation}'
-    if train_name_extra != '' and train_name_extra != train_name:
-        train_name += f'_{train_name_extra}'
+    # if train_name_extra != '' and train_name_extra != train_name:
+    #     print(train_name_extra)
+    #     pdb.set_trace()
+    #     train_name += f'_{train_name_extra}'
+
 
     config = dict(
         train_batch_size=128,
@@ -287,9 +285,11 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
 
     dataset_kwargs = dict(input_mode=input_mode, pre_transform=pre_transform, visualize=False)
 
-    train_dataset = GraphDataset(train_task, model_relation=model_relation, **dataset_kwargs)
     test_datasets = {k: GraphDataset(task, model_relation=evaluate_relation, **dataset_kwargs) for k, task in test_tasks.items()}
-
+    if eval_only:
+        train_dataset = test_datasets[1]
+    else:
+        train_dataset = GraphDataset(train_task, model_relation=model_relation, **dataset_kwargs)
     if data_only:
         return None
 
@@ -307,15 +307,16 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
             image_dim = int(eval(train_task[train_task.index('[')+1:train_task.index(']')])) ** 2
             begin = dims[0][2] + image_dim
             dims = tuple([dims[0], (image_dim, dims[0][2], begin), (dims[1][0], begin, begin + dims[1][0])])
-
-    # denoise_fn = ConstraintDiffuser(dims=dims, hidden_dim=hidden_dim, EBM=EBM, input_mode=input_mode,
-    #                                 pretrained=pretrained, normalize=normalize, energy_wrapper=energy_wrapper,
-    #                                 model=model, verbose=verbose, model_relation=model_relation).cuda()
-    # denoise_fn = ComposedEBMDenoiseFn(denoise_fn, ebm_per_steps)
     
+    if 'all' in model_relation:
+        relation_sets = tidy_constraints
+    else:
+        from networks.denoise_fns import dataset_relation_mapping
+        relation_sets = dataset_relation_mapping[model_relation]
     denoise_fn = ComposedEBMDenoiseFn(input_mode=input_mode, dims=dims, hidden_dim=hidden_dim, device='cuda', 
-                                      relation_sets=tidy_constraints, EBM=EBM, pretrained=pretrained, normalize=normalize, energy_wrapper=energy_wrapper, verbose=verbose,
-                   ebm_per_steps=ebm_per_steps, eval_only=eval_only).cuda()
+                                      relation_sets=relation_sets, EBM=EBM, pretrained=pretrained, normalize=normalize, 
+                                      energy_wrapper=energy_wrapper, verbose=verbose, ebm_per_steps=ebm_per_steps, 
+                                      eval_only=eval_only).cuda()
     
     diffusion = GaussianDiffusion(denoise_fn, timesteps=timesteps, EBM=EBM,
                                   samples_per_step=samples_per_step, step_sizes=step_sizes).cuda()
@@ -327,7 +328,8 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         print('testing forward - sequential')
         for data in train_dataloader:
             loss = diffusion(data, debug=True, tag='EBM')  ##  if EBM else 'test run'
-            loss.backward()
+            if not eval_only:
+                loss.backward()
             break
         print('done')
 
@@ -379,7 +381,8 @@ def load_trainer(run_id, milestone, visualize=False, rejection_sampling=False, v
     args = get_args_from_run_id(run_id)
 
     # args.test_tasks = kwargs.get('test_tasks', args.test_tasks)
-    for k in ['input_mode', 'train_task', 'test_tasks', 'train_num_steps', 'EBM', 'model_relation', 'evaluate_relation', 'eval_only', 'energy_wrapper', 'samples_per_step']:
+    for k in ['input_mode', 'train_task', 'test_tasks', 'train_num_steps', 'EBM', 
+              'model_relation', 'evaluate_relation', 'eval_only', 'energy_wrapper', 'samples_per_step']:
         if k in kwargs:
             setattr(args, k, kwargs[k])
             kwargs.pop(k)

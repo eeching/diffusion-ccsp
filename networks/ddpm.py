@@ -25,7 +25,7 @@ from tqdm import tqdm
 
 
 from envs.data_utils import render_world_from_graph, print_tensor, constraint_from_edge_attr, tidy_constraint_from_edge_attr, translate_cfree_evaluations
-from networks.denoise_fn import tidy_constraints
+from networks.denoise_fns import tidy_constraints, has_single_arity
 try:
     from apex import amp
     APEX_AVAILABLE = True
@@ -449,8 +449,8 @@ class Trainer(object):
         rejection_sampling=False,
         tamp_pipeline=False,
         eval_only=False,
-        model_relation=[0],
-        evaluate_relation=[0], 
+        model_relation="all_composed_False",
+        evaluate_relation="all_composed_False", 
         **kwargs
     ):
         super().__init__()
@@ -491,7 +491,6 @@ class Trainer(object):
         if not isdir(self.render_dir):
             os.makedirs(self.render_dir, exist_ok=True)
 
-        from networks.denoise_fn import tidy_constraints
         self.world_name = 'TriangularRandomSplitWorld' if 'Triangular' in self.render_dir else 'RandomSplitWorld'
         if 'robot' in self.input_mode:
             self.world_name = 'TableToBoxWorld'
@@ -540,20 +539,23 @@ class Trainer(object):
             data['ema'] = self.ema_model.state_dict()
         torch.save(data, str(self.results_folder / f'model-{milestone}.pt'))
 
-    def load(self, milestone):
-        data = torch.load(str(self.results_folder / f'model-{milestone}.pt'))
+    def load(self, milestone, run_id=None):
+        if run_id is not None:
+            data = torch.load(str(f'logs/{run_id}/model-{milestone}.pt'))
+        else:
+            data = torch.load(str(self.results_folder / f'model-{milestone}.pt'))
 
         self.step = data['step']
         state_dict = data['model']
         new_state_dict = {}
-
+        
         for k, v in state_dict.items():
-            if 'denoise_fn.model' in k and False:
-                new_state_dict[k.replace(k, k.replace('.model', ''))] = v
-            else:
-                new_state_dict[k] = v
+            # if 'denoise_fn.model' in k:
+            #     new_state_dict[k.replace(k, k.replace('.model', ''))] = v
+            # else:
+            #     new_state_dict[k] = v
+            new_state_dict[k] = v
         self.model.load_state_dict(new_state_dict)
-
         # if self.ema_model is not None:
         #     self.ema_model.load_state_dict(data['ema'])
 
@@ -597,7 +599,7 @@ class Trainer(object):
         print('training completed')
 
     def evaluate(self, milestone, tries=(10, 0), verbose=False, return_history=False,
-                 save_log=False, run_all=False, run_only=False, resume_eval=False, render_dir=None, debug=False, **kwargs):
+                 save_log=False, run_all=True, run_only=False, resume_eval=False, render_dir=None, debug=False, **kwargs):
         if 'robot' in self.input_mode or 'stability' in self.input_mode:
             sys.path.append(dirname(dirname(abspath("__file__"))))
             from demo_utils import render_robot_world_from_graph, render_stability_world_from_graph
@@ -623,6 +625,10 @@ class Trainer(object):
             sampling_time = []
             all_failure_modes = {}
             best_tries = {}
+
+            for relation in tidy_constraints:
+                best_tries[relation] = dict()
+
             percentage = 0
 
             ## add new num_object so only ran that one
@@ -665,7 +671,7 @@ class Trainer(object):
                             all_features, history = result, None
 
                         # not clamp 
-                        # all_features.clamp_(-1., 1.)
+                        all_features.clamp_(-1., 1.)
                         
                         all_features = self.get_all_features(all_features, batch)
 
@@ -681,8 +687,9 @@ class Trainer(object):
                         
                         for j in graph_indices: # graph indices corresponds to each test case
                             
-                            if j not in best_tries.keys():
-                                best_tries[j] = [None, 0]
+                            if j not in best_tries["aligned_bottom"].keys():
+                                for key in best_tries.keys():
+                                    best_tries[key][j] = [None, 0]
 
                             if run_only and j != run_only[1]:
                                 continue
@@ -759,12 +766,18 @@ class Trainer(object):
                                     edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
                                     edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
                                     offset = edge_index.min() 
-                                    edge_index -= (offset - 1)
-                                    constraints = tidy_constraint_from_edge_attr(edge_attr, edge_index, evaluate_relation=self.evaluate_relation)
+
+                                    if set(edge_attr.tolist()).issubset({tidy_constraints.index('symmetry_v'), tidy_constraints.index('symmetry_h')}):
+                                        edge_index -= (offset-1)
+                                    else:
+                                        edge_index -= offset
+                                    # else:
+                                    #     edge_index -= (offset - 1)
+
+                                    constraints = tidy_constraint_from_edge_attr(edge_attr, edge_index)
                                     render_kwargs.update(dict(constraints=constraints))
 
-
-                                evaluations, success_ratio = render_world_from_graph(features, evaluate_relation=self.evaluate_relation, **render_kwargs)
+                                evaluations, success_ratio = render_world_from_graph(features, **render_kwargs)
                                 
                                 if verbose:
                                     print(i, j, k, '\t', evaluations)
@@ -780,7 +793,9 @@ class Trainer(object):
                             if success:
                                 ## computing statistics
                                 success_list.append((j, k))
-                                best_tries[j] = [k, 1]
+                                for key in best_tries.keys():
+                                    if best_tries[key][j][1] < 1:
+                                        best_tries[key][j] = [k, 1]
                                 if j not in success_rounds:
                                     succeeded_graph_indices.append(j)
                                     success_rounds[j] = k
@@ -797,15 +812,16 @@ class Trainer(object):
                                     evaluations = [e for e in evaluations if e[0] in qualitative_constraints]
                                 all_failure_modes[k][j] = evaluations
 
-                            elif 'tidy' in self.input_mode or self.input_mode in tidy_constraints:
-                                if len(evaluations) > 0 and len(evaluations[0]) == 2:
-                                    evaluations = translate_cfree_evaluations(evaluations)
-                                else:
-                                    evaluations = [e for e in evaluations if e[0] in tidy_constraints]
+                            elif 'tidy' in self.input_mode:
+                                # if len(evaluations) > 0 and len(evaluations[0]) == 2:
+                                #     evaluations = translate_cfree_evaluations(evaluations)
+                                # else:
+                                evaluations = [e for e in evaluations if e[0] in tidy_constraints]
                                 all_failure_modes[k][j] = evaluations
                                 
-                                if success_ratio > best_tries[j][1]:
-                                    best_tries[j] = [k, success_ratio]
+                                for key in best_tries.keys():
+                                    if success_ratio[key] > best_tries[key][j][1]:
+                                        best_tries[key][j] = [k, success_ratio[key]]
 
                                 if return_history and self.visualize:  ##  and False
                                     self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
@@ -851,7 +867,13 @@ class Trainer(object):
                                      f"({percentage:.2f})"
                        
 
-                        all_success_rate = [k[1] for k in best_tries.values()]
+                        all_success_rate = []
+                        
+                        for key in best_tries.keys():
+                            succ_rates = [k[1] for k in best_tries[key].values()]
+                            print_out += f"\t {key} with mean success ratio {np.mean(succ_rates):.2f} "
+                            all_success_rate.extend(succ_rates)
+                           
                         print_out += f"\t average success ratio {np.mean(all_success_rate):.2f} with std {np.std(all_success_rate):.2f} " 
 
                         print(print_out)

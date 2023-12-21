@@ -5,8 +5,8 @@ from os.path import join, isfile
 
 from envs.data_utils import print_tensor, get_one_hot, r, get_grasp_side_from_grasp, \
     get_ont_hot_grasp_side
-from networks.denoise_fn import robot_constraints, puzzle_constraints, \
-    stability_constraints, qualitative_constraints, robot_qualitative_constraints, tidy_constraints
+from networks.denoise_fns import robot_constraints, puzzle_constraints, \
+    stability_constraints, qualitative_constraints, robot_qualitative_constraints, tidy_constraints, dataset_relation_mapping
 import pdb
 
 ####################################################################################################
@@ -14,7 +14,7 @@ import pdb
 
 def pre_transform(data, data_idx, input_mode, model_relation, debug_mode=0, **kwargs):
     if 'diffuse_pairwise' in input_mode or 'robot' in input_mode or 'stability' in input_mode \
-            or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints:
+            or 'qualitative' in input_mode or 'tidy' in input_mode:
         return data_transform_cn_diffuse_batch(data, data_idx, input_mode, model_relation=model_relation, **kwargs)
     if input_mode == 'collisions':
         return data_transform_cn_graph(data, data_idx, **kwargs)
@@ -23,7 +23,7 @@ def pre_transform(data, data_idx, input_mode, model_relation, debug_mode=0, **kw
 
 ####################################################################################################
 
-def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, visualize=False, verbose=False, model_relation=[]):
+def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, visualize=False, verbose=False, model_relation="all_composed_False"):
     """
         excluding the first feature on type [0 (container) / 1 (tiles)]
         for BoxWorld: each object has 4 features
@@ -108,7 +108,10 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
                         geom = [w, l]
                         pose = [x, y, cs, sn]
                     elif 'tidy' in input_mode:
-                        all_constraints = np.array(tidy_constraints)[model_relation].tolist()
+                        if "all" in model_relation:
+                            all_constraints = tidy_constraints
+                        else:
+                            all_constraints = dataset_relation_mapping[model_relation]
                         _, w, l, x, y, sn, cs = dd
                         w /= w_tray
                         l /= l_tray
@@ -174,7 +177,10 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
             if 'robot' in input_mode and 'qualitative' in input_mode:
                 all_constraints = robot_qualitative_constraints
             if 'tidy' in input_mode:
-                all_constraints = np.array(tidy_constraints)[model_relation].tolist()
+                if "all" in model_relation:
+                    all_constraints = tidy_constraints
+                else:
+                    all_constraints = dataset_relation_mapping[model_relation]
                 
         feature = geom + pose
         if verbose:
@@ -185,7 +191,6 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
     ## for each edge, add one constraint node, and add edge_attr
 
     # edge_attr = [all_constraints.index(elems[0]) for elems in data.edge_index]
-
     data.edge_index = [elem for elem in data.edge_index if elem[0] in all_constraints] # extract all the relations in model_relation
     edge_attr =  [tidy_constraints.index(elems[0]) for elems in data.edge_index] # map the index of the relation to that in tidy_constraints
     edge_index = [elems[1:] for elems in data.edge_index]
@@ -203,7 +208,10 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
     conditioned_variables = torch.tensor(
         np.stack([np.asarray(n) for n in conditioned_variables]), dtype=torch.int8)
     
-    edge_index = torch.tensor(np.stack([np.asarray(n) for n in edge_index]), dtype=torch.int64).T
+    try:
+        edge_index = torch.tensor(np.stack([np.asarray(n) for n in edge_index]), dtype=torch.int64).T
+    except:
+        return None
     edge_attr = torch.tensor(np.stack([np.asarray(n) for n in edge_attr]), dtype=torch.float)
 
     ## the dataset is biased with the order of the data, so shuffle it

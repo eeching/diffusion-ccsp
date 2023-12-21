@@ -22,9 +22,9 @@ from envs.mesh_utils import CLOUD, create_tray, create_grid_meshes, Rotation2D, 
     reorganize_points_2, RAINBOW_COLOR_NAMES
 from envs.data_utils import get_grid_index, get_grid_offset, save_graph_data, get_grids_offsets, \
     print_line, compute_pairwise_collisions, apply_grid_mask, print_tensor, grid_offset_to_pose, r, \
-    compute_world_constraints, expand_unordered_constraints, compute_tidy_constraints
+    compute_world_constraints, expand_unordered_constraints, compute_tidy_constraints, get_ordered_constraints
 from envs.render_utils import export_gif
-from envs.builders import get_tray_splitting_gen, get_sub_region_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen, get_tidy_data_gen
+from envs.builders import get_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen, get_tidy_data_gen
 
 
 def get_world_class(world_name):
@@ -197,7 +197,7 @@ class CSPWorld(object):
 
     def generate_json(self, input_mode='collisions', json_name=None,
                       constraints={}, world={}, same_order=True, test_only=False, 
-                      collisions=[], model_relation=[], generating_data=False):
+                      collisions=[], generating_data=False, model_relation=None, composed_relation=None):
         """ record in a json file for collision checking """
         world.update({
             'name': self.name,
@@ -278,6 +278,26 @@ class CSPWorld(object):
 
         """ compute constraints """
         from networks.denoise_fns import tidy_constraints
+       
+        # if model_relation == 'customized_1':
+        #     filename = 'tmp.json'
+        # elif model_relation == 'customized_2':
+        if model_relation == 'customized_2' or model_relation == 'customized_4' or model_relation == 'customized_5' or model_relation == 'customized_3':
+            filename = 'tmp_1.json'
+            with open(filename) as json_file:
+                input_relations = json.load(json_file)
+                print("which idx")
+
+                x = input()
+                world["constraints"] = input_relations[x]
+            if json_name is not None:
+                with open(json_name, 'w') as f:
+                    for k, data in world['objects'].items():
+                        world['objects'][k]['extents'] = list(data['extents'])
+                        world['objects'][k]['center'] = list(data['center'])
+                    json.dump(world, fp=f, indent=3)
+                
+            return world
 
         if len(world['constraints']) == 0:
             world['constraints'] = []
@@ -288,17 +308,18 @@ class CSPWorld(object):
                     world['collisions'] = self.check_collisions_in_scene(world['objects'], verbose=False)
                     collisions = world['collisions']
                    
-                if 1 in model_relation: # generating c-collide
+                # if 1 in model_relation: # generating c-collide
                 #     world['constraints'] = self.generate_c_free_constraints(world['objects'], collisions, same_order=same_order)
                 # if 2 in model_relation:
-                    world['constraints'] += self.generate_c_collide_constraints(world['objects'], collisions, same_order=same_order)
+                    # world['constraints'] += self.generate_c_collide_constraints(world['objects'], collisions, same_order=same_order)
                 
                 if len(world['constraints']) == 0:
                     world['constraints'] = []
     
         if 'tidy' in input_mode:
             scale = min([self.w / 3, self.l / 2])
-            world = compute_tidy_constraints(world, rotations=self.rotations, same_order=same_order, scale=scale, test_only=test_only)
+            world = compute_tidy_constraints(world, rotations=self.rotations, same_order=same_order, scale=scale, 
+                                             test_only=test_only, model_relation=model_relation, composed_relation=composed_relation)
 
         if 'qualitative' in input_mode:
             scale = min([self.w / 3, self.l / 2])
@@ -777,7 +798,9 @@ class RandomSplitWorld(ShapeSettingWorld):
             elif nodes[i].shape[0] == 8:
                 t, bw, bl, x, y, g, dx, dy = nodes[i]
 
-            color = RAINBOW_COLORS[i - 1]
+            from envs.mesh_utils import CUSTOMIZED_COLORS
+            # color = RAINBOW_COLORS[i - 1]
+            color = CUSTOMIZED_COLORS[i - 1]
             prediction = None
             if phase == 'prediction' and nodes[i, 0] == 2:
                 g = predictions[0]
@@ -850,33 +873,36 @@ class RandomSplitSparseWorld(RandomSplitWorld):
             
         meshes = regions_to_meshes(regions, self.w, self.l, self.h, relation=relation)
         self.tiles.extend(meshes)
-
-        from networks.denoise_fns import tidy_constraints
-        relations = relation.split('&')
-        model_relation = [tidy_constraints.index(r) for r in relations]
-        return model_relation
+        return relation
             
-    def get_current_constraints(self, evaluate_relation, collisions):
+    def get_current_constraints(self, collisions):
         from networks.denoise_fns import ignored_constraints
-        data = self.generate_json(input_mode="tidy", model_relation=evaluate_relation, collisions=collisions)
+        data = self.generate_json(input_mode="tidy", collisions=collisions)
         return [tuple(d) for d in data['constraints'] if d[0] not in ignored_constraints]
 
-    def check_constraints_satisfied(self, evaluate_relation=[0], same_order=False, **kwargs):
+    def check_constraints_satisfied(self, same_order=False, **kwargs):
 
-        if evaluate_relation == [0]:
-            collisions = []
-        else:
-            # print("checking collisions ... ")
-            collisions = self.check_collisions_in_scene(**kwargs)
-            
+        # # print("checking collisions ... ")
+        # collisions = self.check_collisions_in_scene(**kwargs)
+        collisions = []            
         given_constraints = self.tidy_constraints
 
-        current_constraints = self.get_current_constraints(evaluate_relation, collisions) # current constraints satisfied
-    
-        if not same_order:
-            current_constraints = expand_unordered_constraints(current_constraints)
-            given_constraints = expand_unordered_constraints(given_constraints)
+        current_constraints = self.get_current_constraints(collisions) # current constraints satisfied
+        current_constraints = get_ordered_constraints(current_constraints)
+        given_constraints = get_ordered_constraints(given_constraints)
         missing = [ct for ct in given_constraints if ct not in current_constraints]
+
+        missing_dict = dict()
+        missing = []
+        success_ratio = dict()
+        from networks.denoise_fns import tidy_constraints
+        for relation in tidy_constraints:
+            missing_dict[relation] = [ct for ct in given_constraints[relation] if ct not in current_constraints[relation]]
+            if len(given_constraints[relation]) == 0:
+                success_ratio[relation] = 0
+            else:
+                success_ratio[relation] = 1 - len(missing_dict[relation])/len(given_constraints[relation])
+            missing.extend(missing_dict[relation])
 
         if self.img_name is not None:
             json_name = self.img_name.replace('.png', '.json')
@@ -889,8 +915,8 @@ class RandomSplitSparseWorld(RandomSplitWorld):
             # print('\n', self.img_name, missing)
             # print('\t', current_constraints)
             # print('\t', given_constraints)
-            self.generate_json(input_mode="tidy", model_relation=evaluate_relation, json_name=json_name, world=world)
-        return missing, 1-0.5*len(missing)/len(given_constraints)
+            self.generate_json(input_mode="tidy", json_name=json_name, world=world)
+        return missing, success_ratio
 
     def construct_scene_from_graph_data(self, nodes, constraints=[], **kwargs):
         """ give ground truth constraints to check if they are satisfied """

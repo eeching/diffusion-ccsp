@@ -15,6 +15,7 @@ networks/**/*.png
 networks/**/*.pt
 visualizations/
 !visualizations/*.css
+tmp/
 
 *.gv
 *.zip

@@ -4,9 +4,10 @@ import numpy as np
 from math import sqrt
 import random
 import numpy.random as rn
-
+import math
 from envs.data_utils import compute_qualitative_constraints, summarize_constraints, r as rd
 import pdb
+from networks.denoise_fns import tidy_constraints_dict
 
 
 def get_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.3):
@@ -80,12 +81,16 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
 
 
     def filter_regions(regions: Iterable[Region], min_size: float) -> Iterable[Region]:
-        return [r for r in regions if r[2] > min_size and r[3] > min_size]
-
+        
+        if len(regions) == 0:
+            return regions
+        else:
+            return [r for r in regions if r[2] > min_size and r[3] > min_size]
 
     def gen(W, L, relation, offset=0.05):
 
         min_size = min([W, L]) / 2 * default_min_size
+        n_mapping = {3: [0, 1], 4: [2, 0], 5: [1, 1], 6: [0, 2], 7: [2, 1], 8: [1, 2], 9: [0, 3], 10: [2, 2]}
 
         def get_aligned_regions():
 
@@ -104,6 +109,26 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
 
             return regions, 'aligned_bottom'
         
+        def get_aligned_vertical_regions():
+
+            regions = []
+            n = rn.randint(min_num_regions, max_num_regions+1)
+
+            x_center = rn.uniform(0.2, 0.8)*W 
+            ys = np.sort(rn.uniform(0+offset, L - 2*offset, size = n * 2))
+            xs = rn.uniform(0.1, min(W - x_center, x_center), size = n)
+            
+            for i in range(n):
+                x1 = x_center - xs[i]
+                w1 = xs[i] * 2
+                y1 = ys[i * 2]
+                l1 = ys[i * 2 + 1] - y1
+
+                if x1 > offset and y1 > offset and w1 > min_size and l1 > min_size and x1 + w1 < W - offset and y1 + l1 < L - offset:
+                    regions.append((x1, y1, w1, l1))
+    
+            return regions, 'aligned_vertical'
+             
         def get_pairwise_aligned_cfree():
 
             regions = []
@@ -224,68 +249,162 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
             return regions, 'ccollide'
 
         def get_next_to_regions(W, L, offset):
-            
-            mac_regions, _ = get_cfree_regions(max_depth=max(max_depth, 2), X=0, Y=0, W=W, L=L, offset=offset, offset_grid=False)
 
             regions = []
-            if len(mac_regions) > max_num_regions//2:
-                mac_regions_idx = rn.choice(np.arange(len(mac_regions)), size = max(len(mac_regions), max_num_regions)//2, replace = False)
-
-                for idx in mac_regions_idx:
-                    x, y, w, l = mac_regions[idx]
-                    if rand() < 0.5:
-                        axis = 0
-                    else:
-                        axis = 1
+            mac_regions = []
+            if min_num_regions == max_num_regions:
+                n_1, n_2 = n_mapping[min_num_regions]
+            else:
+                n = rn.randint(min_num_regions, max_num_regions+1)
+                n_1, n_2 = n_mapping[n]
+            
+            mac_regions, _ = get_cfree_regions(max_depth = max(3, max_depth), X=0, Y=0, W=W, L=L, offset=offset)
+            mac_regions = filter_regions(mac_regions, 0.2)
+           
+            while n_1 > 0:
+                # while len(mac_regions) == 0:
+                    # mac_regions, _ = get_cfree_regions(max_depth = 3, X=0, Y=0, W=W, L=L, offset=offset)
+                    # mac_regions = filter_regions(mac_regions, 0.2)
+                if mac_regions == []:
+                    return [], 'next_to'
                 
-                    split_point = rand() * mac_regions[idx][axis + 2]
-                    if axis == 0:
-                        left_offset = rn.uniform(0.2, 0.3) * split_point
-                        right_offset = rn.uniform(0.2, 0.3) * (w - split_point)
-                        interval_offset = rn.uniform(0.025, 0.05, size=2) 
-                        y_offset = rn.uniform(0.05, 0.2, size=4) * l
+                x_0, y_0, w_0, l_0 = mac_regions.pop()
 
-                        r1 = (x + left_offset, y + y_offset[0], split_point - left_offset - interval_offset[0], l-y_offset[0]-y_offset[1])
-                        r2 = (x + split_point + interval_offset[1], y + y_offset[2], 
-                            w - split_point - right_offset - interval_offset[1], l - y_offset[2] - y_offset[3])
-                    else:
-                        top_offset = rn.uniform(0.2, 0.3) * split_point
-                        bottom_offset = rn.uniform(0.2, 0.3) * (l - split_point)
-                        interval_offset = rn.uniform(0.025, 0.05, size=2) 
-                        x_offset = rn.uniform(0.1, 0.3, size=4) * w
-                        r1 = (x + x_offset[0], y + top_offset, w - x_offset[0] - x_offset[1], split_point - top_offset - interval_offset[0])
-                        r2 = (x + x_offset[2], y + split_point + interval_offset[1], w - x_offset[2] - x_offset[3], l - split_point - bottom_offset - interval_offset[1])
+                _sub_reg = []
 
-                    regions.append(r1)
-                    regions.append(r2)
-          
+                x_center, y_center = x_0 + w_0/2, y_0 + l_0/2
+                xs = rn.uniform(x_0 + min_size, x_0 + w_0 - min_size)
+                w1 = xs - x_0
+                w2 = x_0 + w_0 - xs
+                x1_padding = rn.uniform(0.1, 0.35) * w1
+                x2_padding = rn.uniform(0.1, 0.35) * w2
+                x_interval_padding = rn.uniform(0.1, 0.15, size = 2)
+
+                w1 = w1 - x1_padding - x_interval_padding[0]
+                w2 = w2 - x2_padding - x_interval_padding[1]
+
+                y_padding = rn.uniform(0.1, 0.3, size = 2)* l_0
+
+                x1 = x_center - w1 - x_interval_padding[0]
+                x2 = x_center + x_interval_padding[1]
+
+                if l_0 - y_padding[0] > min_size:
+                    l_1 = l_0 - y_padding[0]
+                    _sub_reg.append((x1, y_center - l_1/2 , w1, l_1))
+                else:
+                    _sub_reg.append((x1, y_0, w1, l_0))
+
+                if l_0 - y_padding[1] > min_size:
+                    l_2 = l_0 - y_padding[1]
+                    _sub_reg.append((x2, y_center - l_2/2, w2, l_2))
+                else:
+                    _sub_reg.append((x2, y_0, w2, l_0))
+
+                _sub_reg = filter_regions(_sub_reg, min_size)
+                if len(_sub_reg) == 2:
+                    regions.extend(_sub_reg)
+                    n_1 -= 1
+
+            while n_2 > 0:
+
+                # while len(mac_regions) == 0:
+                #     mac_regions, _ = get_cfree_regions(max_depth = 3, X=0, Y=0, W=W, L=L, offset=offset)
+                #     mac_regions = filter_regions(mac_regions, 0.3)
+
+                if mac_regions == []:
+                    return [], 'next_to'
+
+                x_0, y_0, w_0, l_0 = mac_regions.pop()
+
+                _sub_reg = []
+
+                y_center = y_0 + l_0/2
+                xs = rn.uniform(x_0 + min_size, x_0 + w_0 - min_size, size = 2)
+                w1 = xs[0] - x_0
+                w2 = xs[1] - xs[0]
+                w3 = x_0 + w_0 - xs[1]
+                x1_padding = rn.uniform(0.1, 0.3) * w1
+                x2_padding = rn.uniform(0.05, 0.15, size=2) * w2  
+                x3_padding = rn.uniform(0.1, 0.3) * w3
+
+                w1 = w1 - x1_padding 
+                w2 = w2 - x2_padding[0] - x2_padding[1]
+                w3 = w3 - x3_padding 
+
+                y_padding = rn.uniform(0.1, 0.3, size = 3)* l_0
+
+                x1 = x_0 
+                x2 = x1 + w1 + x1_padding + x2_padding[0]
+                x3 = x2 + w2 + x2_padding[1] + x3_padding
+
+                if l_0 - y_padding[0] > min_size:
+                    l_1 = l_0 - y_padding[0]
+                    _sub_reg.append((x1, y_center - l_1/2 , w1, l_1))
+                else:
+                    _sub_reg.append((x1, y_0, w1, l_0))
+
+                if l_0 - y_padding[1] > min_size:
+                    l_2 = l_0 - y_padding[1]
+                    _sub_reg.append((x2, y_center - l_2/2, w2, l_2))
+                else:
+                    _sub_reg.append((x2, y_0, w2, l_0))
+
+                if l_0 - y_padding[2] > min_size:
+                    l_3 = l_0 - y_padding[2]
+                    _sub_reg.append((x3, y_center - l_3/2, w3, l_3))
+                else:
+                    _sub_reg.append((x3, y_0, w3, l_0))
+
+                _sub_reg = filter_regions(_sub_reg, min_size)
+
+                if len(_sub_reg) == 3:
+                    regions.extend(_sub_reg)
+                    n_2 -= 1
+
             return regions, 'next_to'
         
         def get_on_top_of_regions(W, L, offset):
 
-            mac_regions, _ = get_cfree_regions(max_depth = 3, X=0, Y=0, W=W, L=L, offset=offset)
+            _max_depth = math.ceil(math.log2(max_num_regions)) + 1 
 
+            mac_regions, _ = get_cfree_regions(max_depth = _max_depth, X=0, Y=0, W=W, L=L, offset=offset)
+            mac_regions = filter_regions(mac_regions, 0.4)
             regions = []
-            if len(mac_regions) > max_num_regions/2:
-                mac_regions_idx = rn.choice(np.arange(len(mac_regions)), size = max_num_regions//2, replace = False)
 
-                for idx in mac_regions_idx:
-                    x, y, w, l = mac_regions[idx]
-                    sub_regions, _ = get_cfree_regions(max_depth = 2, X=x, Y=y, W=w, L=l, offset=0)
-                    regions.append(mac_regions[idx])
-                    regions.extend(sub_regions)
-            
+            if len(mac_regions) > max_num_regions//2:
+                mac_regions_idx = rn.choice(np.arange(len(mac_regions)), size = max_num_regions//2, replace = False)
+            else:
+                mac_regions_idx = np.arange(len(mac_regions))
+
+            for idx in mac_regions_idx:
+                    
+                x, y, w, l = mac_regions[idx]
+                sub_regions, _ = get_cfree_regions(max_depth = 2, X=x, Y=y, W=w, L=l, offset=0)    
+                sub_regions = filter_regions(sub_regions, min_size)
+
+                if len(sub_regions) > 0:
+
+                    if len(regions) + len(sub_regions) + 1 <= max_num_regions:
+                        regions.append(mac_regions[idx])
+                        regions.extend(sub_regions)
+                    elif len(regions) + 2 <= max_num_regions:
+                        regions.append(mac_regions[idx])
+                        regions.extend(sub_regions[:max_num_regions - len(regions) - 1])
+                        return regions, 'on_top_of'
+                    else:
+                        return regions, 'on_top_of'
             return regions, 'on_top_of'
 
         def get_centered_regions(W, L, offset):
 
             regions = []
 
-            if rand() < 0.6:
+            if rand() < 0.4:
 
                 w, l = rn.uniform(0.15, 0.4)*W, rn.uniform(0.15, 0.4)*L
 
-                regions.append((W/2 - w/2, L/2 - l/2,  w, l))
+                if w > min_size and l > min_size:
+                    regions.append((W/2 - w/2, L/2 - l/2,  w, l))
             
             base_regions = []
             if len(regions) > 0:
@@ -313,23 +432,32 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 base_regions.extend(sub_regions)
 
             else:
-
-                sub_regions, _ = get_cfree_regions(max_depth = 4, X=0, Y=0, W=W, 
+                if max_num_regions > 6:
+                    _max_depth = 4
+                else:
+                    _max_depth = 3
+                sub_regions, _ = get_cfree_regions(max_depth = _max_depth, X=0, Y=0, W=W, 
                                                    L=L, offset=offset)
                 
                 base_regions.extend(sub_regions)
+            
+            if len(base_regions) > max_num_regions:
+                base_regions_idx = rn.choice(np.arange(len(base_regions)), size = max_num_regions, replace = False)
+            else:
+                base_regions_idx = np.arange(len(base_regions))
+            for idx in base_regions_idx:
 
-            if len(base_regions) > max_num_regions//2:
-                base_regions_idx = rn.choice(np.arange(len(base_regions)), size = max_num_regions//2, replace = False)
+                if len(regions) >= max_num_regions:
+                    break
 
-                for idx in base_regions_idx:
-                    x, y, w, l = base_regions[idx]
+                x, y, w, l = base_regions[idx]
 
-                    c_x = x + w/2
-                    c_y = y + l/2
+                c_x = x + w/2
+                c_y = y + l/2
 
-                    w_, l_ = rn.uniform(0.2, 0.5)*w, rn.uniform(0.2, 0.5)*l
-
+                w_, l_ = rn.uniform(0.2, 0.5)*w, rn.uniform(0.2, 0.5)*l
+                    
+                if w_ > min_size and l_ > min_size:
                     regions.append(base_regions[idx])
                     regions.append((c_x - w_/2, c_y - l_/2, w_, l_))
                     
@@ -376,6 +504,320 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
 
             return regions, 'next_to_edge'        
         
+        def get_in_regions(W, L, offset):
+
+            regions = []
+
+            rand_num = rand()
+
+            _max_depth = math.ceil(math.log2(max_num_regions)) + 1 
+
+            if rand_num < 0.15: #center-h
+
+                _regions, _ = get_cfree_regions(max_depth = _max_depth, X=0, Y=L/4, W=W, 
+                                                   L=L/2, offset=offset)
+                regions.extend(_regions)
+            if rand_num < 0.15: #center
+
+                _regions, _ = get_cfree_regions(max_depth = _max_depth, X=W/4, Y=0, W=W/2, 
+                                                   L=L, offset=offset)
+                regions.extend(_regions)
+
+            elif rand_num < 0.65: # left/right
+                _max_depth = max(_max_depth//2, 1)
+
+                _regions, _ = get_cfree_regions(max_depth = _max_depth, X=0, Y=0, W=W/2, 
+                                                   L=L, offset=offset)
+                regions.extend(_regions)
+
+                _regions, _ = get_cfree_regions(max_depth = _max_depth, X=W/2, Y=0, W=W/2,
+                                                    L=L, offset=offset)
+                regions.extend(_regions)
+            else: # top/bottom
+                _max_depth = max(_max_depth//2, 1)
+                _regions, _ = get_cfree_regions(max_depth = _max_depth, X=0, Y=0, W=W, 
+                                                   L=L/2, offset=offset)
+                regions.extend(_regions)
+
+                _regions, _ = get_cfree_regions(max_depth = _max_depth, X=0, Y=L/2, W=W,
+                                                    L=L/2, offset=offset)
+                regions.extend(_regions)
+
+            regions = filter_regions(regions, min_size)
+            if len(regions) > max_num_regions:
+                random.shuffle(regions)
+                regions = regions[:max_num_regions]
+            return regions, 'in'
+
+        def get_symmetry_regions(W, L):
+            regions = []
+
+            if min_num_regions == max_num_regions:
+                n = min_num_regions
+            else:
+                n = rn.randint(min_num_regions, max_num_regions+1)
+
+            n_1, n_2 = n_mapping[n]
+            if n >= 8:
+                _max_depth = 4
+            else:
+                _max_depth = 3
+
+            hori = rand() < 0.5
+            # symmetry_table
+            
+            if hori: # horizontal
+                _n = rn.randint(2, 5)
+                y_s = np.sort(rn.uniform(0.05, 0.95, size=max(_n, n_1) * 2)*L)
+                ind_n_1 = np.sort(rn.choice(np.arange(max(_n, n_1)), size = n_1, replace = False))
+                for i in ind_n_1:
+                    y1 = y_s[i * 2]
+                    l1 = y_s[i * 2 + 1] - y1
+                    y_cent = y1 + l1/2
+                    dist = rn.uniform(0.1, 0.4)*W
+                    width = rn.uniform(0.1, min(dist, 0.5*W-dist))
+                    widths = rn.uniform(width - 0.05, width, size = 2) 
+                    w1 = widths[0]*2
+                    w2 = widths[1]*2
+                    x1 = W/2 - dist - w1/2
+                    x2 = W/2 + dist - w2/2
+                    y_padding = rn.uniform(0.025, 0.05, size=2)*L
+                    if l1 - y_padding[0]*2 > min_size:
+                        regions.append((x1, y1 + y_padding[0], w1, l1 - y_padding[0]*2))
+                    else:
+                        regions.append((x1, y1, w1, l1))
+                    if l1 - y_padding[1]*2 > min_size:
+                        regions.append((x2, y1 + y_padding[1], w2, l1 - y_padding[1]*2))
+                    else:
+                        regions.append((x2, y1, w2, l1))
+            else: # vertical
+                _n = rn.randint(2, 5)
+                x_s = np.sort(rn.uniform(0.05, 0.95, size=max(_n, n_1) * 2)*W)
+                ind_n_1 = np.sort(rn.choice(np.arange(max(_n, n_1)), size = n_1, replace = False))
+
+                for i in ind_n_1:
+                    x1 = x_s[i * 2]
+                    w1 = x_s[i * 2 + 1] - x1
+                    x_cent = x1 + w1/2
+                    dist = rn.uniform(0.1, 0.4)*L
+                    width = rn.uniform(0.1, min(dist, 0.5*L-dist))
+                    widths = rn.uniform(width - 0.05, width, size = 2) 
+                    l1 = widths[0]*2
+                    l2 = widths[1]*2
+                    y1 = L/2 - dist - l1/2
+                    y2 = L/2 + dist - l2/2
+                    x_padding = rn.uniform(0.025, 0.05, size=2)*W
+                    if w1 - x_padding[0]*2 > min_size:
+                        regions.append((x1 + x_padding[0], y1, w1 - x_padding[0]*2, l1))
+                    else:
+                        regions.append((x1, y1, w1, l1))
+                    if w1 - x_padding[1]*2 > min_size:
+                        regions.append((x1 + x_padding[1], y2, w1 - x_padding[1]*2, l2))
+                    else:
+                        regions.append((x1, y2, w1, l2))
+
+            
+            # symmetry_object
+            mac_regions = []
+            mac_regions, _ = get_cfree_regions(max_depth = _max_depth, X=0, Y=0, W=W, L=L, offset=offset)
+            mac_regions = filter_regions(mac_regions, 0.5)
+
+            while n_2 > 0:
+                if len(mac_regions) == 0:
+                    return regions, 'symmetry' 
+                x_0, y_0, w_0, l_0 = mac_regions.pop()
+
+                _sub_reg = []
+                if rand() < 0.5: # horizontal
+                    x_cent, y_cent = x_0 + w_0/2, y_0 + l_0/2
+                    wid = rn.uniform(max(min_size, 0.1*w_0), max(min_size, 0.3*w_0))
+
+                    dist = rn.uniform(min(wid*1.2, 0.42*w_0), 0.45*w_0)
+                    width = rn.uniform(0.075, min(dist-min(wid*1.2, 0.42*w_0), 0.5*w_0-dist))
+                    x_padding = rn.uniform(0.1, 0.4, size=2) * width
+    
+                    w1 = width - x_padding[0]
+                    w2 = width - x_padding[1]
+                    x1 = x_cent - dist - w1/2
+                    x2 = x_cent + dist - w2/2
+                    y_padding = rn.uniform(0.05, 0.1, size=3)*l_0
+                        
+                    if w1 - y_padding[1]*2 > min_size:
+                        _sub_reg.append((x1, y_0 + y_padding[1], w1, l_0 - y_padding[1]*2))
+                    else:
+                        _sub_reg.append((x1, y_0, w1, l_0))
+                        
+                    if w2 - y_padding[2]*2 > min_size:
+                        _sub_reg.append((x2, y_0 + y_padding[2], w2, l_0 - y_padding[2]*2))
+                    else:   
+                        _sub_reg.append((x2, y_0, w2, l_0))
+
+                    if l_0 - y_padding[0]*2 > min_size:
+                        _sub_reg.append((x_cent - wid, y_0 + y_padding[0], wid * 2, l_0 - y_padding[0]*2))
+                    else:
+                        _sub_reg.append((x_cent - wid, y_0, wid * 2, l_0))
+          
+                else: # vertical
+
+                    x_cent, y_cent = x_0 + w_0/2, y_0 + l_0/2
+                    wid = rn.uniform(max(min_size, 0.1*l_0), max(min_size, 0.4*l_0))
+
+                    dist = rn.uniform(min(wid*1.2, 0.42*l_0), 0.45*l_0)
+                    width = rn.uniform(0.075, min(dist-min(wid*1.2, 0.42*l_0), 0.5*l_0-dist))
+                    y_padding = rn.uniform(0.1, 0.4, size=2) * width
+                    l1 = width - y_padding[0]
+                    l2 = width - y_padding[1]
+                    y1 = y_cent - dist - l1/2
+                    y2 = y_cent + dist - l2/2
+
+            
+                    x_padding = rn.uniform(0.025, 0.05, size=3)*w_0
+                            
+                    if l1 - x_padding[1]*2 > min_size:
+                        _sub_reg.append((x_0 + x_padding[1], y1, w_0 - x_padding[1]*2, l1))
+                    else:
+                        _sub_reg.append((x_0, y1, w_0, l1))
+                        
+                    if l2 - x_padding[2]*2 > min_size:
+                        _sub_reg.append((x_0 + x_padding[2], y2, w_0 - x_padding[2]*2, l2))
+                    else:
+                        _sub_reg.append((x_0, y2, w_0, l2))
+
+                    if w_0 - x_padding[0]*2 > min_size:
+                        _sub_reg.append((x_0 + x_padding[0], y_cent - wid, w_0 - x_padding[0]*2, wid * 2))
+                    else:
+                        _sub_reg.append((x_0, y_cent - wid, w_0, wid * 2))
+
+
+                
+                _sub_reg = filter_regions(_sub_reg, min_size)
+                if len(_sub_reg) == 3:
+                    regions.extend(_sub_reg)
+                    n_2 -= 1
+
+
+            return regions, 'symmetry' 
+
+        def get_in_regular_grid(W, L, offset):
+
+            # possible number of regions: 4, 6, 8, 9
+
+            n_to_set_mapping = {4: [[4]], 6: [[6]], 8: [[8], [4, 4]], 9: [[9]], 10: [[10], [4, 6]],
+                                12: [[6, 6], [4, 8], [4, 4, 4]], 13: [[4, 9]], 14: [[6, 8], [6, 4, 4], [4, 10]], 15: [[6, 9]], 
+                                16: [[16], [6, 10], [4, 6, 6], [8, 8], [8, 4, 4]]}
+            if min_num_regions == max_num_regions:
+                if min_num_regions not in n_to_set_mapping.keys():
+                    return [], 'regular_grid'
+                else:
+                    n = min_num_regions
+            else:
+                n = rn.randint(min_num_regions, max_num_regions+1)
+                while n not in n_to_set_mapping.keys():
+                    n = rn.randint(min_num_regions, max_num_regions+1)
+            
+            # pdb.set_trace()
+            n_combi_idx = rn.randint(0, len(n_to_set_mapping[n]))
+            n_combi = n_to_set_mapping[n][n_combi_idx]
+
+            mac_regions = []
+            while len(mac_regions) < len(n_combi):
+                mac_regions, _ = get_cfree_regions(max_depth = 3, X=0, Y=0, W=W, L=L, offset=offset)
+                mac_regions = filter_regions(mac_regions, 0.63)
+
+            regions = []
+
+            padding = 0.025
+
+            def _get_unit_sub_regions(x_cut, y_cut, mac_region):
+                x_0, y_0, w_0, l_0 = mac_region
+                sub_regions = []
+                for i in range(x_cut):
+                        for j in range(y_cut):
+                            sub_regions.append((x_0 + i*w_0/x_cut + padding, y_0 + j*l_0/y_cut + padding, 
+                                               w_0/x_cut - 2*padding, l_0/y_cut-2*padding))
+
+                sub_regions = filter_regions(sub_regions, min_size)
+
+                return  sub_regions, len(sub_regions) == x_cut * y_cut
+            
+            flag = False
+            for idx, m in enumerate(n_combi):
+                
+                mac_region = mac_regions[idx]
+                sub_regions = []
+               
+                _, _, w_0, l_0 = mac_region
+                if m == 4: # 2,2 
+                    sub_regions, flag = _get_unit_sub_regions(2, 2, mac_region)
+
+                elif m == 6: # 2,3
+                    if w_0 > l_0:
+                        sub_regions, flag = _get_unit_sub_regions(3, 2, mac_region)
+                    else:
+                        sub_regions, flag = _get_unit_sub_regions(2, 3, mac_region)
+                        
+                elif m == 8: # 2,4
+                    if w_0 > l_0:
+                        sub_regions, flag = _get_unit_sub_regions(4, 2, mac_region)
+                    else:
+                        sub_regions, flag = _get_unit_sub_regions(2, 4, mac_region)
+                elif m == 9:
+                    sub_regions, flag = _get_unit_sub_regions(3, 3, mac_region)
+                elif m == 10:
+                    if w_0 > l_0:
+                        sub_regions, flag = _get_unit_sub_regions(5, 2, mac_region)
+                    else:
+                        sub_regions, flag = _get_unit_sub_regions(2, 5, mac_region)
+                elif m == 16:
+                    sub_regions, flag = _get_unit_sub_regions(4, 4, mac_region)
+
+                if flag:
+                    regions.extend(sub_regions)
+
+            return regions, f'regular_grid_{n}_{n_combi_idx}'
+            
+        def get_customized_1(W, L):
+            tissue_box = (0.2*W, 0.45*L, 0.1*W, 0.15*L)
+            cleaning_can = (0.45*W, 0.5*L, 0.05*W, 0.3*L)
+            starbucks_cup = (0.75*W, 0.55*L, 0.05*W, 0.25*L)
+            plate_1 = (0.3*W, 0.2*L, 0.14*W, 0.21*L)
+            plate_2 = (0.55*W, 0.3*L, 0.14*W, 0.21*L)
+
+            return [tissue_box, cleaning_can, starbucks_cup, plate_1, plate_2], 'customized_1'
+        
+        def get_customized_2(W, L, relation):
+            plate_1 = (0.1*W, 0.55*L, 0.12*W, 0.18*L)
+            plate_2 = (0.35*W, 0.55*L, 0.12*W, 0.18*L)
+            fork_1 = (0.6*W, 0.55*L, 0.04*W, 0.17*L)
+            fork_2 = (0.7*W, 0.55*L, 0.04*W, 0.17*L)
+            knife_1 = (0.8*W, 0.55*L, 0.04*W, 0.17*L)
+            knife_2 = (0.9*W, 0.55*L, 0.04*W, 0.17*L)
+            candel = (0.4*W, 0.3*L, 0.1*W, 0.15*L)
+
+            return [plate_1, plate_2, fork_1, fork_2, knife_1, knife_2, candel], relation
+        
+        def get_customized_3(W, L):
+            plate_1 = (0.1*W, 0.55*L, 0.12*W, 0.18*L)
+            plate_2 = (0.35*W, 0.55*L, 0.12*W, 0.18*L)
+            fork_1 = (0.6*W, 0.55*L, 0.04*W, 0.17*L)
+            fork_2 = (0.7*W, 0.55*L, 0.04*W, 0.17*L)
+            knife_1 = (0.8*W, 0.55*L, 0.04*W, 0.17*L)
+            knife_2 = (0.9*W, 0.55*L, 0.04*W, 0.17*L)
+            candel = (0.4*W, 0.3*L, 0.1*W, 0.15*L)
+
+            return [plate_1, plate_2, fork_1, fork_2, knife_1, knife_2, candel], 'customized_3'
+
+        def get_customized_5(W, L, relation):
+            plate_1 = (0.1*W, 0.55*L, 0.12*W, 0.18*L)
+            plate_2 = (0.35*W, 0.55*L, 0.12*W, 0.18*L)
+            fork_1 = (0.6*W, 0.55*L, 0.04*W, 0.17*L)
+            fork_2 = (0.7*W, 0.55*L, 0.04*W, 0.17*L)
+            knife_1 = (0.8*W, 0.55*L, 0.04*W, 0.17*L)
+            knife_2 = (0.9*W, 0.55*L, 0.04*W, 0.17*L)
+            candel = (0.4*W, 0.3*L, 0.1*W, 0.15*L)
+
+            return [plate_1, fork_1, knife_1, plate_2, fork_2, knife_2, candel], relation
+        
         count = num_samples
 
         if "mixed" in relation:
@@ -396,7 +838,19 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                     relation = "integrated_ccollide"
             else:
                 relation = f"integrated_{relation_list[0]}"
-        
+        elif "all" in relation:
+            if min_num_regions == max_num_regions:
+                n = min_num_regions
+            else:
+                n = rn.choice(np.arange(min_num_regions, max_num_regions+1))
+                while n == 11:
+                    n = rn.choice(np.arange(min_num_regions, max_num_regions+1))
+            if min_num_regions in [4, 6, 8, 9, 10]:
+                relation = rn.choice(["aligned_bottom", "aligned_vertical", "on_top_of", "centered", "next_to_edge", "in", "symmetry", "next_to", "regular_grid"])
+            elif min_num_regions in [3, 5, 7]:
+                relation = rn.choice(["aligned_bottom", "aligned_vertical", "on_top_of", "centered", "next_to_edge", "in", "symmetry", "next_to"])
+            elif min_num_regions in [12, 13, 14, 15, 16]:
+                relation = "regular_grid"
         while True:
             if relation == "aligned_bottom":
                 regions, relation_mode = get_aligned_regions()
@@ -412,20 +866,33 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 regions, relation_mode = get_centered_regions(W, L, offset)
             elif relation == "next_to_edge":
                 regions, relation_mode = get_edge_regions()
+            elif relation == "in":
+                regions, relation_mode = get_in_regions(W, L, offset)
+            elif relation == "aligned_vertical":
+                regions, relation_mode = get_aligned_vertical_regions()
+            elif relation == "symmetry":
+                regions, relation_mode = get_symmetry_regions(W, L)
             elif relation == "integrated_cfree":
                  regions, relation_mode = get_pairwise_aligned_cfree()
             elif relation == "integrated_ccollide":
                 regions, relation_mode = get_pairwise_aligned_ccollide()
+            elif relation == "customized_1":
+                regions, relation_mode = get_customized_1(W, L)
+            elif relation == "customized_2" or relation == "customized_4":
+                regions, relation_mode = get_customized_2(W, L, relation)
+            elif relation == "customized_3":
+                regions, relation_mode = get_customized_3(W, L)
+            elif relation == "customized_5":
+                regions, relation_mode = get_customized_5(W, L, relation)
+            elif "regular_grid" in relation:
+                regions, relation_mode = get_in_regular_grid(W, L, offset)
 
             regions = filter_regions(regions, min_size)
-
-            print("number of regions: ", len(regions))
-            
+        
             # (("ccollide" in relation or "integrated" in relation) and len(regions) == 2) or
             if min_num_regions <= len(regions) <= max_num_regions:
                 count -= 1
                 print(len(regions), "added!")
-                # print(regions)
                 # pdb.set_trace()
                 yield regions, relation_mode
             if count == 0:

@@ -113,17 +113,14 @@ def indie_runs():
 
 def eval_new_set():
 
-    relation = "integrated_cfree&ccollide"
-    # relation = "mixed_ccollide"
-    # relation = "ccollide"
-    # eval_relation = "cfree"
-    eval_relation = "integrated_cfree"
-   
-    if eval_relation is None:
-        eval_relation = relation
-    small_task = True
+    relation = "aligned_bottom"
+    eval_relation = "aligned_bottom"
+
     EBM = False
     energy_wrapper = False
+
+    small_task = True
+
     if small_task:
         n = 20
         visualize = True
@@ -206,6 +203,190 @@ def eval_new_set():
    
     evaluate_model(model_id, input_mode="tidy", relation=relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks=n, test_name=f"{eval_relation}_neg", **eval_10_kwargs) # False, both
 
+def eval_tidy_set():
+
+    model_relation = None
+    relation = "symmetry"
+    if model_relation is None:
+        model_relation = relation
+   
+    small_task = True
+    EBM = False
+    energy_wrapper = False
+
+    if small_task:
+        if "all" in relation:
+            n = 20
+        else:
+            n = 10
+        visualize = True
+    else:
+        if "all" in relation:
+            n = 200
+        else:
+            n = 100
+        visualize = False
+
+    '''
+    1qqximol: aligned_vertical
+    3g6710yo: centered
+    3wvo65qz: all_composed_True
+    4age4lp3: all_composed_False
+    bzznpoa4: all_composed_False
+    fbj3zu0m: in
+    fjjurhul: aligned_vertical
+    gt4vgdat: aligned_bottom #
+    gu4jx6af: all_composed_False
+    i12llyrt: centered
+    i30ku15a: all_composed_False
+    j5ag2ml6: next_to_edge
+    ml53a6cg: aligned_bottom
+    pgbbzyor: all_composed_True
+    urdggpxs: on_top_of
+    uun1oug9: in
+    xojh01yn: next_to_edge
+    yd2pp1o1: on_top_of
+    '''
+
+    if model_relation == "aligned_bottom":
+        if energy_wrapper:
+            model_id = '9t4vgdat'
+            milestone = 5
+        else:
+            model_id = 'ml53a6cg'
+            milestone = 20
+    elif model_relation == "aligned_vertical":
+        if energy_wrapper:
+            model_id = '1qqximol'
+            milestone = 3
+        else:
+            model_id = 'fjjurhul'
+            milestone = 22
+    elif model_relation == "centered":
+        if energy_wrapper:
+            model_id = '3g6710yo'
+            milestone = 3
+        else:
+            model_id = "i12llyrt"
+            milestone = 20
+    elif model_relation == "on_top_of":
+        if energy_wrapper:
+            model_id = 'yd2pp1o1'
+            milestone = 3
+        else:
+            model_id = "urdggpxs" 
+            milestone = 20
+    elif model_relation == "next_to_edge":
+        if energy_wrapper:  
+            model_id = 'xojh01yn'
+            milestone = 3
+        else:   
+            model_id = "j5ag2ml6" 
+            milestone = 20
+    elif model_relation == "in":
+        energy_wrapper = True
+        model_id = 'uun1oug9'
+        milestone = 20
+        # if energy_wrapper:
+        #     model_id = 'uun1oug9'
+        #     milestone = 3
+        # else:
+        #     model_id = "fbj3zu0m" 
+        #     milestone = 0
+    elif model_relation == "all_composed_False":
+        if energy_wrapper:
+            model_id = "ovhwg5o0" #"tvvpzowp" 
+            milestone = 29
+        else:
+            model_id = "eelutdfc" #"ekegfe6v"
+            milestone = 29
+        # if energy_wrapper:
+        #     model_id = "tvvpzowp" #'4age4lp3' # "bzznpoa4"
+        #     milestone = 7
+        # else:
+        #     model_id = "ekegfe6v"#"gu4jx6af" # "i30ku15a"
+        #     milestone = 8
+    elif model_relation == "all_composed_True":
+        if energy_wrapper:
+            model_id = "zgw7jzti" #'pgbbzyor'
+            milestone = 5
+        else:
+            model_id = "7a135mwb" #"3wvo65qz"
+            milestone = 6
+    elif model_relation == "symmetry":
+        model_id = "m6q1nwil"
+        milestone = 24
+    elif model_relation == "next_to":
+        model_id = "foohkf13"
+        milestone = 24
+
+    
+    # --- for testing
+    train_task = f"RandomSplitSparseWorld(10000)_tidy_train/aligned_bottom"
+
+    eval_10_kwargs = dict(tries=(10, 0), json_name='eval', save_log=False, visualize=visualize, test_set=True, return_history=False,
+                        run_all=True, model_relation=relation, evaluate_relation=relation, EBM=EBM, 
+                        energy_wrapper=energy_wrapper, samples_per_step=3, eval_only=True, train_task=train_task)
+ 
+    test_10_tasks = {i: f'RandomSplitSparseWorld({n})_tidy_test_{i}_split/{relation}' for i in range(3, 11)}
+   
+    evaluate_model(model_id, input_mode="tidy", relation=relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks=n, test_name=f"{relation}", **eval_10_kwargs) # False, both
+
+def eval_customized_cases():
+    ## wrapper True, composed True
+    # wrapper True, composed False
+    # wrapper True, composed False, ULA, 3
+    # wrapper True, composed False, MALA, 3
+
+    ## wrapper False, composed True
+    # wrapper False, composed False
+    # wrapper False, composed False, ULA, 3
+
+    energy_wrapper = False
+
+    EBM = "ULA"
+    steps = 3
+
+    model_relation = "all_composed_False"
+    evaluate_relation = None
+
+    if evaluate_relation is None:
+        evaluate_relation = model_relation
+
+    if model_relation == "all_composed_False":
+        if energy_wrapper:
+            model_id = "ovhwg5o0" #"tvvpzowp" 
+            milestone = 29
+        else:
+            model_id = "eelutdfc" #"ekegfe6v"
+            milestone = 29
+    elif model_relation == "all_composed_True":
+        if energy_wrapper:
+            model_id = "zgw7jzti" 
+            milestone = 5
+        else:
+            model_id = "7a135mwb" 
+            milestone = 6
+    elif model_relation == "symmetry": 
+        model_id = "m6q1nwil"
+        milestone = 24
+
+    # --- for testing
+    train_task = f"RandomSplitSparseWorld(1)_tidy_train/customized"
+
+    eval_10_kwargs = dict(tries=(10, 0), json_name='eval', save_log=False, visualize=True, test_set=True, return_history=False,
+                        run_all=True, model_relation=model_relation, evaluate_relation=evaluate_relation, EBM=EBM, 
+                        energy_wrapper=energy_wrapper, samples_per_step=steps, eval_only=True, train_task=train_task)
+ 
+    test_10_tasks = {1: f'RandomSplitSparseWorld(1)_tidy_train/customized_3'}
+   
+    evaluate_model(model_id, input_mode="tidy", relation=model_relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks="customized_3", test_name="customized_3", **eval_10_kwargs) # False, both
+
+   
+
+
+
 if __name__ == '__main__':
     # indie_runs()
-    eval_new_set()
+    # eval_tidy_set()
+    eval_customized_cases()

@@ -27,7 +27,7 @@ VISUALIZATION_PATH = abspath(join(PROJECT_PATH, 'visualizations'))
 
 class GraphDataset(InMemoryDataset): ## Dataset | InMemoryDataset
     def __init__(self, dir_name, input_mode='grid_offset', transform=None, pre_transform=None,
-                 pre_filter=None, debug_mode=2, visualize=False, model_relation=[0]):
+                 pre_filter=None, debug_mode=2, visualize=False, model_relation="all"):
         self.input_mode = input_mode
         self.dir_name = dir_name
         self.debug_mode = debug_mode
@@ -50,6 +50,7 @@ class GraphDataset(InMemoryDataset): ## Dataset | InMemoryDataset
         if 'object_i=' in dir_name:
             self.length = 1
         self.is_json_data = 'robot' in input_mode or 'stability' in input_mode
+
         super().__init__(root, transform, pre_transform, pre_filter)
         self.data, self.slices = torch.load(self.processed_paths[0])
 
@@ -119,7 +120,9 @@ class GraphDataset(InMemoryDataset): ## Dataset | InMemoryDataset
             data_list.extend(data)
 
         # print('\n'.join([str(data) for data in data_list]))
+        
         data, slices = self.collate(data_list)
+        
         torch.save((data, slices), self.processed_paths[0])
 
     # def len(self):

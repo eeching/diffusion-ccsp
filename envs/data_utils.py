@@ -8,6 +8,7 @@ import os
 from os.path import dirname, abspath, join, isdir
 from collections import defaultdict
 import pdb
+from networks.denoise_fns import tidy_constraints_dict
 
 torch.set_printoptions(linewidth=1000, precision=2, sci_mode=False)
 np.set_printoptions(linewidth=1000, precision=2, floatmode="fixed")
@@ -187,15 +188,11 @@ def constraint_from_edge_attr(edge_attr, edge_index, composed_inference=False):
         constraints.append(constraint)
     return constraints
 
-def tidy_constraint_from_edge_attr(edge_attr, edge_index, evaluate_relation=[0]):
+def tidy_constraint_from_edge_attr(edge_attr, edge_index):
     from networks.denoise_fns import tidy_constraints
-
-
     constraints = []
     for i in range(len(edge_attr)):
         typ = int(edge_attr[i].detach().cpu().numpy().item())
-        if typ not in evaluate_relation: # check if the constraint is the one we need to check
-            continue
         constraint = tuple([tidy_constraints[typ]] + edge_index.T[i].detach().cpu().numpy().tolist()) # still use the index from the tidy constraints
         constraints.append(constraint)
     return constraints
@@ -234,7 +231,7 @@ def render_world(nodes, png_name='png_name', show=False, save=True, array=False,
 
 
 def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_batch.png', array=False,
-                            log=False, verbose=False, evaluate_relation=[0], **kwargs):
+                            log=False, verbose=False, **kwargs):
     w_tray, l_tray = world_dims
 
     def get_node(f, typ):
@@ -327,7 +324,7 @@ def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_bat
 
     world = render_world(nodes, png_name=png_name, array=array, **kwargs)
   
-    evaluations = world.check_constraints_satisfied(verbose=False, evaluate_relation=evaluate_relation)
+    evaluations = world.check_constraints_satisfied(verbose=False)
     object_states = []
     if world.__class__.__name__ == 'TableToBoxWorld':
 
@@ -448,6 +445,28 @@ def expand_unordered_constraints(constraints):
         new_constraints.append(c)
     return new_constraints
 
+def get_ordered_constraints(constraints):
+    new_constraints = dict()
+    
+    from networks.denoise_fns import tidy_constraints
+    for c in tidy_constraints:
+        if tidy_constraints_dict[c] == 1:
+            new_constraints[c] = [(c, con[1], 0, 0) for con in constraints if con[0] == c]
+        elif c == "symmetry_h" or c == "symmetry_v":
+            new_constraints[c] = [(c, con[1], con[2], con[3]) for con in constraints if con[0] == c]
+        elif c == "left_of_bottom" or c == "right_of_bottom" or c == "left_of_top" or c == "right_of_top":
+            new_constraints[c] = [(c, con[1], con[2], 0) for con in constraints if con[0] == c]
+        else:
+            new_constraints[c] = set()
+            c_set = [(c, con[1], con[2]) for con in constraints if con[0] == c]
+
+            for con in c_set:
+                if con[1] > con[2]:
+                    new_constraints[c].add((c, con[2], con[1], 0))
+                else:
+                    new_constraints[c].add((c, con[1], con[2], 0))
+            new_constraints[c] = list(new_constraints[c])
+    return new_constraints
 
 def compute_qualitative_constraints(objects, rotations=None, debug=False, scale=1):
     """ objects is a dictionary of tile_name: {center, extents} """
@@ -645,8 +664,9 @@ def compute_qualitative_constraints(objects, rotations=None, debug=False, scale=
         summarize_constraints(constraints)
     return constraints
 
-def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=1, test_only=False): # if the relation is None, compute all relations, if not, only compute the specified relations
+def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=1, test_only=False, model_relation=None, composed_relation=None): # if the relation is None, compute all relations, if not, only compute the specified relations
     """ objects is a dictionary of tile_name: {center, extents} """
+
     sides = ['east', 'west', 'north', 'south']
     if debug:
         print('scale', scale)
@@ -660,6 +680,49 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
     tiles = ['bottom'] + [n for n in names if 'tile_' in n]
     neighbors = {n: defaultdict(list) for n in names}  ## the neighbors of each object
     # print(rotations)
+
+    """in regular grid"""
+
+    if "regular_grid" in model_relation:
+        n_to_set_mapping = {4: [[4]], 6: [[6]], 8: [[8], [4, 4]], 9: [[9]], 10: [[10], [4, 6]],
+                                12: [[6, 6], [4, 8], [4, 4, 4]], 13: [[4, 9]], 14: [[6, 8], [6, 4, 4], [4, 10]], 15: [[6, 9]], 
+                                16: [[16], [6, 10], [4, 6, 6], [8, 8], [8, 4, 4]]}
+        _, _, n_obj, n_combi_idx = model_relation.split("_")
+        n_obj = int(n_obj)
+        n_combi_idx = int(n_combi_idx)
+        n_combi = n_to_set_mapping[n_obj][n_combi_idx]
+        idx = 1
+        for k in n_combi:
+            start_obj = objects[names[idx]]
+            x1, y1, z1 = start_obj['center']
+            lx1, ly1, lz1 = start_obj['extents']
+            if rotations is not None and names[idx] in rotations:
+                if abs(abs(rot1) - np.pi /2) < 0.2:
+                    ly1, lx1, lz1 = start_obj['extents']
+        
+            x1_left = x1 - lx1 / 2
+            y1_bottom = y1 - ly1 / 2
+
+            end_obj = objects[names[idx + k - 1]]
+            x2, y2, z2 = end_obj['center']
+            lx2, ly2, lz2 = end_obj['extents']
+            if rotations is not None and names[idx + k - 1] in rotations:
+                if abs(abs(rot2) - np.pi /2) < 0.2:
+                    ly2, lx2, lz2 = end_obj['extents']
+            
+            x2_right = x2 + lx2 / 2
+            y2_top = y2 + ly2 / 2
+
+            region_w = x2_right - x1_left
+            region_h = y2_top - y1_bottom
+             
+            if region_w > region_h:
+                con = ["regular_grid_h"] + [i for i in range(idx, idx + k)]
+            else:
+                con = ["regular_grid_v"] + [i for i in range(idx, idx + k)]
+            
+            constraints.append(tuple(con))
+            idx += k
 
     """ left, right, top, bottom """
     # alignment = 0.05 * scale
@@ -679,8 +742,7 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
         lx1, ly1, lz1 = m['extents']
         if rotations is not None and name1 in rotations:
             rot1 = rotations[name1]
-            # if abs(abs(rot1%(np.pi/2)) - np.pi /4) < np.pi/8:
-            if abs(abs(rot2) - np.pi /2) < 0.2:
+            if abs(abs(rot1) - np.pi /2) < 0.2:
                 ly1, lx1, lz1 = m['extents']
         else: 
             rot1 = 0 
@@ -690,23 +752,46 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
         y1_top = y1 + ly1 / 2
         y1_bottom = y1 - ly1 / 2
 
+        # if x1_left > -1 and x1_right < 1 and y1_top < 0.25 and y1_bottom < 0.25:
+        #     constraints.append(('center-in', tiles.index(name1), 0, 0))
+        # if x1_right < 0:
+        #     constraints.append(('left-in', tiles.index(name1), 0, 0))
+        # if x1_left > 0:
+        #     constraints.append(('right-in', tiles.index(name1), 0, 0))
+        # if y1_top < 0:
+        #     constraints.append(('bottom-in', tiles.index(name1), 0, 0))
+        # if y1_bottom > 0:
+        #     constraints.append(('top-in', tiles.index(name1), 0, 0))
 
+        if x1 > -0.75 and x1 < 0.75:
+            constraints.append(('center-in-v', tiles.index(name1), 0, 0))
+        if y1 > -0.5 and y1 < 0.5:
+            constraints.append(('center-in-h', tiles.index(name1), 0, 0))
+        if x1_right < 0:
+            constraints.append(('left-in', tiles.index(name1), 0, 0))
+        if x1_left > 0:
+            constraints.append(('right-in', tiles.index(name1), 0, 0))
+        if y1_top < 0:
+            constraints.append(('bottom-in', tiles.index(name1), 0, 0))
+        if y1_bottom > 0:
+            constraints.append(('top-in', tiles.index(name1), 0, 0))
+    
         north_surface = objects['north']['center'][1] + objects['north']['extents'][1]/2
         south_surface = objects['south']['center'][1] - objects['south']['extents'][1]/2
         east_surface = objects['east']['center'][0] + objects['east']['extents'][0]/2
         west_surface = objects['west']['center'][0] - objects['west']['extents'][0]/2
 
-        if abs(y1_top - north_surface) < 0.2:
-            constraints.append(('next_to_edge', tiles.index(name1)))
-        elif abs(y1_bottom - south_surface) < 0.2:
-            constraints.append(('next_to_edge', tiles.index(name1)))
-        elif abs(x1_left - west_surface) < 0.2:
-            constraints.append(('next_to_edge', tiles.index(name1)))
-        elif abs(x1_right - east_surface) < 0.2:
-            constraints.append(('next_to_edge', tiles.index(name1)))
+        if abs(y1_top - north_surface) < 0.3:
+            constraints.append(('next_to_edge_top', tiles.index(name1), 0, 0))
+        elif abs(y1_bottom - south_surface) < 0.3:
+            constraints.append(('next_to_edge_bottom', tiles.index(name1), 0, 0))
+        elif abs(x1_left - west_surface) < 0.3:
+            constraints.append(('next_to_edge_left', tiles.index(name1), 0, 0))
+        elif abs(x1_right - east_surface) < 0.3:
+            constraints.append(('next_to_edge_right', tiles.index(name1), 0, 0))
 
         if math.sqrt(x1**2 + y1**2) < touching:
-            constraints.append(('centered_table', tiles.index(name1)))
+            constraints.append(('centered_table', tiles.index(name1), 0, 0))
        
         for j in range(i + 1, len(names)):
             n = objects[names[j]]
@@ -749,9 +834,9 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
             x2_on_top = x_1_cover and y_1_cover
 
             if x1_on_top:
-                constraints.append(('on_top_of', tiles.index(name1), tiles.index(name2)))
+                constraints.append(('on_top_of', tiles.index(name1), tiles.index(name2), 0))
             if x2_on_top:
-                constraints.append(('on_top_of', tiles.index(name2), tiles.index(name1)))
+                constraints.append(('on_top_of', tiles.index(name2), tiles.index(name1), 0))
 
             
             x_overlap = 0
@@ -790,142 +875,129 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
             
             if name1 != 'bottom' and name2 != 'bottom':
                 """ aligned """
-                if no_overlap and abs(y1_bottom - y2_bottom) < alignment and abs(rot1-rot2)%(np.pi/2) < alignment:
-                    constraints.append(('aligned_bottom', tiles.index(name1), tiles.index(name2))) 
+                if abs(y1_bottom - y2_bottom) < alignment and abs(rot1-rot2)%(np.pi/2) < alignment:
+                    constraints.append(('aligned_bottom', tiles.index(name1), tiles.index(name2), 0)) 
+                    constraints.append(('aligned_bottom', tiles.index(name2), tiles.index(name1), 0)) 
 
-                """next_to"""
-                if no_overlap and ((x_closeness and y_overlap) or (y_closeness and x_overlap)):
-                    constraints.append(('next_to', tiles.index(name1), tiles.index(name2)))
+                if abs(x1 - x2) < alignment:
+                    constraints.append(('aligned_vertical', tiles.index(name1), tiles.index(name2), 0))
+                    constraints.append(('aligned_vertical', tiles.index(name2), tiles.index(name1), 0))
+
+                """left_of/right_of (obj, ref_obj)"""
+                # if ((x_closeness and y_overlap) or (y_closeness and x_overlap)):
+                #     constraints.append(('next_to', tiles.index(name1), tiles.index(name2)))
+                if 0 < x1_left - x2_right < closeness and y_overlap:
+                    constraints.append(('left_of_bottom', tiles.index(name2), tiles.index(name1), 0))
+                    constraints.append(('right_of_bottom', tiles.index(name1), tiles.index(name2), 0))
+                    constraints.append(('left_of_top', tiles.index(name1), tiles.index(name2), 0))
+                    constraints.append(('right_of_top', tiles.index(name2), tiles.index(name1), 0))
+
+                if 0 < x2_left - x1_right < closeness and y_overlap:
+                    constraints.append(('left_of_bottom', tiles.index(name1), tiles.index(name2), 0))
+                    constraints.append(('right_of_bottom', tiles.index(name2), tiles.index(name1), 0))
+                    constraints.append(('left_of_top', tiles.index(name2), tiles.index(name1), 0))
+                    constraints.append(('right_of_top', tiles.index(name1), tiles.index(name2), 0))
+                    
 
                 """ centered"""
                 if math.sqrt((x1 - x2)**2 + (y1 - y2)**2) < touching:
-                    constraints.append(('centered', tiles.index(name1), tiles.index(name2)))
+                    constraints.append(('centered', tiles.index(name1), tiles.index(name2), 0))
+
+                """ symmetry """
+                if abs(x1 + x2) < alignment and abs(y1-y2) < alignment:
+                    constraints.append(('symmetry_table_h', tiles.index(name1), tiles.index(name2), 0))
+                    constraints.append(('symmetry_table_h', tiles.index(name2), tiles.index(name1), 0))
+                if abs(y1 + y2) < alignment and abs(x1-x2) < alignment:
+                    constraints.append(('symmetry_table_v', tiles.index(name1), tiles.index(name2), 0))
+                    constraints.append(('symmetry_table_v', tiles.index(name2), tiles.index(name1), 0))
+
+            for k in range(j + 1, len(names)):
+                p = objects[names[k]]
+
+                if names[k] == 'bottom' or names[k] in sides:
+                    continue
+                # if names[j] == 'bottom':
+                #     continue
+                # name2 = names[j] if 'tile_' in names[j] else 'bottom'
+                
+                name3 = names[k]
+
+                if name3 == name2 or name3 == name1:
+                    continue
+
+                x3, y3, z3 = p['center']
+                lx3, ly3, lz3 = p['extents']
+                if rotations is not None and name3 in rotations:
+                    rot3 = rotations[name3]
+                    if abs(abs(rot3) - np.pi /2) < 0.2:
+                        ly3, lx3, lz3 = n['extents']
+                else:
+                    rot3 = 0
+                x3_left = x3 - lx3 / 2
+                x3_right = x3 + lx3 / 2
+                y3_top = y3 + ly3 / 2
+                y3_bottom = y3 - ly3 / 2
+
+                """ symmetry """
+                if abs(y1 - y2) < alignment and abs(y1 - y3) < alignment and abs(y2 - y3) < alignment:
+                    indexed_xs = [(name, x) for name, x in zip([name1, name2, name3],[x1, x2, x3])]    
+                    sorted_xs = sorted(indexed_xs, key=lambda x: x[1])
+                    sorted_names = [x[0] for x in sorted_xs]
+                    sorted_xs = [x[1] for x in sorted_xs]
+
+                    if abs(abs(sorted_xs[0] - sorted_xs[1]) - abs(sorted_xs[2] - sorted_xs[1])) < alignment:
+                        constraints.append(('symmetry_h', tiles.index(sorted_names[1]), tiles.index(sorted_names[2]), 
+                                            tiles.index(sorted_names[0])))
+                        constraints.append(('symmetry_h', tiles.index(sorted_names[1]), tiles.index(sorted_names[0]), 
+                                            tiles.index(sorted_names[2])))
+                        
+                if abs(x1 - x2) < alignment and abs(x1 - x3) < alignment and abs(x2 - x3) < alignment:
+                    indexed_ys = [(name, y) for name, y in zip([name1, name2, name3],[y1, y2, y3])]    
+                    sorted_ys = sorted(indexed_ys, key=lambda y: y[1])
+                    sorted_names = [y[0] for y in sorted_ys]
+                    sorted_ys = [y[1] for y in sorted_ys]
+
+                    if abs(abs(sorted_ys[0] - sorted_ys[1]) - abs(sorted_ys[2] - sorted_ys[1])) < alignment:
+                        constraints.append(('symmetry_v', tiles.index(sorted_names[1]), tiles.index(sorted_names[2]), 
+                                            tiles.index(sorted_names[0])))
+                        constraints.append(('symmetry_v', tiles.index(sorted_names[1]), tiles.index(sorted_names[0]), 
+                                            tiles.index(sorted_names[2])))
 
             
-
-    #         """ top / bottom """
-
-    #         ## check if they overlap enough on x-axis
-    #         if debug: print(x2_left, x1_left, x1_right, x2_right)
-    #         in_x_range = (x2_left <= x1_left < x1_right <= x2_right) or (x1_left <= x2_left < x2_right <= x1_right)
-    #         if debug: print('\tin_x_range =', in_x_range)
-
-    #         if not in_x_range:
-    #             overlap = 0
-    #             min_w = min(lx1, lx2)
-    #             if x2_left <= x1_left <= x2_right <= x1_right:
-    #                 overlap = x2_right - x1_left
-    #             elif x1_left <= x2_left <= x1_right <= x2_right:
-    #                 overlap = x1_right - x2_left
-    #             in_x_range = in_x_range or (overlap > min_w * overlap_threshold)
-    #             if debug: print('\tin_x_range overlap =', overlap)
-
-    #         if in_x_range:
-
-    #             ref_dist = max(ly1, ly2)
-
-    #             d = y2_bottom - y1_top
-    #             if debug: print('\td1 =', d)
-    #             if -0.05 <= d < farness:
-    #                 if debug: print('\t0 <= d1 < farness')
-    #                 neighbors[name1]['top'].append((name2, d, ref_dist))
-    #                 neighbors[name2]['bottom'].append((name1, d, ref_dist))
-
-    #             d = y1_bottom - y2_top
-    #             if debug: print('\td2 =', d)
-    #             if -0.05 <= d < farness:
-    #                 if debug: print('\t0 <= d2 < farness')
-    #                 neighbors[name1]['bottom'].append((name2, d, ref_dist))
-    #                 neighbors[name2]['top'].append((name1, d, ref_dist))
-
-    #         """ left / right """
-
-    #         ## check if they overlap enough on y-axis
-    #         in_y_range = (y2_bottom <= y1_bottom < y1_top <= y2_top) or (y1_bottom <= y2_bottom < y2_top <= y1_top)
-    #         if debug: print('\tin_y_range =', in_x_range)
-
-    #         if not in_y_range:
-    #             overlap = 0
-    #             min_h = min(ly1, ly2)
-    #             if y2_bottom <= y1_bottom <= y2_top <= y1_top:
-    #                 overlap = y2_top - y1_bottom
-    #             elif y1_bottom <= y2_bottom <= y1_top <= y2_top:
-    #                 overlap = y1_top - y2_bottom
-    #             in_y_range = in_y_range or (overlap > min_h * overlap_threshold)
-    #             if debug: print('\tin_y_range overlap =', overlap)
-
-    #         if in_y_range:
-
-    #             ref_dist = max(lx1, lx2)
-
-    #             d = x1_left - x2_right
-    #             if debug: print('\td3 =', d)
-    #             if -0.05 <= d < farness:
-    #                 if debug: print('\t0 <= d3 < farness')
-    #                 neighbors[name1]['left'].append((name2, d, ref_dist))
-    #                 neighbors[name2]['right'].append((name1, d, ref_dist))
-
-    #             d = x2_left - x1_right
-    #             if debug: print('\td4 =', d)
-    #             if -0.05 <= d < farness:
-    #                 if debug: print('\t0 <= d4 < farness')
-    #                 neighbors[name1]['right'].append((name2, d, ref_dist))
-    #                 neighbors[name2]['left'].append((name1, d, ref_dist))
-
-    # for name, relations in neighbors.items():
-    #     if name not in tiles:
-    #         continue
-    #     if debug:
-    #         print(name, '\t', {k: [(v[0], round(v[1], 3)) for v in vv] for k, vv in relations.items()})
-    #     a = tiles.index(name)
-    #     neighbor = [name, 'bottom']
-    #     for k, vv in relations.items():
-    #         for v in vv:
-    #             b = tiles.index(v[0])
-    #             if a == b:
-    #                 continue
-    #             if v[1] < closeness:
-    #                 if k in ['left', 'top']:
-    #                     k2 = {'left': 'right', 'top': 'bottom'}[k]
-    #                     if a != 0 and b != 0:
-    #                         constraints.append((f"{k}-of", b, a))
-    #                         constraints.append((f"{k2}-of", a, b))
-    #             if v[1] < touching and (f"close-to", b, a) not in constraints and \
-    #                     (f"close-to", a, b) not in constraints and a != 0 and b != 0:
-    #                 constraints.append((f"close-to", b, a))
-    #         neighbor += [v[0] for v in vv]
-    #     if name == 'bottom':
-    #         continue
-    #     constraints += [(f"away-from", tiles.index(m), a) for m in tiles if m not in neighbor
-    #                     if (f"away-from", a, tiles.index(m)) not in constraints]
-    
     constraints.sort()
 
-    # for x in [c[1] for c in constraints if c[0] == 'right-in']:
-    #     if x in [c[1] for c in constraints if c[0] == 'left-in']:
-    #         constraints.remove(('right-in', x, 0))
-    #         constraints.remove(('left-in', x, 0))
-    # for x in [c[1] for c in constraints if c[0] == 'bottom-in']:
-    #     if x in [c[1] for c in constraints if c[0] == 'top-in']:
-    #         constraints.remove(('bottom-in', x, 0))
-    #         constraints.remove(('top-in', x, 0))
+    # return the single type of constraints only if the relation is specified and composed_relation is False  
+  
+    if model_relation is not None and composed_relation is False:
+        if model_relation == "centered":
+            constraints = [c for c in constraints if c[0] in ["centered", "centered_table"]]
+        elif model_relation == "in":
+            constraints = [c for c in constraints if c[0] in ["center-in-h", "center-in-v", "left-in", "right-in", "top-in", "bottom-in"]]
+        elif model_relation == "symmetry":
+            constraints = [c for c in constraints if c[0] in ["symmetry_h", "symmetry_v", "symmetry_table_h", "symmetry_table_v"]]
+        elif model_relation == "next_to":
+            constraints = [c for c in constraints if c[0] in ["right_of_bottom", "left_of_bottom", "right_of_top", "left_of_top"]]
+        elif model_relation == "next_to_edge":
+            constraints = [c for c in constraints if c[0] in ["next_to_edge_top", "next_to_edge_bottom", "next_to_edge_left", "next_to_edge_right"]]
+        elif "regular_grid" in model_relation:
+            constraints = [c for c in constraints if c[0] in ["regular_grid_h", "regular_grid_v"]]
+        else:
+            constraints = [c for c in constraints if c[0] in [model_relation]]
 
-    # from networks.denoise_fn import ignored_constraints
-    
-    # if True:
-    #     # c_tmp = []
-    #     # for c in constraints:
-    #     #     if c[0] == "aligned_bottom":
-    #     #         c_tmp.append(("h-aligned", c[1], c[2]))
-    #     # return c_tmp
-                    
-    #     constraints = [c for c in constraints if c[0] in [relation]]
+    def pad_constraints(tup):
+        length = len(tup)
         
-    # print()
+        if length == 17:
+            return tup
+        else:
+            padding = (0,) * (17 - length)
+            return tup + padding
+        
+    constraints = [pad_constraints(c) for c in constraints]
+
     if debug:
         summarize_constraints(constraints)
-    return constraints
-
+    return list(set(constraints))
 
 def summarize_constraints(lst):
     data = defaultdict(list)

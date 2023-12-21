@@ -49,6 +49,10 @@ DARKER_COLORS = [DARKER_RED, DARKER_ORANGE, DARKER_YELLOW, DARKER_GREEN, DARKER_
                  DARKER_MIDNIGHT, DARKER_GREY, DARKER_PINK, DARKER_AQUA, DARKER_PLUM, DARKER_NAVY]
 CLASSIC_COLORS = [BLACK, WHITE, CLOUD, DARKER_CLOUD]
 
+CUSTOMIZED_COLORS = [GREEN, GREEN, BLUE, BLUE, PURPLE, PURPLE, ORANGE, YELLOW, GREEN, BLUE, PURPLE, MIDNIGHT, GREY, PINK, AQUA, PLUM, NAVY]
+
+CUSTOMIZED_COLORS_1 = [GREEN, BLUE, PURPLE, GREEN, BLUE, PURPLE, ORANGE, YELLOW, GREEN, BLUE, PURPLE, MIDNIGHT, GREY, PINK, AQUA, PLUM, NAVY]
+
 RAINBOW_COLOR_NAMES = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'midnight',
                        'grey', 'cloud', 'pink', 'aqua', 'plum', 'navy']
 DARKER_COLOR_NAMES = [f'darker_{n}' for n in RAINBOW_COLOR_NAMES]
@@ -67,7 +71,9 @@ def Rotation2D(theta, point=[0, 0, 0]):
     return R(angle=np.deg2rad(theta), direction=[0, 0, 1], point=point)
 
 
-def get_color(alpha=1.0, used=[], random_color=True, colors=RAINBOW_COLORS):
+def get_color(alpha=1.0, used=[], random_color=True, colors=RAINBOW_COLORS+DARKER_COLORS+CLASSIC_COLORS):
+    # colors = CUSTOMIZED_COLORS
+    # return colors[len(used)]
     colors = [c for c in colors if tuple(c) not in used]
     if len(colors) == 0:
         return None
@@ -76,6 +82,16 @@ def get_color(alpha=1.0, used=[], random_color=True, colors=RAINBOW_COLORS):
     if random_color:
         return random.choice(colors)
     return colors[0]
+    
+
+def get_color_next_to(region_counts, colors=[GREEN, BLUE, PURPLE]):
+    n_1, n_2 = region_counts
+    color_list_1 = np.repeat([colors[:2]], n_1, axis=0).reshape(-1, 4)
+    color_list_2 = np.repeat([colors[:3]], n_2, axis=0).reshape(-1, 4)
+
+    color_list = np.concatenate([color_list_1, color_list_2], axis=0)
+   
+    return color_list
 
 
 def get_color_name(color):
@@ -230,8 +246,8 @@ def regions_to_meshes(regions, width, length, height,
 
     meshes = []
     used_colors = []
-    # print("regions:", len(regions), len(RAINBOW_COLORS))
-    for region in regions:
+
+    for idx, region in enumerate(regions):
         if len(region) == 4:
             x, y, w, l = region
             z = 0
@@ -257,7 +273,7 @@ def regions_to_meshes(regions, width, length, height,
         y += ps[0]
 
         mesh = box(extents=[w, l, h], transform=T([-width/2+x+w/2, -length/2+y+l/2, z+h/2]))
-
+        
         color = get_color(used=used_colors, random_color=False)
         used_colors.append(tuple(color))
         mesh.visual.vertex_colors = color
