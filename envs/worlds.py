@@ -799,7 +799,8 @@ class RandomSplitWorld(ShapeSettingWorld):
 
             from envs.mesh_utils import RAINBOW_COLORS, DARKER_COLORS, CLASSIC_COLORS
             # color = RAINBOW_COLORS[i - 1]
-            color = RAINBOW_COLORS+DARKER_COLORS+CLASSIC_COLORS[i - 1]
+            color_list = RAINBOW_COLORS+DARKER_COLORS+CLASSIC_COLORS+RAINBOW_COLORS+DARKER_COLORS+CLASSIC_COLORS
+            color = color_list[i - 1]
             prediction = None
             if phase == 'prediction' and nodes[i, 0] == 2:
                 g = predictions[0]
