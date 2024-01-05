@@ -64,31 +64,26 @@ if __name__ == '__main__':
     # next_to
     # regular_grid
 
-    energy_wrapper = True
-    model_relation = "regular_grid"
+    energy_wrapper = False
+    # model_relation = "all_composed_True"
+
+    model_relation = "all_composed_False"
     evaluate_relation = model_relation
     # EBM = "ULA" 
     EBM = False
 
-    # pretrained = True 
-    # model_id = "gu4jx6af" # composed False
-    # milestone = 6
-
-    # model_id = "pgbbzyor" # composed True
-    # milestone = 5
-
     # pretrained = True
 
-    # model_id = "c3jdremi"
-    # milestone = 0
-
     # if energy_wrapper:
-    #     model_id = "tvvpzowp"
+    #     # model_id = "ncy5rau9"
+    #     model_id = "w33pzaee"
     #     milestone = 7
 
     # else: 
-    #     model_id = "ekegfe6v"
-    #     milestone = 8
+    #     # model_id = "hpb9b8rv"
+    #     # milestone = 9
+    #     model_id = "7ubfpalx"
+    #     milestone = 10
 
     # train_ddpm(
     #     get_args(input_mode='tidy', timesteps=1500, EBM=EBM, energy_wrapper=energy_wrapper, 

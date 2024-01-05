@@ -128,56 +128,133 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                     regions.append((x1, y1, w1, l1))
     
             return regions, 'aligned_vertical'
-             
-        def get_pairwise_aligned_cfree():
+        
+        def get_aligned_bottom_line():
+
+            locations = ["top", "center", "bottom", "right_top", "left_top", "right_bottom", "left_bottom", 
+                         "right_center", "left_center", "center_top", "center_bottom", "center_center"]
 
             regions = []
-            n = rn.randint(2, 11)
+            n = rn.randint(min_num_regions, max_num_regions+1)
 
-            y_bottom = rn.uniform(0.2, 0.95)*(L - 2* offset) 
-            xs = np.sort(rn.uniform(0+offset, W - 2*offset, size = n * 2))
-            ys = rn.uniform(0, L - y_bottom, size = n)
+            if n > 6:
+                loc = rn.choice(locations[:3], size = 1)
+            else:
+                loc = rn.choice(locations, size = 1)
 
-            for i in rn.choice(n, size = 2, replace = False):
-                x1 = xs[i * 2]
-                w1 = xs[i * 2 + 1] - x1
-                l1 = ys[i] 
+            if loc == "top":
+                _X, _Y, _W, _L = 0, 0.5*L, W, 0.5*L
+            elif loc == "center":
+                _X, _Y, _W, _L = 0, 0.25*L, W, 0.5*L
+            elif loc == "bottom":
+                _X, _Y, _W, _L = 0, 0, W, 0.5*L
+            elif loc == "right_top":
+                _X, _Y, _W, _L = 0.5*W, 0.5*L, 0.5*W, 0.5*L
+            elif loc == "left_top":
+                _X, _Y, _W, _L = 0, 0.5*L, 0.5*W, 0.5*L
+            elif loc == "right_bottom":
+                _X, _Y, _W, _L = 0.5*W, 0, 0.5*W, 0.5*L
+            elif loc == "left_bottom":
+                _X, _Y, _W, _L = 0, 0, 0.5*W, 0.5*L
+            elif loc == "right_center":
+                _X, _Y, _W, _L = 0.5*W, 0.25*L, 0.5*W, 0.5*L
+            elif loc == "left_center":
+                _X, _Y, _W, _L = 0, 0.25*L, 0.5*W, 0.5*L
+            elif loc == "center_top":
+                _X, _Y, _W, _L = 0.25*W, 0.5*L, 0.5*W, 0.5*L
+            elif loc == "center_bottom":
+                _X, _Y, _W, _L = 0.25*W, 0, 0.5*W, 0.5*L
+            elif loc == "center_center":
+                _X, _Y, _W, _L = 0.25*W, 0.25*L, 0.5*W, 0.5*L
+
+
+            while True:
+            
+                start_padding = rn.uniform(0.05, 0.3)*_W
+                __W = rn.uniform(0.6, 0.9)*(_W - start_padding)
+            
+                y_bottom = rn.uniform(0.05, 0.6)*(_L - 2* offset) 
+                x_padding = rn.uniform(0.02, 0.08)
+                _W_tmp = __W - (x_padding+default_min_size)*n
+                if _W_tmp > 0:
+                    break
+
+            xs = [0] + np.sort(rn.uniform(0, _W_tmp, size = n)).tolist()
+            ys = rn.uniform(default_min_size, _L - y_bottom, size = n)
+
+            running_x = start_padding
+            for i in range(n):
+                x1 = _X + running_x 
+                w1 = xs[i+1]-xs[i] + default_min_size
+                l1 = _Y + ys[i] 
+                running_x += (w1 + x_padding)
+        
                 regions.append((x1, y_bottom, w1, l1))
 
-            return regions, 'aligned_bottom&cfree'
+            return regions, 'aligned_bottom_line'
         
-        def get_pairwise_aligned_ccollide():
+        def get_aligned_vertical_line():
 
-            import math
+            locations = ["left", "center", "right", "right_top", "left_top", "right_bottom", "left_bottom", 
+                         "right_center", "left_center", "center_top", "center_bottom", "center_center"]
 
-            p = np.array([1, 3, 6, 10, 15, 21, 28, 36, 45])/165
+            regions = []
+            n = rn.randint(min_num_regions, max_num_regions+1)
 
-            sqrt_n_1 = math.sqrt(np.random.choice(np.arange(2, 11), p = p))
-            sqrt_n_2 = math.sqrt(np.random.choice(np.arange(2, 11), p = p))
+            if n > 6:
+                loc = rn.choice(locations[:3], size = 1)
+            else:
+                loc = rn.choice(locations, size = 1)
 
-            # sample the poses of the first object            
-            w, l = np.clip(rn.uniform(0.45, 1)*W/sqrt_n_1, 0.2*W, 0.8*W), np.clip(rn.uniform(0.45, 1)*L/sqrt_n_1, 0.2*L, 0.8*L)
+            if loc == "left":
+                _X, _Y, _W, _L = 0, 0, 0.5*W, L
+            elif loc == "center":
+                _X, _Y, _W, _L = 0.25*W, 0, 0.5*W, L
+            elif loc == "right":
+                _X, _Y, _W, _L = 0.5*W, 0, 0.5*W, L
+            elif loc == "right_top":
+                _X, _Y, _W, _L = 0.5*W, 0.5*L, 0.5*W, 0.5*L
+            elif loc == "left_top":
+                _X, _Y, _W, _L = 0, 0.5*L, 0.5*W, 0.5*L
+            elif loc == "right_bottom":
+                _X, _Y, _W, _L = 0.5*W, 0, 0.5*W, 0.5*L
+            elif loc == "left_bottom":
+                _X, _Y, _W, _L = 0, 0, 0.5*W, 0.5*L
+            elif loc == "right_center":
+                _X, _Y, _W, _L = 0.5*W, 0.25*L, 0.5*W, 0.5*L
+            elif loc == "left_center":
+                _X, _Y, _W, _L = 0, 0.25*L, 0.5*W, 0.5*L
+            elif loc == "center_top":
+                _X, _Y, _W, _L = 0.25*W, 0.5*L, 0.5*W, 0.5*L
+            elif loc == "center_bottom":
+                _X, _Y, _W, _L = 0.25*W, 0, 0.5*W, 0.5*L
+            elif loc == "center_center":
+                _X, _Y, _W, _L = 0.25*W, 0.25*L, 0.5*W, 0.5*L
 
-            x1 = rn.uniform(offset, W - w - offset)
-            y_bottom = rn.uniform(offset, L - l - offset)
 
-            regions = [(x1, y_bottom, w, l)]
+            while True:
+                start_padding = rn.uniform(0.05, 0.2)*_L
+                __L = rn.uniform(0.6, 0.9)*(_L - start_padding)
+                y_padding = rn.uniform(0.02, 0.08)
+                _L_tmp = __L - (y_padding+default_min_size)*n
+                if _L_tmp > 0:
+                    break
+            
+            x_center = rn.uniform(0.3, 0.7)*_W
+            xs = rn.uniform(0.1, min(_W - x_center, x_center), size = n)
+            ys = [0] + np.sort(rn.uniform(0, _L_tmp, size = n)).tolist()
 
-            l2 = rn.uniform(0, L - y_bottom - offset)
+            running_y = start_padding
+            for i in range(n):
+                x1 = _X + x_center - xs[i] 
+                w1 = xs[i] * 2
+                y1 = _Y + running_y 
+                l1 = ys[i+1] - ys[i] + default_min_size
+                running_y += l1 + y_padding
+                regions.append((x1, y1, w1, l1))
 
-            c_x2 = rn.uniform(x1, x1 + w)
-
-            if rand() < 0.5: # right
-                w2 = rn.uniform(0, (W - offset-c_x2)/sqrt_n_2)
-                x2 = c_x2
-            else: # left       
-                w2 = rn.uniform(0, (c_x2 - offset)/sqrt_n_2)            
-                x2 = c_x2 - w2
-
-            regions.append((x2, y_bottom, w2, l2))
-
-            return regions, 'aligned_bottom&ccollide'
-
+            return regions, 'aligned_vertical_line'
+             
         def get_cfree_regions(max_depth, X, Y, W, L, offset, offset_grid=True):
 
             regions = []
@@ -777,69 +854,114 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
 
             return regions, f'regular_grid_{n}_{n_combi_idx}'
             
-        def get_customized_1(W, L):
-            tissue_box = (0.2*W, 0.45*L, 0.1*W, 0.15*L)
-            cleaning_can = (0.45*W, 0.5*L, 0.05*W, 0.3*L)
-            starbucks_cup = (0.75*W, 0.55*L, 0.05*W, 0.25*L)
-            plate_1 = (0.3*W, 0.2*L, 0.14*W, 0.21*L)
-            plate_2 = (0.55*W, 0.3*L, 0.14*W, 0.21*L)
+        def get_dining_table(W, L, relation):
 
-            return [tissue_box, cleaning_can, starbucks_cup, plate_1, plate_2], 'customized_1'
+            if relation == "dining_table_1":
+                tissue_box = (0.2*W, 0.45*L, 0.1*W, 0.15*L)
+                cleaning_can = (0.45*W, 0.5*L, 0.05*W, 0.3*L)
+                starbucks_cup = (0.75*W, 0.55*L, 0.05*W, 0.25*L)
+                plate_1 = (0.3*W, 0.2*L, 0.14*W, 0.21*L)
+                plate_2 = (0.55*W, 0.3*L, 0.14*W, 0.21*L)
+
+                obj_list = [tissue_box, cleaning_can, starbucks_cup, plate_1, plate_2]
+                names = ["tissue_box", "cleaning_can", "starbucks_cup", "plate_1", "plate_2"]
+
+            elif relation == "dining_table_2":
+                plate_1 = (0.1*W, 0.55*L, 0.12*W, 0.18*L)
+                plate_2 = (0.35*W, 0.55*L, 0.12*W, 0.18*L)
+                fork_1 = (0.6*W, 0.55*L, 0.04*W, 0.17*L)
+                fork_2 = (0.7*W, 0.55*L, 0.04*W, 0.17*L)
+                knife_1 = (0.8*W, 0.55*L, 0.04*W, 0.17*L)
+                knife_2 = (0.9*W, 0.55*L, 0.04*W, 0.17*L)
+                candle = (0.4*W, 0.3*L, 0.1*W, 0.15*L)
+                obj_list = [plate_1, plate_2, fork_1, fork_2, knife_1, knife_2, candle]
+                names = ["plate_1", "plate_2", "fork_1", "fork_2", "knife_1", "knife_2", "candle"]
+            
+            elif relation == "dining_table_3":
+                plate_1 = (0.1*W, 0.55*L, 0.12*W, 0.18*L)
+                plate_2 = (0.35*W, 0.55*L, 0.12*W, 0.18*L)
+                fork_1 = (0.6*W, 0.55*L, 0.04*W, 0.17*L)
+                fork_2 = (0.7*W, 0.55*L, 0.04*W, 0.17*L)
+                knife_1 = (0.8*W, 0.55*L, 0.04*W, 0.17*L)
+                knife_2 = (0.9*W, 0.55*L, 0.04*W, 0.17*L)
+                candle = (0.4*W, 0.3*L, 0.1*W, 0.15*L)
+
+                obj_list = [plate_1, plate_2, fork_1, fork_2, knife_1, knife_2, candle]
+                names = ["plate_1", "plate_2", "fork_1", "fork_2", "knife_1", "knife_2", "candle"]
+
+            elif relation == "dining_table_4":
+
+                plate_1 = (0.1*W, 0.55*L, 0.12*W, 0.18*L)
+                plate_2 = (0.35*W, 0.55*L, 0.12*W, 0.18*L)
+                fork_1 = (0.6*W, 0.55*L, 0.04*W, 0.17*L)
+                fork_2 = (0.7*W, 0.55*L, 0.04*W, 0.17*L)
+                knife_1 = (0.8*W, 0.55*L, 0.04*W, 0.17*L)
+                knife_2 = (0.9*W, 0.55*L, 0.04*W, 0.17*L)
+                candle = (0.4*W, 0.3*L, 0.1*W, 0.15*L)
+
+                obj_list = [plate_1, plate_2, fork_1, fork_2, knife_1, knife_2, candle]
+                names = ["plate_1", "plate_2", "fork_1", "fork_2", "knife_1", "knife_2", "candle"]
+
+            return obj_list, relation, names
         
-        def get_customized_2(W, L, relation):
-            plate_1 = (0.1*W, 0.55*L, 0.12*W, 0.18*L)
-            plate_2 = (0.35*W, 0.55*L, 0.12*W, 0.18*L)
-            fork_1 = (0.6*W, 0.55*L, 0.04*W, 0.17*L)
-            fork_2 = (0.7*W, 0.55*L, 0.04*W, 0.17*L)
-            knife_1 = (0.8*W, 0.55*L, 0.04*W, 0.17*L)
-            knife_2 = (0.9*W, 0.55*L, 0.04*W, 0.17*L)
-            candel = (0.4*W, 0.3*L, 0.1*W, 0.15*L)
+        def study_table(W, L, relation):
+            if relation == 'study_table_1':
+                monitor = (0.25*W, 0.75*L, 0.5*W, 0.2*L)
+                laptop = (0.35*W, 0.25*L, 0.3*W, 0.32*L)
+                paper = (0.7*W, 0.15*L, 0.32*L, 0.3*W)
+                pen = (0.95*W, 0.3*L, 0.025*W, 0.2*L)
+                cup = (0.15*W, 0.25*L, W/12, L/8)
+                tissue_box = (0.1*W, 0.75*L, W/12, L/8)
+                toy = (0.8*W, 0.75*L, 0.2*W/3, 0.1*L)
+                lamp = (0.9*W, 0.75*L, 0.2*W/3, 0.1*L)
+                obj_list = [monitor, laptop, paper, pen, cup, tissue_box, toy, lamp]
+                names = ["monitor", "laptop", "paper", "pen", "cup", "tissue_box", "toy", "lamp"]
+            elif relation == 'study_table_2':
+                monitor = (0.25*W, 0.75*L, 0.5*W, 0.2*L)
+                laptop = (0.33*W, 0.425*L, 0.34*W, 0.3*L)
+                keyboard = (0.25*W, 0.2*L, 0.5*W, 0.2*L)
+                mouse = (0.8*W, 0.2*L, 0.05*W, 0.1*L)
+                tissue_box = (0.1*W, 0.75*L, 0.2*W/3, 0.1*L)
+                cup = (0.1*W, 0.3*L, W/12, L/8)
+                glasses = (0.8*W, 0.5*L, 0.15*W, 0.05*L)
+                obj_list = [monitor, laptop, keyboard, mouse, tissue_box, cup, glasses]
+                names = ["monitor", "laptop", "keyboard", "mouse", "tissue_box", "cup", "glasses"]
+            elif relation == 'study_table_3':
+                monitor = (0.25*W, 0.75*L, 0.5*W, 0.2*L)
+                laptop = (0.33*W, 0.1*L, 0.34*W, 0.3*L)
+                book_1 = (0.05*W, 0.75*L, 0.04*W, 0.2*L)
+                book_2 = (0.09*W, 0.75*L, 0.04*W, 0.2*L)
+                book_3 = (0.13*W, 0.75*L, 0.04*W, 0.2*L)
+                book_4 = (0.17*W, 0.75*L, 0.04*W, 0.2*L)
+                tissue_box = (0.1*W, 0.3*L, W/12, L/8)
+                cup = (0.8*W, 0.7*L, W/12, L/8)
+                paper = (0.7*W, 0.1*L, 0.32*L, 0.3*W)
+                pen = (0.95*W, 0.2*L, 0.025*W, 0.2*L)
+                obj_list = [monitor, laptop, book_1, book_2, book_3, book_4, tissue_box, cup, paper, pen]
+                names = ["monitor", "laptop", "book_1", "book_2", "book_3", "book_4", "tissue_box", "cup", "paper", "pen"]
+            elif relation == 'study_table_4':
+                monitor = (0.25*W, 0.75*L, 0.5*W, 0.2*L)
+                laptop = (0.33*W, 0.425*L, 0.34*W, 0.3*L)
+                keyboard = (0.25*W, 0.2*L, 0.5*W, 0.2*L)
+                mouse = (0.8*W, 0.2*L, 0.05*W, 0.1*L)
+                obj_list = [monitor, laptop, keyboard, mouse]
+                names = ["monitor", "laptop", "keyboard", "mouse"]
 
-            return [plate_1, plate_2, fork_1, fork_2, knife_1, knife_2, candel], relation
-        
-        def get_customized_3(W, L):
-            plate_1 = (0.1*W, 0.55*L, 0.12*W, 0.18*L)
-            plate_2 = (0.35*W, 0.55*L, 0.12*W, 0.18*L)
-            fork_1 = (0.6*W, 0.55*L, 0.04*W, 0.17*L)
-            fork_2 = (0.7*W, 0.55*L, 0.04*W, 0.17*L)
-            knife_1 = (0.8*W, 0.55*L, 0.04*W, 0.17*L)
-            knife_2 = (0.9*W, 0.55*L, 0.04*W, 0.17*L)
-            candel = (0.4*W, 0.3*L, 0.1*W, 0.15*L)
+            elif relation == 'study_table_5':
+                laptop = (0.33*W, 0.1*L, 0.34*W, 0.3*L)
+                book_1 = (0.05*W, 0.75*L, 0.04*W, 0.2*L)
+                book_2 = (0.09*W, 0.75*L, 0.04*W, 0.2*L)
+                book_3 = (0.13*W, 0.75*L, 0.04*W, 0.2*L)
+                book_4 = (0.17*W, 0.75*L, 0.04*W, 0.2*L)
 
-            return [plate_1, plate_2, fork_1, fork_2, knife_1, knife_2, candel], 'customized_3'
+            # elif relation == 'study_table_6':
+                
 
-        def get_customized_5(W, L, relation):
-            plate_1 = (0.1*W, 0.55*L, 0.12*W, 0.18*L)
-            plate_2 = (0.35*W, 0.55*L, 0.12*W, 0.18*L)
-            fork_1 = (0.6*W, 0.55*L, 0.04*W, 0.17*L)
-            fork_2 = (0.7*W, 0.55*L, 0.04*W, 0.17*L)
-            knife_1 = (0.8*W, 0.55*L, 0.04*W, 0.17*L)
-            knife_2 = (0.9*W, 0.55*L, 0.04*W, 0.17*L)
-            candel = (0.4*W, 0.3*L, 0.1*W, 0.15*L)
+            return obj_list, "study_table", names
 
-            return [plate_1, fork_1, knife_1, plate_2, fork_2, knife_2, candel], relation
-        
         count = num_samples
 
-        if "mixed" in relation:
-            _, relation_2 = relation.split("_")
-            relation_1 = "aligned_bottom"
-
-            if rand() < 0.5:
-                relation = relation_1
-            else:
-                relation = relation_2
-        elif "integrated" in relation:
-            relation = relation.split("_")[1]
-            relation_list = relation.split("&")
-            if len(relation_list) == 2:
-                if rand() < 0.5:
-                    relation = "integrated_cfree"
-                else:
-                    relation = "integrated_ccollide"
-            else:
-                relation = f"integrated_{relation_list[0]}"
-        elif "all" in relation:
+        if "all" in relation:
             if min_num_regions == max_num_regions:
                 n = min_num_regions
             else:
@@ -847,11 +969,14 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 while n == 11:
                     n = rn.choice(np.arange(min_num_regions, max_num_regions+1))
             if min_num_regions in [4, 6, 8, 9, 10]:
-                relation = rn.choice(["aligned_bottom", "aligned_vertical", "on_top_of", "centered", "next_to_edge", "in", "symmetry", "next_to", "regular_grid"])
+                relation = rn.choice(["aligned_bottom", "aligned_vertical", "aligned_bottom_line", "aligned_vertical_line", 
+                                      "on_top_of", "centered", "next_to_edge", "in", "symmetry", "next_to", "regular_grid"])
             elif min_num_regions in [3, 5, 7]:
-                relation = rn.choice(["aligned_bottom", "aligned_vertical", "on_top_of", "centered", "next_to_edge", "in", "symmetry", "next_to"])
+                relation = rn.choice(["aligned_bottom", "aligned_vertical", "aligned_bottom_line", "aligned_vertical_line", 
+                                      "on_top_of", "centered", "next_to_edge", "in", "symmetry", "next_to"])
             elif min_num_regions in [12, 13, 14, 15, 16]:
                 relation = "regular_grid"
+        names = []
         while True:
             if relation == "aligned_bottom":
                 regions, relation_mode = get_aligned_regions()
@@ -873,31 +998,28 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 regions, relation_mode = get_aligned_vertical_regions()
             elif relation == "symmetry":
                 regions, relation_mode = get_symmetry_regions(W, L)
-            elif relation == "integrated_cfree":
-                 regions, relation_mode = get_pairwise_aligned_cfree()
-            elif relation == "integrated_ccollide":
-                regions, relation_mode = get_pairwise_aligned_ccollide()
-            elif relation == "customized_1":
-                regions, relation_mode = get_customized_1(W, L)
-            elif relation == "customized_2" or relation == "customized_4":
-                regions, relation_mode = get_customized_2(W, L, relation)
-            elif relation == "customized_3":
-                regions, relation_mode = get_customized_3(W, L)
-            elif relation == "customized_5":
-                regions, relation_mode = get_customized_5(W, L, relation)
             elif "regular_grid" in relation:
                 regions, relation_mode = get_in_regular_grid(W, L, offset)
+            elif relation == "aligned_bottom_line":
+                regions, relation_mode = get_aligned_bottom_line()
+            elif relation == "aligned_vertical_line":   
+                regions, relation_mode = get_aligned_vertical_line()
+            elif "dining_table" in relation:
+                regions, relation_mode, names = get_dining_table(W, L, relation)
+            elif "study_table" in relation:
+                print("which idx")
+                x = input()
+                regions, relation_mode, names = study_table(W, L, f"study_table_{x}")
 
             try:
                 regions = filter_regions(regions, min_size)
             except:
                 pdb.set_trace()
             # (("ccollide" in relation or "integrated" in relation) and len(regions) == 2) or
-            if min_num_regions <= len(regions) <= max_num_regions:
+            if min_num_regions <= len(regions) <= max_num_regions or "study_table" in relation or "dining_table" in relation:
                 count -= 1
                 print(len(regions), "added!")
-                # pdb.set_trace()
-                yield regions, relation_mode
+                yield regions, relation_mode, names
             if count == 0:
                 break
         yield None

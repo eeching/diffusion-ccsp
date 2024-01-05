@@ -200,8 +200,9 @@ class CSPWorld(object):
         """ record in a json file for collision checking """
         world.update({
             'name': self.name,
+            'verbose_constraints':[],
             'objects': {},
-            'constraints': constraints,
+            'constraints': constraints
         })
       
         scene = self.get_scene()
@@ -239,6 +240,7 @@ class CSPWorld(object):
 
             rgba = mesh.visual.face_colors.tolist()[0] if hasattr(mesh.visual, 'face_colors') else [255] * 4
             color = get_color_name(rgba)
+            
             world['objects'][name] = {
                 'label': label,
                 'shape': shape,
@@ -246,8 +248,12 @@ class CSPWorld(object):
                 'center': tuple(center),
                 'centroid': tuple(mesh.centroid),
                 'rgba': rgba,
-                'color': color,
+                'color': color
             }
+            if 'name' in mesh.metadata:
+                obj_name = mesh.metadata['name']
+                world['objects'][name].update({'name': obj_name})
+            
             if 'triangle' in shape:
                 world['objects'][name].update({
                     'vertices': [tuple(vertex) for vertex in mesh.vertices],
@@ -276,11 +282,6 @@ class CSPWorld(object):
                 world['objects'][name]['grid_label'] = grid_label
 
         """ compute constraints """
-        from networks.denoise_fns import tidy_constraints
-       
-        # if model_relation == 'customized_1':
-        #     filename = 'tmp.json'
-        # elif model_relation == 'customized_2':
         if model_relation == 'customized_2' or model_relation == 'customized_4' or model_relation == 'customized_5' or model_relation == 'customized_3':
             filename = 'tmp_1.json'
             with open(filename) as json_file:
@@ -335,6 +336,8 @@ class CSPWorld(object):
                 for k, data in world['objects'].items():
                     world['objects'][k]['extents'] = list(data['extents'])
                     world['objects'][k]['center'] = list(data['center'])
+                    if 'name' in data:
+                        world['objects'][k]['name'] = data['name']
                 json.dump(world, fp=f, indent=3)
         return world # check the format of the constraints
 
@@ -766,7 +769,7 @@ class RandomSplitWorld(ShapeSettingWorld):
                 self.rotations[f"tile_box_{i}"] = rotations[i]
 
     def construct_scene_from_graph_data(self, nodes, labels=None, predictions=None, verbose=False, phase='truth'):
-        """ check collisions during model evaluation """
+        """ check collisions during model evaluaobj_names = [objects[n]['name'] for n in names]tion """
         w, l = nodes[0, 1:3]
         # if w == 1 and l == 1:
         #     nodes[:, 1] *= 3
@@ -861,7 +864,7 @@ class RandomSplitSparseWorld(RandomSplitWorld):
             max_depth = math.ceil(math.log2(n)) + 1 
             gen = get_tidy_data_gen(num_samples=5, min_num_regions=n,
                                      max_num_regions=n, max_depth=max_depth, relation=relation)
-            regions, relation = next(gen(self.w, self.l, relation))
+            regions, relation, names = next(gen(self.w, self.l, relation))
 
             regions = regions[:2]
             # regions = [regions[idx] for idx in np.random.choice(np.arange(len(regions)), max_num_objects, replace=False)]
@@ -869,9 +872,10 @@ class RandomSplitSparseWorld(RandomSplitWorld):
             max_depth = math.ceil(math.log2(max_num_objects)) + 1 
             gen = get_tidy_data_gen(num_samples=12, min_num_regions=min_num_objects,
                                      max_num_regions=max_num_objects, max_depth=max_depth, relation=relation)
-            regions, relation = next(gen(self.w, self.l, relation))
-            
-        meshes = regions_to_meshes(regions, self.w, self.l, self.h, relation=relation)
+            regions, relation, names = next(gen(self.w, self.l, relation))
+        
+        meshes = regions_to_meshes(regions, self.w, self.l, self.h, relation=relation, names=names)
+    
         self.tiles.extend(meshes)
         return relation
             
@@ -891,7 +895,7 @@ class RandomSplitSparseWorld(RandomSplitWorld):
         current_constraints = self.get_current_constraints(collisions) # current constraints satisfied
         current_constraints = get_ordered_constraints(current_constraints)
         given_constraints = get_ordered_constraints(given_constraints)
-        missing = [ct for ct in given_constraints if ct not in current_constraints]
+        missing = [ct for ct in given_constraints.values() if ct not in current_constraints.values()]
 
         missing_dict = dict()
         missing = []

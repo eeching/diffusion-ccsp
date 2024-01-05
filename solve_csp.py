@@ -342,10 +342,10 @@ def eval_customized_cases():
     # wrapper False, composed False
     # wrapper False, composed False, ULA, 3
 
-    energy_wrapper = False
+    energy_wrapper = True
 
     EBM = "ULA"
-    steps = 3
+    steps = 7
 
     model_relation = "all_composed_False"
     evaluate_relation = None
@@ -355,11 +355,11 @@ def eval_customized_cases():
 
     if model_relation == "all_composed_False":
         if energy_wrapper:
-            model_id = "ovhwg5o0" #"tvvpzowp" 
-            milestone = 29
+            model_id = "2w2vkfh2" #"ovhwg5o0" #"tvvpzowp" 
+            milestone = 10
         else:
-            model_id = "eelutdfc" #"ekegfe6v"
-            milestone = 29
+            model_id = "7w2orp88" #"eelutdfc" #"ekegfe6v"
+            milestone = 14
     elif model_relation == "all_composed_True":
         if energy_wrapper:
             model_id = "zgw7jzti" 
@@ -367,20 +367,17 @@ def eval_customized_cases():
         else:
             model_id = "7a135mwb" 
             milestone = 6
-    elif model_relation == "symmetry": 
-        model_id = "m6q1nwil"
-        milestone = 24
 
     # --- for testing
-    train_task = f"RandomSplitSparseWorld(1)_tidy_train/customized"
+    train_task = f"RandomSplitSparseWorld(4)_tidy_train/study_table"
 
     eval_10_kwargs = dict(tries=(10, 0), json_name='eval', save_log=False, visualize=True, test_set=True, return_history=False,
                         run_all=True, model_relation=model_relation, evaluate_relation=evaluate_relation, EBM=EBM, 
                         energy_wrapper=energy_wrapper, samples_per_step=steps, eval_only=True, train_task=train_task)
  
-    test_10_tasks = {1: f'RandomSplitSparseWorld(1)_tidy_train/customized_3'}
+    test_10_tasks = {1: f'RandomSplitSparseWorld(4)_tidy_train/study_table'}
    
-    evaluate_model(model_id, input_mode="tidy", relation=model_relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks="customized_3", test_name="customized_3", **eval_10_kwargs) # False, both
+    evaluate_model(model_id, input_mode="tidy", relation=model_relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks="study_table", test_name="study_table", **eval_10_kwargs) # False, both
 
    
 

@@ -10,6 +10,7 @@ from trimesh.creation import box, cylinder, axis
 from trimesh.transformations import translation_matrix as T, rotation_matrix as R
 
 from envs.config import *
+import pdb
 
 """ project configurations """
 
@@ -241,7 +242,7 @@ def add_shape(shape, size, height, color=CLOUD, **kwargs):
 
 
 def regions_to_meshes(regions, width, length, height,
-                      max_offset=0.2, min_offset_perc=0.1, relation='ccollide'):
+                      max_offset=0.2, min_offset_perc=0.1, relation='ccollide', names=[]):
     """ convert 2D regions [top, left, width, height] to 3D meshes centered at origin """
 
     meshes = []
@@ -278,6 +279,8 @@ def regions_to_meshes(regions, width, length, height,
         used_colors.append(tuple(color))
         mesh.visual.vertex_colors = color
         mesh.metadata['label'] = f"tile_{len(meshes)}"
+        if len(names) > 0:
+            mesh.metadata['name'] = names[idx]
         meshes.append(mesh)
 
     return meshes

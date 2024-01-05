@@ -148,20 +148,26 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
         args.test_tasks = {i: f'RandomSplitQualitativeWorld(10)_qualitative_test_{i}_split' for i in range(2, 5)}
     elif args.input_mode == 'tidy':
 
-        if 'all' in args.model_relation:
-            n_train = 40000
-            n_test = 20
+        if args.model_relation == "all_composed_True":
+            n_train = 5000
+            n_test = 10
+        elif args.model_relation == "all_composed_False":
+            n_train = 50000
+            n_test = 10
+       
+        #     n_train = 40000
+        #     n_test = 20
         else:
             if args.model_relation == "regular_grid":
                 n_train = 10000
             else:
-                n_train = 10000
+                n_train = 500
             n_test = 10
 
         if args.model_relation == "regular_grid":
             test_idxs = [4, 8, 12, 16]
         elif "all" in args.model_relation:
-            test_idxs = [3, 6, 9, 10]
+            test_idxs = [3, 6, 9, 12]
         else:
             test_idxs = [3, 6, 8]
         args.train_proj = f'tidy_{args.model_relation}'

@@ -23,24 +23,18 @@ qualitative_constraints = [
     'close-to', 'away-from', 'h-aligned', 'v-aligned'
 ]
 robot_qualitative_constraints = robot_constraints + qualitative_constraints
-ignored_constraints = ['regular_grid_v', 'regular_grid_h']
-# tidy_constraints = ['aligned_bottom', 'aligned_top', 'aligned_left', 'aligned_right' 'left_of', 'right_of', 'centered', 'avoid_edge',
-#                      'not_obstructed', 'in_container', 'on_top_of', 'regular_grid', 'stacked', 'ordered']
-# v0
-# tidy_constraints = ['aligned_bottom', 'aligned_top', 'in', 'center-in', 'left-in', 'right-in', 'top-in', 'bottom-in',
-#     'cfree', 'h-aligned', 'v-aligned']
-# tidy_constraints = ['aligned_bottom', 'in', 'cfree']
+ignored_constraints = ['regular_grid_v', 'regular_grid_h', 'aligned_bottom_line', 'aligned_vertical_line']
+
 tidy_constraints = ['aligned_bottom', 'aligned_vertical', 'centered', 'centered_table', 'on_top_of', 'next_to_edge_top', 'next_to_edge_bottom',
                     'next_to_edge_left', 'next_to_edge_right', 'center-in-h', 'center-in-v', 'left-in', 'right-in', 'top-in', 
                     'bottom-in', "symmetry_h", "symmetry_v", "symmetry_table_h", "symmetry_table_v", "right_of_bottom", 
-                    "left_of_bottom", "right_of_top", "left_of_top", "regular_grid_h", "regular_grid_v"]
-# tidy_constraints_complement = ['ccollide', 'ccollidse-complement', 'next_to_edge_complement']
+                    "left_of_bottom", "right_of_top", "left_of_top", "regular_grid_h", "regular_grid_v", "aligned_bottom_line", "aligned_vertical_line"]
 
 tidy_constraints_dict = {'aligned_bottom': 2, 'aligned_vertical': 2, 'centered': 2, 'centered_table': 1, 
                          'on_top_of': 2, 'next_to_edge_top': 1, 'next_to_edge_bottom':1, 'next_to_edge_left':1, 'next_to_edge_right':1, 'center-in-h': 1, 'center-in-v':1, 'left-in': 1, 'right-in': 1, 
                          'top-in': 1, 'bottom-in': 1, "symmetry_h": 3, "symmetry_v": 3, "symmetry_table_h":2, 
                     "symmetry_table_v": 2, "right_of_bottom": 2, "left_of_bottom": 2, "right_of_top": 2, "left_of_top": 2,
-                    "regular_grid_h": 10, "regular_grid_v": 10}
+                    "regular_grid_h": 10, "regular_grid_v": 10, "aligned_bottom_line": 10, "aligned_vertical_line": 10}
 
 dataset_relation_mapping = {'aligned_bottom': ['aligned_bottom'], 'aligned_vertical': ['aligned_vertical'],
                             'centered': ['centered', 'centered_table'], 
@@ -49,19 +43,14 @@ dataset_relation_mapping = {'aligned_bottom': ['aligned_bottom'], 'aligned_verti
                             'in': ['center-in-h', 'center-in-v', 'left-in', 'right-in', 'top-in', 'bottom-in'], 
                             'symmetry': ['symmetry_h', 'symmetry_table_h', 'symmetry_v', 'symmetry_table_v'],
                             'next_to': ['left_of_bottom', 'right_of_bottom', 'left_of_top', 'right_of_top'],
-                            'regular_grid': ['regular_grid_h', 'regular_grid_v']}
+                            'regular_grid': ['regular_grid_h', 'regular_grid_v'],
+                            'aligned_bottom_line': ['aligned_bottom_line'], 'aligned_vertical_line': ['aligned_vertical_line']}
 
 def has_single_arity(edge_attr):
     for edge in edge_attr:
         if int(edge) in [3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]:
             return True
     return False
-
-# def has_double_arity(edge_attr):
-#     for edge in edge_attr:
-#         if int(edge) in [0, 1, 2, 4, 13, 14, 15, 16, 17, 18]:
-#             return True
-#     return False
 
 def exists(x):
     return x is not None
@@ -688,7 +677,6 @@ class ConstraintDiffuser(torch.nn.Module):
                 nn.Mish(),
                 nn.Linear(self.hidden_dim * 4, self.hidden_dim),
             )
-
             self.shuffled = {}  ## because of dataset problem
 
     def forward(self, poses_in, input_dict, t, verbose=False, debug=False, tag='EBM'):
@@ -738,15 +726,15 @@ class ConstraintDiffuser(torch.nn.Module):
         sequences = []
         attn_masks = []
         # indices = []
-        
+
         start_idx = 0
         for j in range(len(edge_lens)):
             obj_list = args[start_idx:start_idx + edge_lens[j]]
             start_idx += edge_lens[j]
             seq = obj_embs[obj_list]  ## [n, 512] ## all objects from the same scene
 
-            pe = self.pe[:, :seq.shape[0], :]
-            seq += rearrange(pe, 'b n c -> (b n) c')
+            # pe = self.pe[:, :seq.shape[0], :]
+            # seq += rearrange(pe, 'b n c -> (b n) c')
 
             x = self.ln_pre(seq)
             padding_len = self.max_seq_len - x.shape[0]
@@ -784,7 +772,6 @@ class ConstraintDiffuser(torch.nn.Module):
         """ a sequence of object shape + pose pairs, including the container """
         from einops import repeat, rearrange # b = 8
         
-        pdb.set_trace()
         ## add time embedding to each pose embedding
         geoms_emb = emb_dict['geoms_emb']  ## [8, 256] or num of objects * hidden dim
         time_emb = self.time_mlp(jactorch.add_dim(t, 0, geoms_emb.shape[0]))[:, 0]  ## [8, 256]

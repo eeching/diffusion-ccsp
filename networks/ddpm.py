@@ -603,7 +603,7 @@ class Trainer(object):
 
         print('training completed')
 
-    def evaluate(self, milestone, tries=(10, 0), verbose=False, return_history=False,
+    def evaluate(self, milestone, tries=(5, 0), verbose=False, return_history=False,
                  save_log=False, run_all=True, run_only=False, resume_eval=False, render_dir=None, debug=False, **kwargs):
         if 'robot' in self.input_mode or 'stability' in self.input_mode:
             sys.path.append(dirname(dirname(abspath("__file__"))))
@@ -631,7 +631,7 @@ class Trainer(object):
             all_failure_modes = {}
             best_tries = {}
 
-            for relation in tidy_constraints:
+            for relation in tidy_constraints[:-2]:
                 best_tries[relation] = dict()
 
             percentage = 0

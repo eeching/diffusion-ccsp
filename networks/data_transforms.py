@@ -189,7 +189,7 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
     
    
     ## for each edge, add one constraint node, and add edge_attr
-
+    
     # edge_attr = [all_constraints.index(elems[0]) for elems in data.edge_index]
     data.edge_index = [elem for elem in data.edge_index if elem[0] in all_constraints] # extract all the relations in model_relation
     edge_attr =  [tidy_constraints.index(elems[0]) for elems in data.edge_index] # map the index of the relation to that in tidy_constraints
