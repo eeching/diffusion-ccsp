@@ -18,33 +18,33 @@ puzzle_constraints = ['in', 'cfree']
 robot_constraints = ['gin', 'gfree']
 stability_constraints = ['within', 'supportedby', 'cfree']
 qualitative_constraints = [
-    'in', 'center-in', 'left-in', 'right-in', 'top-in', 'bottom-in',
+    'in', 'center-in', 'left_half', 'right_half', 'right_half', 'front_half',
     'cfree', 'left-of', 'top-of',
     'close-to', 'away-from', 'h-aligned', 'v-aligned'
 ]
 robot_qualitative_constraints = robot_constraints + qualitative_constraints
-ignored_constraints = ['regular_grid_v', 'regular_grid_h', 'aligned_bottom_line', 'aligned_vertical_line']
+ignored_constraints = ['vertical_regular_grid', 'horizontal_regular_grid', 'aligned_in_horizontal_line', 'aligned_in_vertical_line']
 
-tidy_constraints = ['aligned_bottom', 'aligned_vertical', 'centered', 'centered_table', 'on_top_of', 'next_to_edge_top', 'next_to_edge_bottom',
-                    'next_to_edge_left', 'next_to_edge_right', 'center-in-h', 'center-in-v', 'left-in', 'right-in', 'top-in', 
-                    'bottom-in', "symmetry_h", "symmetry_v", "symmetry_table_h", "symmetry_table_v", "right_of_bottom", 
-                    "left_of_bottom", "right_of_top", "left_of_top", "regular_grid_h", "regular_grid_v", "aligned_bottom_line", "aligned_vertical_line"]
+tidy_constraints = ['horizontally_aligned', 'vertically_aligned', 'centered', 'centered_table', 'on_top_of', 'near_back_edge', 'near_front_edge',
+                    'near_left_edge', 'near_right_edge', 'central_row', 'central_column', 'left_half', 'right_half', 'back_half', 
+                    'front_half', "vertical_line_symmetry", "horizontal_line_symmetry", "vertical_symmetry_on_table", "horizontal_symmetry_on_table", "right_of_front", 
+                    "left_of_front", "right_of_back", "left_of_back", "horizontal_regular_grid", "vertical_regular_grid", "aligned_in_horizontal_line", "aligned_in_vertical_line"]
 
-tidy_constraints_dict = {'aligned_bottom': 2, 'aligned_vertical': 2, 'centered': 2, 'centered_table': 1, 
-                         'on_top_of': 2, 'next_to_edge_top': 1, 'next_to_edge_bottom':1, 'next_to_edge_left':1, 'next_to_edge_right':1, 'center-in-h': 1, 'center-in-v':1, 'left-in': 1, 'right-in': 1, 
-                         'top-in': 1, 'bottom-in': 1, "symmetry_h": 3, "symmetry_v": 3, "symmetry_table_h":2, 
-                    "symmetry_table_v": 2, "right_of_bottom": 2, "left_of_bottom": 2, "right_of_top": 2, "left_of_top": 2,
-                    "regular_grid_h": 10, "regular_grid_v": 10, "aligned_bottom_line": 10, "aligned_vertical_line": 10}
+tidy_constraints_dict = {'horizontally_aligned': 2, 'vertically_aligned': 2, 'centered': 2, 'centered_table': 1, 
+                         'on_top_of': 2, 'near_back_edge': 1, 'near_front_edge':1, 'near_left_edge':1, 'near_right_edge':1, 'central_row': 1, 'central_column':1, 
+                         'left_half': 1, 'right_half': 1, 'back_half': 1, 'front_half': 1, "vertical_line_symmetry": 3, "horizontal_line_symmetry": 3, "vertical_symmetry_on_table":2, 
+                    "horizontal_symmetry_on_table": 2, "right_of_front": 2, "left_of_front": 2, "right_of_back": 2, "left_of_back": 2,
+                    "horizontal_regular_grid": 10, "vertical_regular_grid": 10, "aligned_in_horizontal_line": 10, "aligned_in_vertical_line": 10}
 
-dataset_relation_mapping = {'aligned_bottom': ['aligned_bottom'], 'aligned_vertical': ['aligned_vertical'],
+dataset_relation_mapping = {'horizontally_aligned': ['horizontally_aligned'], 'vertically_aligned': ['vertically_aligned'],
                             'centered': ['centered', 'centered_table'], 
-                            'on_top_of': ['on_top_of'], 'next_to_edge': ['next_to_edge_top', 'next_to_edge_bottom',
-                            'next_to_edge_left', 'next_to_edge_right'], 
-                            'in': ['center-in-h', 'center-in-v', 'left-in', 'right-in', 'top-in', 'bottom-in'], 
-                            'symmetry': ['symmetry_h', 'symmetry_table_h', 'symmetry_v', 'symmetry_table_v'],
-                            'next_to': ['left_of_bottom', 'right_of_bottom', 'left_of_top', 'right_of_top'],
-                            'regular_grid': ['regular_grid_h', 'regular_grid_v'],
-                            'aligned_bottom_line': ['aligned_bottom_line'], 'aligned_vertical_line': ['aligned_vertical_line']}
+                            'on_top_of': ['on_top_of'], 'next_to_edge': ['near_back_edge', 'near_front_edge',
+                            'near_left_edge', 'near_right_edge'], 
+                            'in': ['central_row', 'central_column', 'left_half', 'right_half', 'back_half', 'front_half'], 
+                            'symmetry': ['vertical_line_symmetry', 'vertical_symmetry_on_table', 'horizontal_line_symmetry', 'horizontal_symmetry_on_table'],
+                            'next_to': ['left_of_front', 'right_of_front', 'left_of_back', 'right_of_back'],
+                            'regular_grid': ['horizontal_regular_grid', 'vertical_regular_grid'],
+                            'aligned_in_horizontal_line': ['aligned_in_horizontal_line'], 'aligned_in_vertical_line': ['aligned_in_vertical_line']}
 
 def has_single_arity(edge_attr):
     for edge in edge_attr:
@@ -84,9 +84,10 @@ class SinusoidalPosEmb(nn.Module):
 class ComposedEBMDenoiseFn(nn.Module):
     """ wrapper around ConstraintDiffuser as a composition of diffusion models """
 
-    def __init__(self, input_mode="tidy", dims=((2, 0, 2), (2, 2, 4)), hidden_dim=256, device='cuda', relation_sets=None, 
+    def __init__(self, model_name="Diffusion-CCSP", input_mode="tidy", dims=((2, 0, 2), (2, 2, 4)), hidden_dim=256, device='cuda', relation_sets=None, 
                  EBM="MALA", pretrained=False, normalize=True, energy_wrapper=True, verbose=True, ebm_per_steps=1, eval_only=False):
         super().__init__()
+        self.model_name = model_name
         self.dims = dims
         self.device = device
         self.input_mode = input_mode
@@ -134,7 +135,17 @@ class ComposedEBMDenoiseFn(nn.Module):
             nn.Linear(hidden_dim * 4, hidden_dim),
         )
 
-        self.models = self.initiate_denoise_fn()
+        if self.model_name == "StructDiffusion":
+            import clip
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            model, preprocess = clip.load("ViT-B/32", device=device)
+            self.language_encoder = model
+            
+
+        if self.model_name == "Diffusion-CCSP":
+            self.models = self.initiate_denoise_fn()
+        else:
+            self.models = self.initiate_structformer()
 
     def neg_logp_unnorm(self, poses_in, batch, t, **kwargs):
         # poses_in.requires_grad_(True)
@@ -142,7 +153,8 @@ class ComposedEBMDenoiseFn(nn.Module):
         gradients, energy = self.forward(poses_in, batch, t, **kwargs)
         return energy
 
-    
+    def get_language_embedding(self):
+        return None
     def initiate_denoise_fn(self):
 
         # if self.verbose: print(f'denoise_fns({len(self.constraint_sets)})', self.constraint_sets)
@@ -165,6 +177,20 @@ class ComposedEBMDenoiseFn(nn.Module):
 
         return nn.ModuleList(models)
     
+    def initiate_structformer(self):
+        from networks.transformer import Transformer, PositionalEncoding
+        self.max_seq_len = 26
+        self.num_heads = 2
+        self.num_layers = 4
+
+        width = self.hidden_dim * (2 if 'robot' not in self.input_mode else 3)
+        self.pe = PositionalEncoding(width, 0).pe.to(self.device, non_blocking=True)
+        self.ln_pre = nn.LayerNorm(width)
+        self.transformer = Transformer(width, self.num_layers, self.num_heads)
+        self.ln_post = nn.LayerNorm(width)
+
+        self.shuffled = {}  ## because of dataset problem
+
     def _get_constraint_inputs(self, relation, batch, t, emb_dict, edge_index):
         
         ## find the nodes used by all constraints of this type
@@ -290,7 +316,6 @@ class ComposedEBMDenoiseFn(nn.Module):
 
         return gradients, total_energy
 
-
     def forward(self, poses_in, batch, t, verbose=False, debug=False, tag='EBM', eval=False, **kwargs):
         """ denoising a batch of ConstraintGraphData
         Args:
@@ -372,6 +397,67 @@ class ComposedEBMDenoiseFn(nn.Module):
             all_poses_out = all_poses_out
             return all_poses_out
 
+    def _forward_struct_diffusion(self, emb_dict, batch, t):
+        """ a sequence of object shape + pose pairs, including the container """
+        from einops import repeat, rearrange
+
+        ## add time embedding to each pose embedding
+        geoms_emb = emb_dict['geoms_emb']  ## [8, 256]
+        time_emb = self.time_mlp(jactorch.add_dim(t, 0, geoms_emb.shape[0]))[:, 0]  ## [8, 256]
+        poses_emb = emb_dict['poses_emb'] + time_emb
+
+        ## make input sequence
+        sequences = []
+        attn_masks = []
+        indices = []
+        obj_emb = torch.cat([geoms_emb, poses_emb], dim=-1)  ## [8, 512]
+        pdb.set_trace()
+
+        for j in range(batch.batch.max().item() + 1):
+            seq = obj_emb[batch.batch == j]  ## [4, 512]
+
+            ## add positional embedding to indicate the sequence order
+            ## the dataset has bias of object sequence order
+            pe = self.pe[:, :seq.shape[0], :]
+            if hasattr(batch, 'shuffled'):
+                idx = batch.shuffled[batch.batch == j]  ## torch.randperm(seq.shape[0])
+                pe = pe[:, idx, :]
+            seq += rearrange(pe, 'b n c -> (b n) c')
+
+            x = self.ln_pre(seq)
+            padding_len = self.max_seq_len - x.shape[0]
+            indices.append(x.shape[0])
+
+            x = F.pad(x, (0, 0, 0, padding_len), "constant", 0)
+            sequences.append(x)
+
+            attn_mask = torch.zeros(self.max_seq_len, self.max_seq_len, device=self.device)  ## [8, 8]
+            attn_mask[:, -padding_len:] = True
+            attn_mask[-padding_len:, :] = True
+            attn_masks.append(attn_mask)
+
+        ## get output
+        sequences = torch.stack(sequences, dim=1)  ## [8, 2, 512]
+        attn_masks = torch.stack(attn_masks)  ## [2, 8, 8] when batch size is 2
+        attn_masks = repeat(attn_masks, 'b l1 l2 -> (repeat b) l1 l2',
+                            repeat=self.num_heads)  ## [4, 8, 8] for 2 heads
+        x, weights, attn_masks = self.transformer((sequences, None, attn_masks))  ## x : [128, 4, 256]
+        x = self.ln_post(x)  ## [8, 2, 512]
+        x = x[:, :, -poses_emb.shape[-1]:]  ## [8, 2, 256]
+
+        ## return poses out
+        poses_out = []
+        for j in range(batch.batch.max().item() + 1):
+            poses_out.append(x[:indices[j], j])  ## [n, 256]
+        poses_out = torch.cat(poses_out, dim=0)  ## [8, 256]
+        poses_out = self.pose_decoder(poses_out)  ## [8, 4]
+
+        ## mask out the containers
+        mask = batch.mask.bool().to(self.device)
+        poses_out[mask] = batch.x.to(self.device)[:, -self.dims[-1][0]:][mask]
+
+        return poses_out
+    
     def print_debug_info(self, batch, x, poses_in, geoms_in, poses_out, tag='train'):
         graph_indices = batch.x_extract.unique().numpy().tolist()
         for j in graph_indices:

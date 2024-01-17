@@ -45,13 +45,6 @@ if __name__ == '__main__':
     python train_ddpm.py -input_mode qualitative -timesteps 1000 -EBM HMC -samples_per_step 4 -step_sizes '1 * self.betas ** 1.5'
     """
 
-    # train_ddpm(
-    #     get_args(input_mode='qualitative', timesteps=1000, model='Diffusion-CCSP',
-    #              EBM='False', samples_per_step=3, use_wandb=True),
-    #     debug=False, visualize=False, data_only=False
-    # )
-
-
     # aligned_bottom (ok)
     # aligned_vertical (ok)
     # on_top_of (ok)
@@ -64,10 +57,9 @@ if __name__ == '__main__':
     # next_to
     # regular_grid
 
+    model = "Diffusion-CCSP"
     energy_wrapper = False
-    # model_relation = "all_composed_True"
-
-    model_relation = "all_composed_False"
+    model_relation = "all_composed_None"
     evaluate_relation = model_relation
     # EBM = "ULA" 
     EBM = False
@@ -82,8 +74,10 @@ if __name__ == '__main__':
     # else: 
     #     # model_id = "hpb9b8rv"
     #     # milestone = 9
-    #     model_id = "7ubfpalx"
-    #     milestone = 10
+    #     # model_id = "7ubfpalx"
+    #     # milestone = 10
+    #     model_id = "xzvkvr6u"
+    #     milestone = 9
 
     # train_ddpm(
     #     get_args(input_mode='tidy', timesteps=1500, EBM=EBM, energy_wrapper=energy_wrapper, 
@@ -94,7 +88,7 @@ if __name__ == '__main__':
     # )
 
     train_ddpm(
-        get_args(input_mode='tidy', timesteps=1500, EBM=EBM, energy_wrapper=energy_wrapper, 
+        get_args(model=model, input_mode='tidy', timesteps=1500, EBM=EBM, energy_wrapper=energy_wrapper, 
                  samples_per_step=3, wandb_name=f"EBM_{EBM}_wrapper_{energy_wrapper}_model_relation_{model_relation}", 
                  model_relation=model_relation, evaluate_relation=evaluate_relation, eval_only=False),
         debug=False, visualize=True, data_only=False, 

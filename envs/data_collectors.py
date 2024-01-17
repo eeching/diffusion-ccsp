@@ -37,7 +37,7 @@ class DataCollector(object):
                 input_mode: str = 'collisions',
                 test_only: bool = False,
                 relation: str = 'aligned_bottom',
-                composed_relation: bool = False,
+                composed_relation: str = None,
                 **kwargs):
         import torch
         world = self.world_class(**self.world_args)
@@ -226,7 +226,7 @@ def get_data_collection_args(world_name='RandomSplitWorld', input_mode='diffuse_
                              num_worlds=10, verbose=False, num_shakes=1, data_type='train',
                              min_num_objects=2, max_num_objects=5, pngs=False, jsons=False,
                              del_if_exists=True, world_args=dict(), w=3.0, l=2.0, h=0.5, grid_size=0.5, 
-                             partial_constriants=False, relation="aligned_bottom", composed_relation=False):
+                             partial_constriants=False, relation="aligned_bottom", composed_relation=None):
 
     if 'w' in world_args:
         w = world_args['w']
@@ -248,7 +248,7 @@ def get_data_collection_args(world_name='RandomSplitWorld', input_mode='diffuse_
     parser.add_argument('-length', type=float, default=l)
     parser.add_argument('-height', type=float, default=h)
     parser.add_argument('-relation', type=str, default=relation)
-    parser.add_argument('-composed_relation', type=bool, default=composed_relation)
+    parser.add_argument('-composed_relation', type=str, default=composed_relation)
 
     parser.add_argument('-pngs', action='store_true')
     parser.add_argument('-jsons', action='store_true')

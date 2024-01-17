@@ -113,8 +113,8 @@ def indie_runs():
 
 def eval_new_set():
 
-    relation = "aligned_bottom"
-    eval_relation = "aligned_bottom"
+    relation = "horizontally_aligned"
+    eval_relation = "horizontally_aligned"
 
     EBM = False
     energy_wrapper = False
@@ -128,7 +128,7 @@ def eval_new_set():
         n = 200
         visualize = False
 
-    if relation == "aligned_bottom":
+    if relation == "horizontally_aligned":
         model_relation = [0]
         evaluate_relation = [0]
         end_idx = 11
@@ -188,17 +188,17 @@ def eval_new_set():
                         run_all=True, model_relation=model_relation, evaluate_relation=evaluate_relation, EBM=EBM, energy_wrapper=energy_wrapper, samples_per_step=3, eval_only=True)
  
     test_10_tasks = {i: f'RandomSplitSparseWorld({n})_tidy_test_{i}_split/{eval_relation}' for i in range(2, end_idx)}
-    # evaluate_model('qsd3ju74', input_mode="aligned_bottom", milestone=7, test_tasks=test_5_tasks, **eval_5_kwargs)
+    # evaluate_model('qsd3ju74', input_mode="horizontally_aligned", milestone=7, test_tasks=test_5_tasks, **eval_5_kwargs)
 
 
-    # evaluate_model('cegzrggl', input_mode="aligned_bottom", milestone=2, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, single
-    # evaluate_model('mun5fyd7', input_mode="aligned_bottom", milestone=1, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, both
-    # evaluate_model('vdl5asu6', input_mode="aligned_bottom", milestone=11, test_tasks=test_10_tasks, **eval_10_kwargs) # False, single
-    # evaluate_model('m0l0yzfw', input_mode="aligned_bottom", milestone=10, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
+    # evaluate_model('cegzrggl', input_mode="horizontally_aligned", milestone=2, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, single
+    # evaluate_model('mun5fyd7', input_mode="horizontally_aligned", milestone=1, test_tasks=test_10_tasks, **eval_10_kwargs) # ULA, both
+    # evaluate_model('vdl5asu6', input_mode="horizontally_aligned", milestone=11, test_tasks=test_10_tasks, **eval_10_kwargs) # False, single
+    # evaluate_model('m0l0yzfw', input_mode="horizontally_aligned", milestone=10, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
     
     
-    # evaluate_model('urnb8iua', input_mode="aligned_bottom", milestone=13, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
-    # evaluate_model('trci7w1x', input_mode="aligned_bottom", milestone=11, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
+    # evaluate_model('urnb8iua', input_mode="horizontally_aligned", milestone=13, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
+    # evaluate_model('trci7w1x', input_mode="horizontally_aligned", milestone=11, test_tasks=test_10_tasks, **eval_10_kwargs) # False, both
 
    
     evaluate_model(model_id, input_mode="tidy", relation=relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks=n, test_name=f"{eval_relation}_neg", **eval_10_kwargs) # False, both
@@ -228,19 +228,19 @@ def eval_tidy_set():
         visualize = False
 
     '''
-    1qqximol: aligned_vertical
+    1qqximol: vertically_aligned
     3g6710yo: centered
     3wvo65qz: all_composed_True
     4age4lp3: all_composed_False
     bzznpoa4: all_composed_False
     fbj3zu0m: in
-    fjjurhul: aligned_vertical
-    gt4vgdat: aligned_bottom #
+    fjjurhul: vertically_aligned
+    gt4vgdat: horizontally_aligned #
     gu4jx6af: all_composed_False
     i12llyrt: centered
     i30ku15a: all_composed_False
     j5ag2ml6: next_to_edge
-    ml53a6cg: aligned_bottom
+    ml53a6cg: horizontally_aligned
     pgbbzyor: all_composed_True
     urdggpxs: on_top_of
     uun1oug9: in
@@ -248,14 +248,14 @@ def eval_tidy_set():
     yd2pp1o1: on_top_of
     '''
 
-    if model_relation == "aligned_bottom":
+    if model_relation == "horizontally_aligned":
         if energy_wrapper:
             model_id = '9t4vgdat'
             milestone = 5
         else:
             model_id = 'ml53a6cg'
             milestone = 20
-    elif model_relation == "aligned_vertical":
+    elif model_relation == "vertically_aligned":
         if energy_wrapper:
             model_id = '1qqximol'
             milestone = 3
@@ -322,7 +322,7 @@ def eval_tidy_set():
 
     
     # --- for testing
-    train_task = f"RandomSplitSparseWorld(10000)_tidy_train/aligned_bottom"
+    train_task = f"RandomSplitSparseWorld(10000)_tidy_train/horizontally_aligned"
 
     eval_10_kwargs = dict(tries=(10, 0), json_name='eval', save_log=False, visualize=visualize, test_set=True, return_history=False,
                         run_all=True, model_relation=relation, evaluate_relation=relation, EBM=EBM, 
@@ -333,33 +333,29 @@ def eval_tidy_set():
     evaluate_model(model_id, input_mode="tidy", relation=relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks=n, test_name=f"{relation}", **eval_10_kwargs) # False, both
 
 def eval_customized_cases():
-    ## wrapper True, composed True
-    # wrapper True, composed False
-    # wrapper True, composed False, ULA, 3
-    # wrapper True, composed False, MALA, 3
 
-    ## wrapper False, composed True
-    # wrapper False, composed False
-    # wrapper False, composed False, ULA, 3
-
-    energy_wrapper = True
-
-    EBM = "ULA"
-    steps = 7
-
+    energy_wrapper = False
+    EBM = False
+    extra_denoising_steps = True
+    task = "dining_table_full"
+    
+    
     model_relation = "all_composed_False"
+    steps = 3
     evaluate_relation = None
 
+    step_sizes = "1*self.betas"
+    
     if evaluate_relation is None:
         evaluate_relation = model_relation
 
     if model_relation == "all_composed_False":
         if energy_wrapper:
-            model_id = "2w2vkfh2" #"ovhwg5o0" #"tvvpzowp" 
-            milestone = 10
+            model_id = "0d7ea62o" #"ovhwg5o0" #"tvvpzowp" 
+            milestone = 5
         else:
-            model_id = "7w2orp88" #"eelutdfc" #"ekegfe6v"
-            milestone = 14
+            model_id = "5xi5uljx"# "4kqatmgc" #"eelutdfc" #"ekegfe6v"
+            milestone = 29
     elif model_relation == "all_composed_True":
         if energy_wrapper:
             model_id = "zgw7jzti" 
@@ -369,15 +365,17 @@ def eval_customized_cases():
             milestone = 6
 
     # --- for testing
-    train_task = f"RandomSplitSparseWorld(4)_tidy_train/study_table"
+    train_task = f"RandomSplitSparseWorld(10)_tidy_train/{task}"
 
     eval_10_kwargs = dict(tries=(10, 0), json_name='eval', save_log=False, visualize=True, test_set=True, return_history=False,
                         run_all=True, model_relation=model_relation, evaluate_relation=evaluate_relation, EBM=EBM, 
-                        energy_wrapper=energy_wrapper, samples_per_step=steps, eval_only=True, train_task=train_task)
+                        energy_wrapper=energy_wrapper, samples_per_step=steps, eval_only=True, train_task=train_task,
+                        extra_denoising_steps=extra_denoising_steps, step_sizes=step_sizes)
  
-    test_10_tasks = {1: f'RandomSplitSparseWorld(4)_tidy_train/study_table'}
+    test_10_tasks = {0: f'RandomSplitSparseWorld(10)_tidy_train/{task}'}
+    #test_10_tasks = {i: f'RandomSplitSparseWorld(10)_tidy_test_{i}_split/{task}' for i in range(3, 10)}
    
-    evaluate_model(model_id, input_mode="tidy", relation=model_relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks="study_table", test_name="study_table", **eval_10_kwargs) # False, both
+    evaluate_model(model_id, input_mode="tidy", relation=model_relation, milestone=milestone, test_tasks=test_10_tasks, n_tasks=task, test_name=task, **eval_10_kwargs) # False, both
 
    
 

@@ -307,12 +307,7 @@ class CSPWorld(object):
                 if generating_data:
                     world['collisions'] = self.check_collisions_in_scene(world['objects'], verbose=False)
                     collisions = world['collisions']
-                   
-                # if 1 in model_relation: # generating c-collide
-                #     world['constraints'] = self.generate_c_free_constraints(world['objects'], collisions, same_order=same_order)
-                # if 2 in model_relation:
-                    # world['constraints'] += self.generate_c_collide_constraints(world['objects'], collisions, same_order=same_order)
-                
+                    
                 if len(world['constraints']) == 0:
                     world['constraints'] = []
     
@@ -854,7 +849,7 @@ class RandomSplitSparseWorld(RandomSplitWorld):
         self.rotations = {}
         self.p = np.array([1, 3, 6, 10, 15, 21, 28, 36, 45])/165
 
-    def sample_scene(self, min_num_objects=2, max_num_objects=6, relation="aligned_bottom", **kwargs):
+    def sample_scene(self, min_num_objects=2, max_num_objects=6, relation="horizontally_aligned", **kwargs):
         """ first get region boxes from `get_tray_spliting_gen` """
         # gen = get_sub_region_tray_splitting_gen(num_samples=2, min_num_regions=min_num_objects,
         #                              max_num_regions=max_num_objects, max_depth=max_depth)
@@ -891,7 +886,6 @@ class RandomSplitSparseWorld(RandomSplitWorld):
         collisions = []   
         from networks.denoise_fns import ignored_constraints         
         given_constraints = [d for d in self.tidy_constraints if d[0] not in ignored_constraints]
-
         current_constraints = self.get_current_constraints(collisions) # current constraints satisfied
         current_constraints = get_ordered_constraints(current_constraints)
         given_constraints = get_ordered_constraints(given_constraints)

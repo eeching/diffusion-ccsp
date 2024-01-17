@@ -115,6 +115,7 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
     parser.add_argument('-eval_only', type=bool, default=eval_only)
     parser.add_argument('-model_relation', type=str, default=model_relation)
     parser.add_argument('-evaluate_relation', type=str, default=evaluate_relation)
+    parser.add_argument('-extra_denoising_steps', type=bool, default=False)
     args = parser.parse_args()
     if args.EBM == 'False':
         args.EBM = False
@@ -148,37 +149,40 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
         args.test_tasks = {i: f'RandomSplitQualitativeWorld(10)_qualitative_test_{i}_split' for i in range(2, 5)}
     elif args.input_mode == 'tidy':
 
-        if args.model_relation == "all_composed_True":
-            n_train = 5000
-            n_test = 10
-        elif args.model_relation == "all_composed_False":
-            n_train = 50000
-            n_test = 10
-       
-        #     n_train = 40000
-        #     n_test = 20
-        else:
-            if args.model_relation == "regular_grid":
-                n_train = 10000
+        if args.model == 'Diffusion-CCSP':
+            if args.model_relation == "all_composed_partial":
+                n_train = 50000
+                n_test = 5
+            elif args.model_relation == "all_composed_None":
+                n_train = 40000
+                n_test = 5
             else:
-                n_train = 500
-            n_test = 10
+                if args.model_relation == "regular_grid":
+                    n_train = 10000
+                else:
+                    n_train = 10000
+                n_test = 10
 
-        if args.model_relation == "regular_grid":
-            test_idxs = [4, 8, 12, 16]
-        elif "all" in args.model_relation:
-            test_idxs = [3, 6, 9, 12]
-        else:
-            test_idxs = [3, 6, 8]
-        args.train_proj = f'tidy_{args.model_relation}'
-        # --- for testing
-        train_task = f"RandomSplitSparseWorld({n_train})_tidy_train/{args.model_relation}"
+            if args.model_relation == "regular_grid":
+                test_idxs = [4, 8, 12, 16]
+            elif "all" in args.model_relation:
+                test_idxs = [3, 6, 12]
+            else:
+                test_idxs = [3, 6, 8]
+            args.train_proj = f'tidy_{args.model_relation}'
+            # --- for testing
+            train_task = f"RandomSplitSparseWorld({n_train})_tidy_train/{args.model_relation}"
 
-        test_tasks = {i: f'RandomSplitSparseWorld({n_test})_tidy_test_{i}_split/{args.model_relation}' for i in test_idxs}
+            test_tasks = {i: f'RandomSplitSparseWorld({n_test})_tidy_test_{i}_split/{args.model_relation}' for i in test_idxs}
 
-        if 'World' not in args.train_task:
-            args.train_task = train_task
-        args.test_tasks = test_tasks
+            if 'World' not in args.train_task:
+                args.train_task = train_task
+            args.test_tasks = test_tasks
+        elif args.model == 'StructDiffusion':
+            args.train_proj = 'struct_tidy'
+            args.train_task = "RandomSplitSparseWorld(10)_tidy_train"
+            args.test_tasks = {i: f"RandomSplitSparseWorld(5)_tidy_test_{i}_split" for i in range(2, 3)}
+        
     
     elif args.input_mode == 'stability_flat':
         args.train_proj = 'stability'
@@ -232,6 +236,8 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
     model_relation = args.model_relation
     evaluate_relation = args.evaluate_relation
     wandb_name = args.wandb_name
+    extra_denoising_steps = args.extra_denoising_steps
+
 
     if debug or data_only:
         use_wandb = False
@@ -240,7 +246,7 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         train_name = f'm={model}_t={timesteps}'
     else:
         if eval_only:
-            train_name = f'eval_m={EBM}_wrapper_{energy_wrapper}_eval_relation={evaluate_relation}_steps_{samples_per_step}'
+            train_name = f'eval_m={EBM}_wrapper_{energy_wrapper}_{evaluate_relation}_extra_{extra_denoising_steps}_{step_sizes}'
         else:
             train_name = f'm={EBM}_wrapper_{energy_wrapper}_model_relation={model_relation}'
     # if train_name_extra != '' and train_name_extra != train_name:
@@ -292,10 +298,9 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         log_name = train_task
 
     dataset_kwargs = dict(input_mode=input_mode, pre_transform=pre_transform, visualize=False)
-
     test_datasets = {k: GraphDataset(task, model_relation=evaluate_relation, **dataset_kwargs) for k, task in test_tasks.items()}
     if eval_only:
-        train_dataset = test_datasets[1]
+        train_dataset = test_datasets[0]
     else:
         train_dataset = GraphDataset(train_task, model_relation=model_relation, **dataset_kwargs)
     if data_only:
@@ -321,13 +326,13 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
     else:
         from networks.denoise_fns import dataset_relation_mapping
         relation_sets = dataset_relation_mapping[model_relation]
-    denoise_fn = ComposedEBMDenoiseFn(input_mode=input_mode, dims=dims, hidden_dim=hidden_dim, device='cuda', 
+    denoise_fn = ComposedEBMDenoiseFn(model_name=model, input_mode=input_mode, dims=dims, hidden_dim=hidden_dim, device='cuda', 
                                       relation_sets=relation_sets, EBM=EBM, pretrained=pretrained, normalize=normalize, 
                                       energy_wrapper=energy_wrapper, verbose=verbose, ebm_per_steps=ebm_per_steps, 
                                       eval_only=eval_only).cuda()
     
     diffusion = GaussianDiffusion(denoise_fn, timesteps=timesteps, EBM=EBM,
-                                  samples_per_step=samples_per_step, step_sizes=step_sizes).cuda()
+                                  samples_per_step=samples_per_step, step_sizes=step_sizes, extra_denoising_steps=extra_denoising_steps).cuda()
 
     ### test model
     if test_model:
@@ -366,6 +371,7 @@ def get_args_from_run_id(run_id):
     wandb_dir = [join('wandb', f) for f in listdir('wandb') if run_id in f]
     if len(wandb_dir) == 0:
         wandb_dir = [join('wandb2', f) for f in listdir('wandb2') if run_id in f]
+    
     wandb_dir = wandb_dir[0]
     yaml_path = join(wandb_dir, 'files', 'config.yaml')
     config = yaml.load(open(yaml_path, 'r'), Loader=yaml.FullLoader)
@@ -390,7 +396,8 @@ def load_trainer(run_id, milestone, visualize=False, rejection_sampling=False, v
 
     # args.test_tasks = kwargs.get('test_tasks', args.test_tasks)
     for k in ['input_mode', 'train_task', 'test_tasks', 'train_num_steps', 'EBM', 
-              'model_relation', 'evaluate_relation', 'eval_only', 'energy_wrapper', 'samples_per_step']:
+              'model_relation', 'evaluate_relation', 'eval_only', 'energy_wrapper', 
+              'samples_per_step', 'extra_denoising_steps', 'step_sizes']:
         if k in kwargs:
             setattr(args, k, kwargs[k])
             kwargs.pop(k)

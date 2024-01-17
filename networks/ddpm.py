@@ -175,7 +175,8 @@ class GaussianDiffusion(nn.Module):
         EBM=False,
         betas=None,
         samples_per_step=10,
-        step_sizes='2*self.betas'
+        step_sizes='self.betas',
+        extra_denoising_steps=False
     ):
         super().__init__()
 
@@ -197,6 +198,7 @@ class GaussianDiffusion(nn.Module):
         self.num_timesteps = int(timesteps)
         self.loss_type = loss_type
         self.EBM = EBM
+        self.extra_denoising_steps = extra_denoising_steps
 
         to_torch = partial(torch.tensor, dtype=torch.float32, device=self.device)
 
@@ -341,19 +343,57 @@ class GaussianDiffusion(nn.Module):
             history = [pose_features]
 
         for j in reversed(range(0, self.num_timesteps)):
-            t = torch.full((1, ), j, device=device, dtype=torch.long)
-
-            assert not self.training
             
-            pose_features, mean = self.p_sample(batch, pose_features, t, tag='EBM', **kwargs)  ## , tag=f'test_{j}'
+            if self.extra_denoising_steps:
+                repeated_denosing = 3
+            else:
+                repeated_denosing = 1
+            
+            for _ in range(repeated_denosing):
+                t = torch.full((1, ), j, device=device, dtype=torch.long)
 
-            if self.EBM and j % self.denoise_fn.ebm_per_steps == 0:
-                pose_features = sampler.sample_step(pose_features, batch, t)
+                assert not self.training
+                
+                pose_features, mean = self.p_sample(batch, pose_features, t, tag='EBM', **kwargs)  ## , tag=f'test_{j}'
+
+                if self.EBM and j % self.denoise_fn.ebm_per_steps == 0:
+                    pose_features = sampler.sample_step(pose_features, batch, t)
+            
+                pose_features[m.bool()] = gt_features[m.bool()].clone()
+
+                if return_history:
+                    history.append(pose_features)
         
-            pose_features[m.bool()] = gt_features[m.bool()].clone()
+        if self.extra_denoising_steps:
+            print("+++++++++++++++++++ extra denoising steps")
+            for _ in range(20):
+                t = torch.full((1, ), 1, device=device, dtype=torch.long)
 
-            if return_history:
-                history.append(pose_features)
+                assert not self.training
+                pose_features, mean = self.p_sample(batch, pose_features, t, tag='EBM', **kwargs)  ## , tag=f'test_{j}'
+
+                if self.EBM and j % self.denoise_fn.ebm_per_steps == 0:
+                    pose_features = sampler.sample_step(pose_features, batch, t)
+            
+                pose_features[m.bool()] = gt_features[m.bool()].clone()
+
+                if return_history:
+                    history.append(pose_features)
+
+            for _ in range(20):
+                t = torch.full((1, ), 0, device=device, dtype=torch.long)
+
+                assert not self.training
+                pose_features, mean = self.p_sample(batch, pose_features, t, tag='EBM', **kwargs)  ## , tag=f'test_{j}'
+
+                if self.EBM and j % self.denoise_fn.ebm_per_steps == 0:
+                    pose_features = sampler.sample_step(pose_features, batch, t)
+            
+                pose_features[m.bool()] = gt_features[m.bool()].clone()
+
+                if return_history:
+                    history.append(pose_features)
+
 
         if return_history:
             return pose_features, history
@@ -442,7 +482,7 @@ class Trainer(object):
         fp16=False,
         step_start_ema=2000,
         update_ema_every=10,
-        save_and_sample_every=10000,
+        save_and_sample_every=10,
         results_folder='./results',
         EBM=False,
         visualize=False,
@@ -692,7 +732,7 @@ class Trainer(object):
                         
                         for j in graph_indices: # graph indices corresponds to each test case
                             
-                            if j not in best_tries["aligned_bottom"].keys():
+                            if j not in best_tries["horizontally_aligned"].keys():
                                 for key in best_tries.keys():
                                     best_tries[key][j] = [None, 0]
 
@@ -772,13 +812,10 @@ class Trainer(object):
                                     edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
                                     offset = edge_index.min() 
 
-                                    if set(edge_attr.tolist()).issubset({tidy_constraints.index('symmetry_v'), tidy_constraints.index('symmetry_h')}):
-                                        edge_index -= (offset-1)
-                                    else:
-                                        edge_index -= offset
+                                    # if set(edge_attr.tolist()).issubset({tidy_constraints.index('symmetry_v'), tidy_constraints.index('symmetry_h')}):
+                                    #     edge_index -= (offset-1)
                                     # else:
-                                    #     edge_index -= (offset - 1)
-
+                                    edge_index -= offset
                                     constraints = tidy_constraint_from_edge_attr(edge_attr, edge_index)
                                     render_kwargs.update(dict(constraints=constraints))
 
