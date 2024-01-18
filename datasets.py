@@ -35,7 +35,6 @@ class GraphDataset(InMemoryDataset): ## Dataset | InMemoryDataset
         self.model_relation = model_relation
       
         root = join(DATASET_PATH, dir_name)
-
         processed = join(root, f'processed_relation_{self.model_relation}')
 
         self.composed_inference = False

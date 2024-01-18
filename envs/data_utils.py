@@ -449,8 +449,9 @@ def expand_unordered_constraints(constraints):
 def get_ordered_constraints(constraints):
     new_constraints = dict()
     
-    from networks.denoise_fns import tidy_constraints
-    for c in tidy_constraints:
+    from networks.denoise_fns import tidy_constraints, ignored_constraints
+    constraint_list = [c for c in tidy_constraints if c not in ignored_constraints]
+    for c in constraint_list:
         if tidy_constraints_dict[c] == 1:
             new_constraints[c] = [(c, con[1]) for con in constraints if con[0] == c]
         elif c == "vertical_line_symmetry" or c == "horizontal_line_symmetry":
@@ -705,7 +706,12 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
             padding = (0,) * (25 - length)
             return tup + padding
         
-    if model_relation is not None and ("study_table_" in model_relation or "dining_table_" in model_relation):
+    if model_relation == "study_table" or model_relation == "dining_table" or model_relation == "coffee_table":
+        constraints.append(tuple([model_relation] + [i for i in range(1, len(tiles))]))
+        constraints = [pad_constraints(c) for c in constraints]
+        return list(set(constraints)), []
+        
+    if model_relation is not None and ("study_table_" in model_relation or "dining_table_" in model_relation or "coffee_table_" in model_relation):
         
         table_type, _, mode = model_relation.split("_")
         filename = f'tmp/{table_type}_table/{mode}.json'

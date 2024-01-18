@@ -1287,6 +1287,177 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 
             return obj_list, relation, names
 
+        def coffee_table(W, L, x, relation):
+            candle_w, candle_l = 0.08*W, 0.12*L
+            diffuser_w, diffuser_l = 0.06*W, 0.09*L
+            vase_w, vase_l = 0.10*W, 0.15*L
+            book_w, book_l = 0.18*W, 0.37*L
+            plant_w, plant_l = 0.12*W, 0.18*L
+
+            laptop_w, laptop_l = 0.34*W, 0.3*L
+
+            tray_w, tray_l = 0.3*W, 0.3*L
+            keys_w, keys_l = 0.03*W, 0.03*L
+            remote_controller_w, remote_controller_l = 0.03*W, 0.12*L
+            glasses_w, glasses_l = 0.1*W, 0.05*L
+
+            ashtray_w, ashtray_l = 0.08*W, 0.12*L
+
+            beverage_w, beverage_l = 0.06*W, 0.09*L
+            snack_bowl_w, snack_bowl_l = 0.16*W, 0.24*L
+
+            coffee_pot_w, coffee_pot_l = 0.24*W, 0.36*L
+            tea_pot_w, tea_pot_l = 0.2*W, 0.3*L
+
+            coffee_cup_w, coffee_cup_l = 0.08*W, 0.12*L
+            tea_cup_w, tea_cup_l = 0.06*W, 0.09*L
+            cake_plate_w, cake_plate_l = 0.10*W, 0.15*L
+            board_game_w, board_game_l = 0.4*W, 0.6*L
+
+            ipad_w, ipad_l = 0.15*W, 0.3*L
+
+            if x == "1":
+                # standard coffee table
+                vase = (0.45*W, 0.425*L, vase_w, vase_l) 
+                book_1 = (0.21*W, 0.425*L, book_w, book_l)
+                book_2 = (0.21*W, 0.425*L, book_w, book_l)
+                book_3 = (0.21*W, 0.425*L, book_w, book_l)
+                book_4 = (0.21*W, 0.425*L, book_w, book_l)
+                diffuser = (0.56*W, 0.455*L, diffuser_w, diffuser_l)
+                tray = (0.35*W, 0.05*L, tray_w, tray_l)
+                keys = (0.42*W, 0.12*L, keys_w, keys_l)
+                remote_controller = (0.52*W, 0.12*L, remote_controller_w, remote_controller_l)
+                object_list = [vase, book_1, book_2, book_3, book_4, diffuser, tray, keys, remote_controller]
+                names = ["vase", "book_1", "book_2", "book_3", "book_4", "diffuser", "tray", "keys", "remote_controller"]
+            elif x == "2":
+                # coffee table with symmetry candles
+                vase = (0.45*W, 0.425*L, vase_w, vase_l)
+                candle_1 = (0.36*W, 0.44*L, candle_w, candle_l)
+                candle_2 = (0.56*W, 0.44*L, candle_w, candle_l)
+                tray = (0.35*W, 0.05*L, tray_w, tray_l)
+                keys = (0.41*W, 0.15*L, keys_w, keys_l)
+                glass = (0.41*W, 0.2*L, glasses_w, glasses_l)
+                remote_controller = (0.52*W, 0.15*L, remote_controller_w, remote_controller_l)
+                object_list = [vase, candle_1, candle_2, tray, keys, glass, remote_controller]
+                names = ["vase", "candle_1", "candle_2", "tray", "keys", "glass", "remote_controller"]
+            elif x == "3":
+                # coffee table for party
+                book_1 = (0.02*W, 0.62*L, book_w, book_l)
+                book_2 = (0.02*W, 0.62*L, book_w, book_l)
+                book_3 = (0.02*W, 0.62*L, book_w, book_l)
+                book_4 = (0.02*W, 0.62*L, book_w, book_l)
+                beverage_1 = (0.4 * W, 0.51*L, beverage_w, beverage_l)
+                beverage_2 = (0.47 * W, 0.51*L, beverage_w, beverage_l)
+                beverage_3 = (0.54 * W, 0.51*L, beverage_w, beverage_l)
+                beverage_4 = (0.4 * W, 0.4*L, beverage_w, beverage_l)
+                beverage_5 = (0.47 * W, 0.4*L, beverage_w, beverage_l)
+                beverage_6 = (0.54 * W, 0.4*L, beverage_w, beverage_l)
+
+                snack_bowl_1 = (0.15 * W, 0.35*L, snack_bowl_w, snack_bowl_l)
+                snack_bowl_2 = (0.65 * W, 0.35*L, snack_bowl_w, snack_bowl_l)
+
+                ashtray = (0.46*W, 0.125*L, ashtray_w, ashtray_l)
+                object_list = [book_1, book_2, book_3, book_4, beverage_1, beverage_2, beverage_3, beverage_4, beverage_5, beverage_6, snack_bowl_1, snack_bowl_2, ashtray]
+                names = ["book_1", "book_2", "book_3", "book_4", "beverage_1", "beverage_2", "beverage_3", "beverage_4", "beverage_5", "beverage_6", "snack_bowl_1", "snack_bowl_2", "ashtray"]
+                
+            elif x == "4":
+                # coffee table for study
+                vase = (0.45*W, 0.425*L, vase_w, vase_l)
+                laptop = (0.33*W, 0.1*L, laptop_w, laptop_l)
+                book_1 = (0.02*W, 0.62*L, book_w, book_l)
+                book_2 = (0.02*W, 0.62*L, book_w, book_l)
+                book_3 = (0.02*W, 0.62*L, book_w, book_l)
+                book_4 = (0.02*W, 0.62*L, book_w, book_l)
+                tray = (0.65*W, 0.65*L, tray_w, tray_l)
+                keys = (0.66*W, 0.75*L, keys_w, keys_l)
+                glass = (0.66*W, 0.66*L, glasses_w, glasses_l)
+                remote_controller = (0.77*W, 0.66*L, remote_controller_w, remote_controller_l)
+                object_list = [vase, laptop, book_1, book_2, book_3, book_4, tray, keys, glass, remote_controller]
+                names = ["vase", "laptop", "book_1", "book_2", "book_3", "book_4", "tray", "keys", "glass", "remote_controller"]
+
+            elif x == "5":
+                # coffee table for 2
+                coffee_pot = (0.38*W, 0.36*L, coffee_pot_w, coffee_pot_l)
+                coffee_cup_1 = (0.2*W, 0.1*L, coffee_cup_w, coffee_cup_l)
+                coffee_cup_2 = (0.76*W, 0.1*L, coffee_cup_w, coffee_cup_l)
+                book_1 = (0.02*W, 0.62*L, book_w, book_l)
+                book_2 = (0.02*W, 0.62*L, book_w, book_l)
+                book_3 = (0.02*W, 0.62*L, book_w, book_l)
+                book_4 = (0.02*W, 0.62*L, book_w, book_l)
+                tray = (0.65*W, 0.65*L, tray_w, tray_l)
+                keys = (0.66*W, 0.75*L, keys_w, keys_l)
+                glass = (0.66*W, 0.66*L, glasses_w, glasses_l)
+                remote_controller = (0.77*W, 0.66*L, remote_controller_w, remote_controller_l)
+                object_list = [coffee_pot, coffee_cup_1, coffee_cup_2, book_1, book_2, book_3, book_4, tray, keys, glass, remote_controller]
+                names = ["coffee_pot", "coffee_cup_1", "coffee_cup_2", "book_1", "book_2", "book_3", "book_4", "tray", "keys", "glass", "remote_controller"]
+
+
+            elif x == "6":
+                # standard coffee table
+                plant = (0.44*W, 0.41*L, plant_w, plant_l)
+                candle_1 = (0.26*W, 0.44*L, candle_w, candle_l)
+                candle_2 = (0.35*W, 0.44*L, candle_w, candle_l)
+                candle_3 = (0.57*W, 0.44*L, candle_w, candle_l)
+                candle_4 = (0.66*W, 0.44*L, candle_w, candle_l)
+                book_1 = (0.02*W, 0.62*L, book_w, book_l)
+                book_2 = (0.02*W, 0.62*L, book_w, book_l)
+                book_3 = (0.02*W, 0.62*L, book_w, book_l)
+                book_4 = (0.02*W, 0.62*L, book_w, book_l)
+                object_list = [plant, candle_1, candle_2, candle_3, candle_4, book_1, book_2, book_3, book_4]
+                names = ["plant", "candle_1", "candle_2", "candle_3", "candle_4", "book_1", "book_2", "book_3", "book_4"]
+
+
+            elif x == "7":
+                diffuser = (0.47*W, 0.8*L, diffuser_w, diffuser_l)
+                candle_1 = (0.36*W, 0.8*L, candle_w, candle_l)
+                candle_2 = (0.56*W, 0.8*L, candle_w, candle_l)
+                board_game = (0.3*W, 0.2*L, board_game_w, board_game_l)
+                coffee_cup_1 = (0.2*W, 0.1*L, coffee_cup_w, coffee_cup_l)
+                coffee_cup_2 = (0.76*W, 0.1*L, coffee_cup_w, coffee_cup_l)
+                object_list = [diffuser, candle_1, candle_2, board_game, coffee_cup_1, coffee_cup_2]
+                names = ["diffuser", "candle_1", "candle_2", "board_game", "coffee_cup_1", "coffee_cup_2"]
+            
+            elif x == "8":  
+                snack_bowl_1 = (0.33 * W, 0.25*L, snack_bowl_w, snack_bowl_l)
+                snack_bowl_2 = (0.51 * W, 0.25*L, snack_bowl_w, snack_bowl_l)
+                snack_bowl_3 = (0.33 * W, 0.51*L, snack_bowl_w, snack_bowl_l)
+                snack_bowl_4 = (0.51 * W, 0.51*L, snack_bowl_w, snack_bowl_l)
+
+                tea_cup_1 = (0.2*W, 0.1*L, tea_cup_w, tea_cup_l)
+                tea_cup_2 = (0.76*W, 0.1*L, tea_cup_w, tea_cup_l)
+
+                tray = (0.65*W, 0.65*L, tray_w, tray_l)
+                keys = (0.66*W, 0.75*L, keys_w, keys_l)
+                glass = (0.66*W, 0.66*L, glasses_w, glasses_l)
+                remote_controller = (0.77*W, 0.66*L, remote_controller_w, remote_controller_l)
+                object_list = [snack_bowl_1, snack_bowl_2, snack_bowl_3, snack_bowl_4, tea_cup_1, tea_cup_2, tray, keys, glass, remote_controller]
+                names = ["snack_bowl_1", "snack_bowl_2", "snack_bowl_3", "snack_bowl_4", "tea_cup_1", "tea_cup_2", "tray", "keys", "glass", "remote_controller"]
+
+            elif x == "9":
+                plant = (0.44*W, 0.41*L, plant_w, plant_l)
+                book_1 = (0.02*W, 0.62*L, book_w, book_l)
+                book_2 = (0.02*W, 0.62*L, book_w, book_l)
+                book_3 = (0.02*W, 0.62*L, book_w, book_l)
+                book_4 = (0.02*W, 0.62*L, book_w, book_l)
+                ipad = (0.425*W, 0.05*L, ipad_w, ipad_l)
+                coffee_cup = (0.63*W, 0.15*L, coffee_cup_w, coffee_cup_l)
+                object_list = [plant, book_1, book_2, book_3, book_4, ipad, coffee_cup]
+                names = ["plant", "book_1", "book_2", "book_3", "book_4", "ipad", "coffee_cup"]
+            
+            elif x == "10":
+                # coffee table for serving cakes and tea fir 2
+                tea_pot = (0.4*W, 0.35*L, tea_pot_w, tea_pot_l)
+                tea_cup_1 = (0.3*W, 0.1*L, tea_cup_w, tea_cup_l)
+                tea_cup_2 = (0.7*W, 0.1*L, tea_cup_w, tea_cup_l)
+                tray = (0.65*W, 0.65*L, tray_w, tray_l)
+                keys = (0.66*W, 0.75*L, keys_w, keys_l)
+                glass = (0.66*W, 0.66*L, glasses_w, glasses_l)
+                remote_controller = (0.77*W, 0.66*L, remote_controller_w, remote_controller_l)
+                object_list = [tea_pot, tea_cup_1, tea_cup_2, tray, keys, glass, remote_controller]
+                names = ["tea_pot", "tea_cup_1", "tea_cup_2", "tray", "keys", "glass", "remote_controller"]
+
+            return object_list, relation, names  
+                
         # def dining_table(W, L, x, relation): 
         count = num_samples
 
@@ -1355,12 +1526,16 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 print("which idx")
                 x = input()
                 regions, relation_mode, names = study_table(W, L, x, relation)
+            elif "coffee_table" in relation:
+                print("which idx")
+                x = input()
+                regions, relation_mode, names = coffee_table(W, L, x, relation)
             try:
                 regions = filter_regions(regions, min_size)
             except:
                 pdb.set_trace()
             # (("ccollide" in relation or "integrated" in relation) and len(regions) == 2) or
-            if min_num_regions <= len(regions) <= max_num_regions or "study_table" in relation or "dining_table" in relation:
+            if min_num_regions <= len(regions) <= max_num_regions or "study_table" in relation or "dining_table" in relation or "coffee_table" in relation:
                 count -= 1
                 print(len(regions), "added!")
                 yield regions, relation_mode, names

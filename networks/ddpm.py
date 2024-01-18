@@ -26,7 +26,7 @@ from tqdm import tqdm
 
 
 from envs.data_utils import render_world_from_graph, print_tensor, constraint_from_edge_attr, tidy_constraint_from_edge_attr, translate_cfree_evaluations
-from networks.denoise_fns import tidy_constraints, has_single_arity
+from networks.denoise_fns import tidy_constraints, has_single_arity, ignored_constraints
 try:
     from apex import amp
     APEX_AVAILABLE = True
@@ -482,7 +482,7 @@ class Trainer(object):
         fp16=False,
         step_start_ema=2000,
         update_ema_every=10,
-        save_and_sample_every=10,
+        save_and_sample_every=10000,
         results_folder='./results',
         EBM=False,
         visualize=False,
@@ -671,7 +671,8 @@ class Trainer(object):
             all_failure_modes = {}
             best_tries = {}
 
-            for relation in tidy_constraints[:-2]:
+            constraint_list = [c for c in tidy_constraints if c not in ignored_constraints]
+            for relation in constraint_list:
                 best_tries[relation] = dict()
 
             percentage = 0
@@ -858,7 +859,8 @@ class Trainer(object):
                                 # if len(evaluations) > 0 and len(evaluations[0]) == 2:
                                 #     evaluations = translate_cfree_evaluations(evaluations)
                                 # else:
-                                evaluations = [e for e in evaluations if e[0] in tidy_constraints]
+                                constraint_list = [c for c in tidy_constraints if c not in ignored_constraints]
+                                evaluations = [e for e in evaluations if e[0] in constraint_list]
                                 all_failure_modes[k][j] = evaluations
                                 
                                 for key in best_tries.keys():

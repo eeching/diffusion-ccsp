@@ -158,14 +158,21 @@ class DataCollector(object):
                     class_counts[g] += 1
             else:
                 world = self.world_class(**self.world_args)
-
+                # if t < 5:
+                #     scene_sampler_args['relation'] = "study_table"
+                # elif t < 10:
+                #     scene_sampler_args['relation'] = "dining_table"
+                # elif t < 15:
+                #     scene_sampler_args['relation'] = "coffee_table"
+                # elif t == 15:
+                #     scene_sampler_args['relation'] = relation
                 while True:
                     model_relation = world.sample_scene(**scene_sampler_args)
                     newly_generated = add_one_pt(world, data_path, png_path, newly_generated, model_relation)
                     if newly_generated is not False:
                         break
                 ## balancing the dataset for the boxes dataset
-                if balance_data and "regular_grid" not in relation:
+                if balance_data and "regular_grid" not in relation and t >= 15:
                     n_objects = len(world.tiles)
                     
                     counts[n_objects] += 1

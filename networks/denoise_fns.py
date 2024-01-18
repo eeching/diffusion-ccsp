@@ -23,12 +23,45 @@ qualitative_constraints = [
     'close-to', 'away-from', 'h-aligned', 'v-aligned'
 ]
 robot_qualitative_constraints = robot_constraints + qualitative_constraints
-ignored_constraints = ['vertical_regular_grid', 'horizontal_regular_grid', 'aligned_in_horizontal_line', 'aligned_in_vertical_line']
+ignored_constraints = ['vertical_regular_grid', 'horizontal_regular_grid', 'aligned_in_horizontal_line', 'aligned_in_vertical_line', 'study_table', 'dining_table', 'coffee_table']
 
 tidy_constraints = ['horizontally_aligned', 'vertically_aligned', 'centered', 'centered_table', 'on_top_of', 'near_back_edge', 'near_front_edge',
                     'near_left_edge', 'near_right_edge', 'central_row', 'central_column', 'left_half', 'right_half', 'back_half', 
                     'front_half', "vertical_line_symmetry", "horizontal_line_symmetry", "vertical_symmetry_on_table", "horizontal_symmetry_on_table", "right_of_front", 
-                    "left_of_front", "right_of_back", "left_of_back", "horizontal_regular_grid", "vertical_regular_grid", "aligned_in_horizontal_line", "aligned_in_vertical_line"]
+                    "left_of_front", "right_of_back", "left_of_back", "horizontal_regular_grid", "vertical_regular_grid", "aligned_in_horizontal_line", "aligned_in_vertical_line",
+                    'study_table', 'dining_table', 'coffee_table']
+
+tidy_constraint_descriptions = ['two objects are horizontally aligned', 
+                                'two objects are vertically aligned', 
+                                'the object is on the center of the table or another object', 
+                                'the object is on the center of the table or another object', 
+                                'one object is on top of the other object', 
+                                'the object is near the edge of the table',
+                                'the object is near the edge of the table',
+                                'the object is near the edge of the table',
+                                'the object is near the edge of the table',
+                                'the object is on certain location of the table, be it the central row, central column, left half, right half, back half, or front half of the table', 
+                                'the object is on certain location of the table, be it the central row, central column, left half, right half, back half, or front half of the table', 
+                                'the object is on certain location of the table, be it the central row, central column, left half, right half, back half, or front half of the table', 
+                                'the object is on certain location of the table, be it the central row, central column, left half, right half, back half, or front half of the table', 
+                                'the object is on certain location of the table, be it the central row, central column, left half, right half, back half, or front half of the table', 
+                                'the object is on certain location of the table, be it the central row, central column, left half, right half, back half, or front half of the table', 
+                                'two objects are in vertical/horizontal symmetry about the third object or table',
+                                'two objects are in vertical/horizontal symmetry about the third object or table',
+                                'two objects are in vertical/horizontal symmetry about the third object or table',
+                                'two objects are in vertical/horizontal symmetry about the third object or table',
+                                'the first object is on the right/left of the second object as viewed from the front/back',
+                                'the first object is on the right/left of the second object as viewed from the front/back',
+                                'the first object is on the right/left of the second object as viewed from the front/back',
+                                'the first object is on the right/left of the second object as viewed from the front/back',
+                                'the objects are arranged as a horizontal/vertical regular grid',
+                                'the objects are arranged as a horizontal/vertical regular grid',
+                                'the objects are aligned in a horizontal/vertical line',
+                                'the objects are aligned in a horizontal/vertical line']
+
+scene_descriptions = ["tidy configuration of a study table",
+                      "tidy confuguration of a dining table",
+                      "tidy configuration of a coffee table"]
 
 tidy_constraints_dict = {'horizontally_aligned': 2, 'vertically_aligned': 2, 'centered': 2, 'centered_table': 1, 
                          'on_top_of': 2, 'near_back_edge': 1, 'near_front_edge':1, 'near_left_edge':1, 'near_right_edge':1, 'central_row': 1, 'central_column':1, 
@@ -134,17 +167,10 @@ class ComposedEBMDenoiseFn(nn.Module):
             nn.Mish(),
             nn.Linear(hidden_dim * 4, hidden_dim),
         )
-
-        if self.model_name == "StructDiffusion":
-            import clip
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            model, preprocess = clip.load("ViT-B/32", device=device)
-            self.language_encoder = model
-            
-
+          
         if self.model_name == "Diffusion-CCSP":
             self.models = self.initiate_denoise_fn()
-        else:
+        elif self.model_name == "StructDiffusion":
             self.models = self.initiate_structformer()
 
     def neg_logp_unnorm(self, poses_in, batch, t, **kwargs):
@@ -154,7 +180,19 @@ class ComposedEBMDenoiseFn(nn.Module):
         return energy
 
     def get_language_embedding(self):
-        return None
+
+        self.language_embedding = []
+        import clip
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        clip_model, _ = clip.load("ViT-B/32", device=device)
+        
+        with torch.no_grad():
+            for con in tidy_constraint_descriptions + scene_descriptions:
+                text = clip.tokenize([con]).to(device)
+                text_features = clip_model.encode_text(text)
+                self.language_embedding.append(text_features)
+        # self.language_embedding = torch.cat(self.language_embedding, dim=0)
+
     def initiate_denoise_fn(self):
 
         # if self.verbose: print(f'denoise_fns({len(self.constraint_sets)})', self.constraint_sets)
@@ -190,6 +228,7 @@ class ComposedEBMDenoiseFn(nn.Module):
         self.ln_post = nn.LayerNorm(width)
 
         self.shuffled = {}  ## because of dataset problem
+        self.get_language_embedding()
 
     def _get_constraint_inputs(self, relation, batch, t, emb_dict, edge_index):
         
@@ -354,6 +393,10 @@ class ComposedEBMDenoiseFn(nn.Module):
     
         emb_dict = {'geoms_emb': geoms_emb, 'poses_emb': self.pose_encoder(poses_in)}
 
+        if self.model_name == "StructDiffusion":
+            poses_out = self._forward_struct_diffusion(emb_dict, batch, t)
+            return poses_out
+
         edge_index = batch.edge_index.T.to(self.device)
         all_poses_out = torch.zeros_like(poses_in)
         all_counts_out = torch.zeros_like(poses_in[:, 0])
@@ -411,7 +454,6 @@ class ComposedEBMDenoiseFn(nn.Module):
         attn_masks = []
         indices = []
         obj_emb = torch.cat([geoms_emb, poses_emb], dim=-1)  ## [8, 512]
-        pdb.set_trace()
 
         for j in range(batch.batch.max().item() + 1):
             seq = obj_emb[batch.batch == j]  ## [4, 512]
@@ -424,6 +466,11 @@ class ComposedEBMDenoiseFn(nn.Module):
                 pe = pe[:, idx, :]
             seq += rearrange(pe, 'b n c -> (b n) c')
 
+            global_idx = batch.x_extract[batch.ptr[j]]
+            relation_idx = int(batch.edge_attr[batch.edge_extract == global_idx].min().item())  ## [1]
+            language_emb = self.language_embedding[relation_idx]  ## [1, 512]
+            seq = torch.cat([language_emb, seq], dim=0)
+
             x = self.ln_pre(seq)
             padding_len = self.max_seq_len - x.shape[0]
             indices.append(x.shape[0])
@@ -431,24 +478,24 @@ class ComposedEBMDenoiseFn(nn.Module):
             x = F.pad(x, (0, 0, 0, padding_len), "constant", 0)
             sequences.append(x)
 
-            attn_mask = torch.zeros(self.max_seq_len, self.max_seq_len, device=self.device)  ## [8, 8]
+            attn_mask = torch.zeros(self.max_seq_len, self.max_seq_len, device=self.device)  ## [26, 26]
             attn_mask[:, -padding_len:] = True
             attn_mask[-padding_len:, :] = True
             attn_masks.append(attn_mask)
 
         ## get output
-        sequences = torch.stack(sequences, dim=1)  ## [8, 2, 512]
-        attn_masks = torch.stack(attn_masks)  ## [2, 8, 8] when batch size is 2
+        sequences = torch.stack(sequences, dim=1)  ## [26, 2, 512]
+        attn_masks = torch.stack(attn_masks)  ## [2, 26, 26] when batch size is 2
         attn_masks = repeat(attn_masks, 'b l1 l2 -> (repeat b) l1 l2',
-                            repeat=self.num_heads)  ## [4, 8, 8] for 2 heads
+                            repeat=self.num_heads)  ## [4, 26, 26] for 2 heads
         x, weights, attn_masks = self.transformer((sequences, None, attn_masks))  ## x : [128, 4, 256]
-        x = self.ln_post(x)  ## [8, 2, 512]
-        x = x[:, :, -poses_emb.shape[-1]:]  ## [8, 2, 256]
+        x = self.ln_post(x)  ## [26, 2, 512]
+        x = x[:, :, -poses_emb.shape[-1]:]  ## [26, 2, 256]
 
         ## return poses out
         poses_out = []
         for j in range(batch.batch.max().item() + 1):
-            poses_out.append(x[:indices[j], j])  ## [n, 256]
+            poses_out.append(x[1:indices[j], j])  ## [n, 256]
         poses_out = torch.cat(poses_out, dim=0)  ## [8, 256]
         poses_out = self.pose_decoder(poses_out)  ## [8, 4]
 

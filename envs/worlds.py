@@ -894,8 +894,9 @@ class RandomSplitSparseWorld(RandomSplitWorld):
         missing_dict = dict()
         missing = []
         success_ratio = dict()
-        from networks.denoise_fns import tidy_constraints
-        for relation in tidy_constraints[:-2]:
+        from networks.denoise_fns import tidy_constraints, ignored_constraints
+        constraint_list = [c for c in tidy_constraints if c not in ignored_constraints]
+        for relation in constraint_list:
             missing_dict[relation] = [ct for ct in given_constraints[relation] if ct not in current_constraints[relation]]
             if len(given_constraints[relation]) == 0:
                 success_ratio[relation] = 0

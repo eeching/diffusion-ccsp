@@ -121,7 +121,7 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
         args.EBM = False
     if args.EBM in ['HMC', 'MALA']:
         args.energy_wrapper = True
-
+   
     args.test_tasks = test_tasks
 
     if args.input_mode in ['diffuse_pairwise', 'diffuse_pairwise_image']:
@@ -179,10 +179,13 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
                 args.train_task = train_task
             args.test_tasks = test_tasks
         elif args.model == 'StructDiffusion':
-            args.train_proj = 'struct_tidy'
-            args.train_task = "RandomSplitSparseWorld(10)_tidy_train"
-            args.test_tasks = {i: f"RandomSplitSparseWorld(5)_tidy_test_{i}_split" for i in range(2, 3)}
         
+            args.train_proj = 'struct_tidy'
+            train_task = "RandomSplitSparseWorld(30000)_tidy_train/all_composed_None"
+            test_tasks = {i: f"RandomSplitSparseWorld(2)_tidy_test_{i}_split/all_composed_None" for i in range(4, 5)}
+            if 'World' not in args.train_task:
+                args.train_task = train_task
+            args.test_tasks = test_tasks
     
     elif args.input_mode == 'stability_flat':
         args.train_proj = 'stability'
@@ -298,9 +301,10 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         log_name = train_task
 
     dataset_kwargs = dict(input_mode=input_mode, pre_transform=pre_transform, visualize=False)
+   
     test_datasets = {k: GraphDataset(task, model_relation=evaluate_relation, **dataset_kwargs) for k, task in test_tasks.items()}
     if eval_only:
-        train_dataset = test_datasets[0]
+        train_dataset = test_datasets[3]
     else:
         train_dataset = GraphDataset(train_task, model_relation=model_relation, **dataset_kwargs)
     if data_only:
