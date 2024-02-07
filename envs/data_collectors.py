@@ -32,7 +32,7 @@ class DataCollector(object):
                 pngs: bool = False,
                 jsons: bool = False,
                 shake_per_world: int = 1,
-                balance_data: bool = True,
+                balance_data: bool = False,
                 save_meshes: bool = False,
                 input_mode: str = 'collisions',
                 test_only: bool = False,

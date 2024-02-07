@@ -936,6 +936,19 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
         
         def study_table(W, L, x, relation):
 
+            laptop_w, laptop_l = 0.34*W, 0.3*L
+            book_w, book_l = 0.04*W, 0.2*L
+            mug_w, mug_l = W/12, L/8
+            paper_w, paper_l = 0.22*W, 0.45*L
+            pen_w, pen_l = 0.025*W, 0.2*L
+            tissue_box_w, tissue_box_l = 0.084*W, 0.125*L
+            lamp_w, lamp_l = 0.067*W, 0.15*L
+            monitor_w, monitor_l = 0.5*W, 0.2*L
+            keyboard_w, keyboard_l = 0.5*W, 0.2*L
+            mouse_w, mouse_l = 0.05*W, 0.1*L
+            toy_w, toy_l = 0.067*W, 0.1*L
+            glasses_w, glasses_l = 0.15*W, 0.05*L
+            
             if x == "1":
                 laptop = (0.33*W, 0.1*L, 0.34*W, 0.3*L)
                 book_1 = (0.05*W, 0.75*L, 0.04*W, 0.2*L)
@@ -1037,20 +1050,20 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
 
             serving_plate_w, serving_plate_l = 0.12*W, 0.18*L
             napkin_w, napkin_l = 0.05*W, 0.24*L
-            fork_w, fork_l = 0.02*W, 0.22*L
-            knife_w, knife_l = 0.02*W, 0.22*L
-            spoon_w, spoon_l = 0.02*W, 0.2*L
-            chopsticks_w, chopsticks_l = 0.02*W, 0.24*L
+            fork_w, fork_l = 0.03*W, 0.22*L
+            knife_w, knife_l = 0.03*W, 0.22*L
+            spoon_w, spoon_l = 0.03*W, 0.2*L
+            chopsticks_w, chopsticks_l = 0.03*W, 0.22*L
             glass_w, glass_l = 0.06*W, 0.09*L
             medium_plate_w, medium_plate_l = 0.12*W, 0.18*L
             small_plate_w, small_plate_l = 0.1*W, 0.15*L
             rice_bowl_w, rice_bowl_l = 0.09*W, 0.12*L
-            ramen_bowl_w, ramen_bowl_l = 0.1*W, 0.15*L
-            seasoning_w, seasoning_l = 0.04*W, 0.06*L
+            ramen_bowl_w, ramen_bowl_l = 0.12*W, 0.18*L
+            seasoning_w, seasoning_l = 0.12*W, 0.1*L
             baby_bowl_w, baby_bowl_l = 0.08*W, 0.12*L
             baby_plate_w, baby_plate_l = 0.1*W, 0.15*L
             baby_spoon_w, baby_spoon_l = 0.02*W, 0.15*L
-            baby_cup_w, baby_cup_l = 0.04*W, 0.06*L
+            baby_cup_w, baby_cup_l = 0.05*W, 0.07*L
 
             front_base = 0.05*L
             back_base = 0.95*L
@@ -1059,14 +1072,14 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
             if x == "1":
                 # dinner table for 2
                 serving_plate_1= (0.44*W, front_base, serving_plate_w, serving_plate_l)
-                napkin_1 = (0.38*W, front_base, napkin_w, napkin_l)
-                fork_1 = (0.395*W, front_base, fork_w, fork_l)
+                napkin_1 = (0.37*W, front_base, napkin_w, napkin_l)
+                fork_1 = (0.38*W, front_base, fork_w, fork_l)
                 knife_1 = (0.57*W, front_base, knife_w, knife_l)
-                spoon_1 = (0.60*W, front_base, spoon_w, spoon_l)
-                glass_1 = (0.65*W, 0.1*L, glass_w, glass_l)
+                spoon_1 = (0.63*W, front_base, spoon_w, spoon_l)
+                glass_1 = (0.68*W, 0.1*L, glass_w, glass_l)
                 serving_plate_2 = (0.44*W, back_base - serving_plate_l, serving_plate_w, serving_plate_l)
-                napkin_2 = (0.57*W, back_base - napkin_l, napkin_w, napkin_l)
-                fork_2 = (0.585*W, back_base - fork_l, fork_w, fork_l)
+                napkin_2 = (0.58*W, back_base - napkin_l, napkin_w, napkin_l)
+                fork_2 = (0.59*W, back_base - fork_l, fork_w, fork_l)
                 knife_2 = (0.40*W, back_base - knife_l, knife_w, knife_l)
                 spoon_2 = (0.36*W, back_base - spoon_l, spoon_w, spoon_l)
                 glass_2 = (0.28*W, 0.81*L, glass_w, glass_l)
@@ -1084,10 +1097,10 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 small_plate_2 = (0.45*W, back_base - small_plate_l, small_plate_w, small_plate_l)
                 rice_bowl_1 = (0.455*W, front_base + 0.015*L, rice_bowl_w, rice_bowl_l)
                 rice_bowl_2 = (0.455*W, back_base - 0.015*L - rice_bowl_l, rice_bowl_w, rice_bowl_l)
-                chopsticks_1 = (0.56*W, front_base, chopsticks_w, chopsticks_l)
-                chopsticks_2 = (0.42*W, back_base - chopsticks_l, chopsticks_w, chopsticks_l)
-                spoon_1 = (0.59*W, front_base, spoon_w, spoon_l)
-                spoon_2 = (0.39*W, back_base - spoon_l, spoon_w, spoon_l)
+                chopsticks_1 = (0.57*W, front_base, chopsticks_w, chopsticks_l)
+                chopsticks_2 = (0.40*W, back_base - chopsticks_l, chopsticks_w, chopsticks_l)
+                spoon_1 = (0.62*W, front_base, spoon_w, spoon_l)
+                spoon_2 = (0.35*W, back_base - spoon_l, spoon_w, spoon_l)
                 obj_list = [medium_plate_1, medium_plate_2, medium_plate_3, medium_plate_4, small_plate_1, small_plate_2, rice_bowl_1, rice_bowl_2, chopsticks_1, chopsticks_2, spoon_1, spoon_2]
                 names = ["medium_plate_1", "medium_plate_2", "medium_plate_3", "medium_plate_4", "small_plate_1", 
                          "small_plate_2", "rice_bowl_1", "rice_bowl_2", "chopsticks_1", "chopsticks_2", "spoon_1", 
@@ -1095,52 +1108,52 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
             
             if x == "3":
                 # dinner table for 2 same side
-                serving_plate_1= (0.19*W, front_base, serving_plate_w, serving_plate_l)
-                napkin_1 = (0.13*W, front_base, napkin_w, napkin_l)
-                fork_1 = (0.145*W, front_base, fork_w, fork_l)
-                knife_1 = (0.32*W, front_base, knife_w, knife_l)
+                serving_plate_1= (0.17*W, front_base, serving_plate_w, serving_plate_l)
+                napkin_1 = (0.09*W, front_base, napkin_w, napkin_l)
+                fork_1 = (0.10*W, front_base, fork_w, fork_l)
+                knife_1 = (0.31*W, front_base, knife_w, knife_l)
                 spoon_1 = (0.35*W, front_base, spoon_w, spoon_l)
-                glass_1 = (0.37*W, 0.1*L, glass_w, glass_l)
-                serving_plate_2= (0.69*W, front_base, serving_plate_w, serving_plate_l)
-                napkin_2 = (0.63*W, front_base, napkin_w, napkin_l)
-                fork_2 = (0.645*W, front_base, fork_w, fork_l)
+                glass_1 = (0.39*W, front_base, glass_w, glass_l)
+                serving_plate_2= (0.68*W, front_base, serving_plate_w, serving_plate_l)
+                napkin_2 = (0.60*W, front_base, napkin_w, napkin_l)
+                fork_2 = (0.61*W, front_base, fork_w, fork_l)
                 knife_2 = (0.82*W, front_base, knife_w, knife_l)
-                spoon_2 = (0.85*W, front_base, spoon_w, spoon_l)
-                glass_2 = (0.87*W, 0.1*L, glass_w, glass_l)
+                spoon_2 = (0.86*W, front_base, spoon_w, spoon_l)
+                glass_2 = (0.90*W, front_base, glass_w, glass_l)
                 obj_list = [serving_plate_1, napkin_1, fork_1, knife_1, spoon_1, glass_1, serving_plate_2, napkin_2, fork_2, knife_2, spoon_2, glass_2]
                 names = ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1", "glass_1",
                          "serving_plate_2", "napkin_2", "fork_2", "knife_2", "spoon_2", "glass_2"]
             
             if x == "4":
                 # ramen table for 1
-                ramen_bowl = (0.45*W, front_base, ramen_bowl_w, ramen_bowl_l)
-                chopsticks = (0.56*W, front_base, chopsticks_w, chopsticks_l)
-                spoon = (0.58*W, front_base, spoon_w, spoon_l)
+                ramen_bowl = (0.44*W, front_base, ramen_bowl_w, ramen_bowl_l)
+                chopsticks = (0.59*W, front_base, chopsticks_w, chopsticks_l)
+                spoon = (0.64*W, front_base, spoon_w, spoon_l)
                 medium_plate_1 = (0.35*W, 0.41*L, medium_plate_w, medium_plate_l)
                 medium_plate_2 = (0.53*W, 0.41*L, medium_plate_w, medium_plate_l)
                 seasoning_1 = (0.85*W, 0.64*L, seasoning_w, seasoning_l)
-                seasoning_2 = (0.85*W, 0.56*L, seasoning_w, seasoning_l)
-                seasoning_3 = (0.85*W, 0.48*L, seasoning_w, seasoning_l)
-                seasoning_4 = (0.85*W, 0.4*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.85*W, 0.52*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.85*W, 0.4*L, seasoning_w, seasoning_l)
+                seasoning_4 = (0.85*W, 0.28*L, seasoning_w, seasoning_l)
                 obj_list = [ramen_bowl, chopsticks, spoon, medium_plate_1, medium_plate_2, seasoning_1, seasoning_2, seasoning_3, seasoning_4]
                 names = ["ramen_bowl", "chopsticks", "spoon", "medium_plate_1", "medium_plate_2", "seasoning_1",
                           "seasoning_2", "seasoning_3", "seasoning_4"]
 
             if x == "5":
                 # with baby
-                baby_plate = (0.2*W, front_base, baby_plate_w, baby_plate_l)
-                baby_bowl = (0.21*W, front_base + 0.015*L, baby_bowl_w, baby_bowl_l)
-                baby_spoon = (0.31*W, front_base, baby_spoon_w, baby_spoon_l)
-                baby_cup = (0.33*W, 0.1*L, baby_cup_w, baby_cup_l)
-                serving_plate = (0.69*W, front_base, serving_plate_w, serving_plate_l)
-                napkin = (0.63*W, front_base, napkin_w, napkin_l)
-                fork = (0.645*W, front_base, fork_w, fork_l)
-                knife = (0.82*W, front_base, knife_w, knife_l)
-                spoon = (0.85*W, front_base, spoon_w, spoon_l)
-                glass = (0.87*W, 0.1*L, glass_w, glass_l)
-                seasoning_1 = (0.85*W, 0.56*L, seasoning_w, seasoning_l)
-                seasoning_2 = (0.85*W, 0.48*L, seasoning_w, seasoning_l)
-                seasoning_3 = (0.85*W, 0.4*L, seasoning_w, seasoning_l)
+                baby_plate = (0.18*W, front_base, baby_plate_w, baby_plate_l)
+                baby_bowl = (0.19*W, front_base + 0.015*L, baby_bowl_w, baby_bowl_l)
+                baby_spoon = (0.30*W, front_base, baby_spoon_w, baby_spoon_l)
+                baby_cup = (0.34*W, front_base, baby_cup_w, baby_cup_l)
+                serving_plate = (0.63*W, front_base, serving_plate_w, serving_plate_l)
+                napkin = (0.56*W, front_base, napkin_w, napkin_l)
+                fork = (0.57*W, front_base, fork_w, fork_l)
+                knife = (0.77*W, front_base, knife_w, knife_l)
+                spoon = (0.83*W, front_base, spoon_w, spoon_l)
+                glass = (0.88*W, 0.1*L, glass_w, glass_l)
+                seasoning_1 = (0.85*W, 0.62*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.85*W, 0.5*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.85*W, 0.38*L, seasoning_w, seasoning_l)
                 obj_list = [baby_plate, baby_bowl, baby_spoon, baby_cup, serving_plate, napkin, fork, knife, spoon, glass, seasoning_1, seasoning_2, seasoning_3]
                 names = ["baby_plate", "baby_bowl", "baby_spoon", "baby_cup", "serving_plate", "napkin", "fork", 
                          "knife", "spoon", "glass", "seasoning_1", "seasoning_2", "seasoning_3"]
@@ -1148,39 +1161,39 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
             if x == "6":
                 # left handed diner
                 serving_plate_1= (0.44*W, front_base, serving_plate_w, serving_plate_l)
-                napkin_1 = (0.38*W, front_base, napkin_w, napkin_l)
-                fork_1 = (0.395*W, front_base, fork_w, fork_l)
+                napkin_1 = (0.37*W, front_base, napkin_w, napkin_l)
+                fork_1 = (0.38*W, front_base, fork_w, fork_l)
                 knife_1 = (0.57*W, front_base, knife_w, knife_l)
-                spoon_1 = (0.60*W, front_base, spoon_w, spoon_l)
-                glass_1 = (0.65*W, 0.1*L, glass_w, glass_l)
+                spoon_1 = (0.63*W, front_base, spoon_w, spoon_l)
+                glass_1 = (0.68*W, 0.1*L, glass_w, glass_l)
                 serving_plate_2 = (0.44*W, back_base - serving_plate_l, serving_plate_w, serving_plate_l)
-                napkin_2 = (0.57*W, back_base - napkin_l, napkin_w, napkin_l)
-                fork_2 = (0.585*W, back_base - fork_l, fork_w, fork_l)
-                knife_2 = (0.40*W, back_base - knife_l, knife_w, knife_l)
-                spoon_2 = (0.36*W, back_base - spoon_l, spoon_w, spoon_l)
-                glass_2 = (0.28*W, 0.81*L, glass_w, glass_l)
+                napkin_2 = (0.37*W, back_base - napkin_l, napkin_w, napkin_l)
+                fork_2 = (0.38*W, back_base - fork_l, fork_w, fork_l)
+                knife_2 = (0.57*W, back_base - knife_l, knife_w, knife_l)
+                spoon_2 = (0.63*W, back_base - spoon_l, spoon_w, spoon_l)
+                glass_2 = (0.68*W, 0.81*L, glass_w, glass_l)
                 obj_list = [serving_plate_1, napkin_1, fork_1, knife_1, spoon_1, glass_1, serving_plate_2, napkin_2, fork_2, knife_2, spoon_2, glass_2]
-                names = ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1", "glass_1",
+                names = ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1", "glass_1", 
                          "serving_plate_2", "napkin_2", "fork_2", "knife_2", "spoon_2", "glass_2"]
-            
+
             if x == "7":
                 # ramen set with baby
-                baby_bowl = (0.21*W, front_base + 0.015*L, baby_bowl_w, baby_bowl_l)
+                baby_bowl = (0.21*W, front_base, baby_bowl_w, baby_bowl_l)
                 baby_spoon = (0.31*W, front_base, baby_spoon_w, baby_spoon_l)
-                baby_cup = (0.33*W, 0.1*L, baby_cup_w, baby_cup_l)
+                baby_cup = (0.35*W, front_base, baby_cup_w, baby_cup_l)
 
-                ramen_bowl = (0.45*W, front_base, ramen_bowl_w, ramen_bowl_l)
-                chopsticks = (0.56*W, front_base, chopsticks_w, chopsticks_l)
-                spoon = (0.58*W, front_base, spoon_w, spoon_l)
-                glass = (0.60*W, 0.4*L, glass_w, glass_l)
+                ramen_bowl = (0.6*W, front_base, ramen_bowl_w, ramen_bowl_l)
+                chopsticks = (0.74*W, front_base, chopsticks_w, chopsticks_l)
+                spoon = (0.79*W, front_base, spoon_w, spoon_l)
+                glass = (0.85*W, front_base, glass_w, glass_l)
 
                 medium_plate_1 = (0.35*W, 0.41*L, medium_plate_w, medium_plate_l)
                 medium_plate_2 = (0.53*W, 0.41*L, medium_plate_w, medium_plate_l)
                 
                 seasoning_1 = (0.85*W, 0.64*L, seasoning_w, seasoning_l)
-                seasoning_2 = (0.85*W, 0.56*L, seasoning_w, seasoning_l)
-                seasoning_3 = (0.85*W, 0.48*L, seasoning_w, seasoning_l)
-                seasoning_4 = (0.85*W, 0.4*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.85*W, 0.52*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.85*W, 0.4*L, seasoning_w, seasoning_l)
+                seasoning_4 = (0.85*W, 0.28*L, seasoning_w, seasoning_l)
 
                 obj_list = [baby_bowl, baby_spoon, baby_cup, 
                             ramen_bowl, chopsticks, spoon, 
@@ -1191,54 +1204,52 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                          "seasoning_2", "seasoning_3", "seasoning_4"]
             
             if x == "8":
-                # 8 main dishes for sharing
-                medium_plate_1 = (0.375*W, 0.315*L, medium_plate_w, medium_plate_l)
-                medium_plate_2 = (0.505*W, 0.315*L, medium_plate_w, medium_plate_l)
-                medium_plate_3 = (0.375*W, 0.505*L, medium_plate_w, medium_plate_l)
-                medium_plate_4 = (0.505*W, 0.505*L, medium_plate_w, medium_plate_l)
-                medium_plate_5 = (0.375*W, 0.315*L, medium_plate_w, medium_plate_l)
-                medium_plate_6 = (0.505*W, 0.315*L, medium_plate_w, medium_plate_l)
-                medium_plate_7 = (0.375*W, 0.505*L, medium_plate_w, medium_plate_l)
-                medium_plate_8 = (0.505*W, 0.505*L, medium_plate_w, medium_plate_l)
-
+                # 6 main dishes for sharing
+                medium_plate_1 = (0.31*W, 0.315*L, medium_plate_w, medium_plate_l)
+                medium_plate_2 = (0.44*W, 0.315*L, medium_plate_w, medium_plate_l)
+                medium_plate_3 = (0.57*W, 0.315*L, medium_plate_w, medium_plate_l)
+                medium_plate_4 = (0.31*W, 0.505*L, medium_plate_w, medium_plate_l)
+                medium_plate_5 = (0.44*W, 0.505*L, medium_plate_w, medium_plate_l)
+                medium_plate_6 = (0.57*W, 0.505*L, medium_plate_w, medium_plate_l)
+        
                 small_plate_1 = (0.45*W, front_base, small_plate_w, small_plate_l)
                 small_plate_2 = (0.45*W, back_base - small_plate_l, small_plate_w, small_plate_l)
                 rice_bowl_1 = (0.455*W, front_base + 0.015*L, rice_bowl_w, rice_bowl_l)
                 rice_bowl_2 = (0.455*W, back_base - 0.015*L - rice_bowl_l, rice_bowl_w, rice_bowl_l)
-                chopsticks_1 = (0.56*W, front_base, chopsticks_w, chopsticks_l)
-                chopsticks_2 = (0.42*W, back_base - chopsticks_l, chopsticks_w, chopsticks_l)
-                spoon_1 = (0.59*W, front_base, spoon_w, spoon_l)
-                spoon_2 = (0.39*W, back_base - spoon_l, spoon_w, spoon_l)
+                chopsticks_1 = (0.58*W, front_base, chopsticks_w, chopsticks_l)
+                chopsticks_2 = (0.40*W, back_base - chopsticks_l, chopsticks_w, chopsticks_l)
+                spoon_1 = (0.63*W, front_base, spoon_w, spoon_l)
+                spoon_2 = (0.35*W, back_base - spoon_l, spoon_w, spoon_l)
 
                 obj_list = [medium_plate_1, medium_plate_2, medium_plate_3, medium_plate_4, 
-                            medium_plate_5, medium_plate_6, medium_plate_7, medium_plate_8, 
+                            medium_plate_5, medium_plate_6,
                             small_plate_1, small_plate_2, rice_bowl_1, 
                             rice_bowl_2, chopsticks_1, chopsticks_2, spoon_1, spoon_2]
                 names = ["medium_plate_1", "medium_plate_2", "medium_plate_3", "medium_plate_4", 
-                         "medium_plate_5", "medium_plate_6", "medium_plate_7", "medium_plate_8", 
+                         "medium_plate_5", "medium_plate_6",
                          "small_plate_1", "small_plate_2", "rice_bowl_1", "rice_bowl_2", "chopsticks_1", 
                          "chopsticks_2", "spoon_1", "spoon_2"]
 
             if x == "9":
                 # ramen set for 2
-                ramen_bowl_1 = (0.45*W, front_base, ramen_bowl_w, ramen_bowl_l)
-                chopsticks_1 = (0.56*W, front_base, chopsticks_w, chopsticks_l)
-                spoon_1 = (0.58*W, front_base, spoon_w, spoon_l)
-                glass_1 = (0.60*W, 0.4*L, glass_w, glass_l)
+                ramen_bowl_1 = (0.44*W, front_base, ramen_bowl_w, ramen_bowl_l)
+                chopsticks_1 = (0.59*W, front_base, chopsticks_w, chopsticks_l)
+                spoon_1 = (0.64*W, front_base, spoon_w, spoon_l)
+                glass_1 = (0.70*W, front_base, glass_w, glass_l)
 
                 medium_plate_1 = (0.375*W, 0.315*L, medium_plate_w, medium_plate_l)
                 medium_plate_2 = (0.505*W, 0.315*L, medium_plate_w, medium_plate_l)
                 medium_plate_3 = (0.375*W, 0.505*L, medium_plate_w, medium_plate_l)
                 medium_plate_4 = (0.505*W, 0.505*L, medium_plate_w, medium_plate_l)
 
-                ramen_bowl_2 = (0.45*W, front_base, ramen_bowl_w, ramen_bowl_l)
-                chopsticks_2 = (0.56*W, front_base, chopsticks_w, chopsticks_l)
-                spoon_2 = (0.58*W, front_base, spoon_w, spoon_l)
-                glass_2 = (0.60*W, 0.4*L, glass_w, glass_l)
+                ramen_bowl_2 = (0.44*W, back_base - ramen_bowl_l, ramen_bowl_w, ramen_bowl_l)
+                chopsticks_2 = (0.39*W, back_base - chopsticks_l, chopsticks_w, chopsticks_l)
+                spoon_2 = (0.34*W, back_base - spoon_l, spoon_w, spoon_l)
+                glass_2 = (0.26*W, back_base - glass_l, glass_w, glass_l)
 
-                seasoning_1 = (0.85*W, 0.56*L, seasoning_w, seasoning_l)
-                seasoning_2 = (0.85*W, 0.48*L, seasoning_w, seasoning_l)
-                seasoning_3 = (0.85*W, 0.4*L, seasoning_w, seasoning_l)
+                seasoning_1 = (0.85*W, 0.62*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.85*W, 0.5*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.85*W, 0.38*L, seasoning_w, seasoning_l)
 
                 obj_list = [ramen_bowl_1, chopsticks_1, spoon_1, glass_1, 
                             medium_plate_1, medium_plate_2, medium_plate_3, medium_plate_4, 
@@ -1251,35 +1262,36 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 
             if x == "10":
                 # 4_plates
-                serving_plate_1= (0.44*W, front_base, serving_plate_w, serving_plate_l)
-                napkin_1 = (0.38*W, front_base, napkin_w, napkin_l)
-                fork_1 = (0.395*W, front_base, fork_w, fork_l)
-                knife_1 = (0.57*W, front_base, knife_w, knife_l)
-                spoon_1 = (0.60*W, front_base, spoon_w, spoon_l)
-                glass_1 = (0.65*W, 0.1*L, glass_w, glass_l)
-                serving_plate_2 = (0.44*W, back_base - serving_plate_l, serving_plate_w, serving_plate_l)
-                napkin_2 = (0.57*W, back_base - napkin_l, napkin_w, napkin_l)
-                fork_2 = (0.585*W, back_base - fork_l, fork_w, fork_l)
-                knife_2 = (0.40*W, back_base - knife_l, knife_w, knife_l)
-                spoon_2 = (0.36*W, back_base - spoon_l, spoon_w, spoon_l)
-                glass_2 = (0.28*W, 0.81*L, glass_w, glass_l)
+                serving_plate_1= (0.19*W, front_base, serving_plate_w, serving_plate_l)
+                napkin_1 = (0.11*W, front_base, napkin_w, napkin_l)
+                fork_1 = (0.12*W, front_base, fork_w, fork_l)
+                knife_1 = (0.33*W, front_base, knife_w, knife_l)
+                spoon_1 = (0.37*W, front_base, spoon_w, spoon_l)
+                glass_1 = (0.41*W, front_base, glass_w, glass_l)
+                serving_plate_2= (0.69*W, front_base, serving_plate_w, serving_plate_l)
+                napkin_2 = (0.61*W, front_base, napkin_w, napkin_l)
+                fork_2 = (0.62*W, front_base, fork_w, fork_l)
+                knife_2 = (0.83*W, front_base, knife_w, knife_l)
+                spoon_2 = (0.87*W, front_base, spoon_w, spoon_l)
+                glass_2 = (0.91*W, front_base, glass_w, glass_l)
 
-                serving_plate_3= (0.44*W, front_base, serving_plate_w, serving_plate_l)
-                napkin_3 = (0.38*W, front_base, napkin_w, napkin_l)
-                fork_3 = (0.395*W, front_base, fork_w, fork_l)
-                knife_3 = (0.57*W, front_base, knife_w, knife_l)
-                spoon_3 = (0.60*W, front_base, spoon_w, spoon_l)
-                glass_3 = (0.65*W, 0.1*L, glass_w, glass_l)
-                serving_plate_4 = (0.44*W, back_base - serving_plate_l, serving_plate_w, serving_plate_l)
-                napkin_4 = (0.57*W, back_base - napkin_l, napkin_w, napkin_l)
-                fork_4 = (0.585*W, back_base - fork_l, fork_w, fork_l)
-                knife_4 = (0.40*W, back_base - knife_l, knife_w, knife_l)
-                spoon_4 = (0.36*W, back_base - spoon_l, spoon_w, spoon_l)
-                glass_4 = (0.28*W, 0.81*L, glass_w, glass_l)
+                serving_plate_3= (0.19*W, back_base - serving_plate_l, serving_plate_w, serving_plate_l)
+                napkin_3 = (0.33*W, back_base - napkin_l, napkin_w, napkin_l)
+                fork_3 = (0.34*W, back_base - fork_l, fork_w, fork_l)
+                knife_3 = (0.14*W, back_base - knife_l, knife_w, knife_l)
+                spoon_3 = (0.1*W, back_base - spoon_l, spoon_w, spoon_l)
+                glass_3 = (0.03*W, back_base - glass_l, glass_w, glass_l)
+                serving_plate_4= (0.69*W, back_base - serving_plate_l, serving_plate_w, serving_plate_l)
+                napkin_4 = (0.83*W, back_base - napkin_l, napkin_w, napkin_l)
+                fork_4 = (0.84*W, back_base - fork_l, fork_w, fork_l)
+                knife_4 = (0.64*W, back_base - knife_l, knife_w, knife_l)
+                spoon_4 = (0.6*W, back_base - spoon_l, spoon_w, spoon_l)
+                glass_4 = (0.53*W, back_base - glass_l, glass_w, glass_l)
                 obj_list = [serving_plate_1, napkin_1, fork_1, knife_1, spoon_1, glass_1, 
                             serving_plate_2, napkin_2, fork_2, knife_2, spoon_2, glass_2,
                             serving_plate_3, napkin_3, fork_3, knife_3, spoon_3, glass_3,
-                            serving_plate_4, napkin_4, fork_4, knife_4, spoon_4, glass_4]
+                            serving_plate_4, napkin_4, fork_4, knife_4, spoon_4, glass_4
+                            ]
                 names =  ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1", "glass_1",
                          "serving_plate_2", "napkin_2", "fork_2", "knife_2", "spoon_2", "glass_2",
                             "serving_plate_3", "napkin_3", "fork_3", "knife_3", "spoon_3", "glass_3",
@@ -1288,6 +1300,7 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
             return obj_list, relation, names
 
         def coffee_table(W, L, x, relation):
+
             candle_w, candle_l = 0.08*W, 0.12*L
             diffuser_w, diffuser_l = 0.06*W, 0.09*L
             vase_w, vase_l = 0.10*W, 0.15*L
@@ -1297,9 +1310,9 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
             laptop_w, laptop_l = 0.34*W, 0.3*L
 
             tray_w, tray_l = 0.3*W, 0.3*L
-            keys_w, keys_l = 0.03*W, 0.03*L
-            remote_controller_w, remote_controller_l = 0.03*W, 0.12*L
-            glasses_w, glasses_l = 0.1*W, 0.05*L
+            keys_w, keys_l = 0.07*W, 0.07*L
+            remote_controller_w, remote_controller_l = 0.05*W, 0.12*L
+            glasses_w, glasses_l = 0.12*W, 0.07*L
 
             ashtray_w, ashtray_l = 0.08*W, 0.12*L
 
@@ -1309,8 +1322,8 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
             coffee_pot_w, coffee_pot_l = 0.24*W, 0.36*L
             tea_pot_w, tea_pot_l = 0.2*W, 0.3*L
 
-            coffee_cup_w, coffee_cup_l = 0.08*W, 0.12*L
-            tea_cup_w, tea_cup_l = 0.06*W, 0.09*L
+            coffee_cup_w, coffee_cup_l = 0.12*W, 0.18*L
+            tea_cup_w, tea_cup_l = 0.1*W, 0.15*L
             cake_plate_w, cake_plate_l = 0.10*W, 0.15*L
             board_game_w, board_game_l = 0.4*W, 0.6*L
 
@@ -1457,7 +1470,344 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 names = ["tea_pot", "tea_cup_1", "tea_cup_2", "tray", "keys", "glass", "remote_controller"]
 
             return object_list, relation, names  
+
+        def study_table_train(W, L, x, relation):
+
+            laptop_w, laptop_l = 0.34*W, 0.3*L
+            book_w, book_l = 0.04*W, 0.2*L
+            mug_w, mug_l = W/12, L/8
+            paper_w, paper_l = 0.22*W, 0.45*L
+            pen_w, pen_l = 0.025*W, 0.2*L
+            tissue_box_w, tissue_box_l = 0.084*W, 0.125*L
+            lamp_w, lamp_l = 0.067*W, 0.15*L
+            monitor_w, monitor_l = 0.5*W, 0.2*L
+            keyboard_w, keyboard_l = 0.5*W, 0.2*L
+            mouse_w, mouse_l = 0.05*W, 0.1*L
+            toy_w, toy_l = 0.067*W, 0.1*L
+            glasses_w, glasses_l = 0.15*W, 0.05*L
+            
+            # laptop & books
+            if x == "1":
+                laptop = (0.33*W, 0.3*L, 0.34*W, 0.3*L)
+                book_1 = (0.05*W, 0.6*L, 0.04*W, 0.2*L)
+                book_2 = (0.11*W, 0.6*L, 0.04*W, 0.2*L)
+                book_3 = (0.17*W, 0.6*L, 0.04*W, 0.2*L)
+                book_4 = (0.23*W, 0.6*L, 0.04*W, 0.2*L)
+                mouse = (0.82*W, 0.4*L, 0.05*W, 0.1*L)
+                lamp = (0.8*W, 0.7*L, 0.2*W/3, 0.15*L)
+                obj_list = [laptop, book_1, book_2, book_3, book_4, mouse. lamp]
+                names = ["laptop", "book_1", "book_2", "book_3", "book_4", "mouse", "lamp"]
+
+            # external monitor 
+            elif x == "2":
+                monitor = (0.25*W, 0.7*L, 0.5*W, 0.2*L)
+                laptop = (0.33*W, 0.4*L, 0.34*W, 0.3*L)
+                mouse = (0.8*W, 0.45*L, 0.05*W, 0.1*L)
+                lamp = (0.8*W, 0.7*L, 0.2*W/3, 0.15*L)
+                mug = (0.9*W, 0.45*L, W/12, L/8)
+                obj_list = [monitor, laptop, mouse, lamp, mug]
+                names = ["monitor", "laptop", "keyboard", "mouse", "lamp", "mug"]
+            
+            #external keyboard
+            elif x == "3":
+                laptop = (0.33*W, 0.4*L, 0.34*W, 0.3*L)
+                keyboard = (0.25*W, 0.15*L, 0.5*W, 0.2*L)
+                mouse = (0.8*W, 0.17*L, 0.05*W, 0.1*L)
+                lamp = (0.8*W, 0.7*L, 0.2*W/3, 0.15*L)
+                mug = (0.9*W, 0.45*L, W/12, L/8)
+                obj_list = [laptop, keyboard, mouse, lamp, mug]
+                names = ["laptop", "keyboard", "mouse", "lamp", "mug"]
+
+            # 2 laptops
+            elif x == "4":
+                book_1 = (0.05*W, 0.6*L, 0.04*W, 0.2*L)
+                book_2 = (0.11*W, 0.6*L, 0.04*W, 0.2*L)
+                book_3 = (0.17*W, 0.6*L, 0.04*W, 0.2*L)
+                book_4 = (0.23*W, 0.6*L, 0.04*W, 0.2*L)
+                lamp = (0.8*W, 0.7*L, 0.2*W/3, 0.15*L)
+                laptop_1 = (0.15*W, 0.1*L, 0.3*W, 0.32*L)
+                laptop_2 = (0.55*W, 0.1*L, 0.3*W, 0.32*L)
+                obj_list = [book_1, book_2, book_3, book_4, lamp, laptop_1, laptop_2]
+                names = ["book_1", "book_2", "book_3", "book_4", "lamp", "laptop_1", "laptop_2"]
+
+            # notepad and books   
+            elif x == "5":
+                book_1 = (0.05*W, 0.6*L, 0.04*W, 0.2*L)
+                book_2 = (0.11*W, 0.6*L, 0.04*W, 0.2*L)
+                book_3 = (0.17*W, 0.6*L, 0.04*W, 0.2*L)
+                book_4 = (0.23*W, 0.6*L, 0.04*W, 0.2*L)
+                lamp = (0.8*W, 0.7*L, 0.2*W/3, 0.15*L)
+                paper = (0.39*W, 0.10*L, 0.22*W, 0.45*L)
+                pen = (0.63*W, 0.15*L, 0.025*W, 0.2*L)
+                mug = (0.9*W, 0.45*L, W/12, L/8)
+                obj_list = [book_1, book_2, book_3, book_4, lamp, mug, pen, paper]
+                names = ["book_1", "book_2", "book_3", "book_4", "lamp", "mug", "pen", "paper"]
+
+            return obj_list, relation, names
+            
+        def coffee_table_train(W, L, x, relation):
+
+            candle_w, candle_l = 0.08*W, 0.12*L
+            diffuser_w, diffuser_l = 0.06*W, 0.09*L
+            vase_w, vase_l = 0.10*W, 0.15*L
+            book_w, book_l = 0.18*W, 0.37*L
+            plant_w, plant_l = 0.12*W, 0.18*L
+
+            laptop_w, laptop_l = 0.34*W, 0.3*L
+
+            tray_w, tray_l = 0.3*W, 0.3*L
+            keys_w, keys_l = 0.07*W, 0.07*L
+            remote_controller_w, remote_controller_l = 0.05*W, 0.12*L
+            glasses_w, glasses_l = 0.12*W, 0.07*L
+
+            ashtray_w, ashtray_l = 0.08*W, 0.12*L
+
+            beverage_w, beverage_l = 0.06*W, 0.09*L
+            snack_bowl_w, snack_bowl_l = 0.16*W, 0.24*L
+
+            coffee_pot_w, coffee_pot_l = 0.24*W, 0.36*L
+            tea_pot_w, tea_pot_l = 0.2*W, 0.3*L
+
+            coffee_cup_w, coffee_cup_l = 0.12*W, 0.18*L
+            tea_cup_w, tea_cup_l = 0.1*W, 0.15*L
+            small_plate_w, small_plate_l = 0.1*W, 0.15*L
+            board_game_w, board_game_l = 0.4*W, 0.6*L
+
+            ipad_w, ipad_l = 0.15*W, 0.3*L
+
+            if x == "1":
+                # standard coffee table
+                vase = (0.45*W, 0.425*L, vase_w, vase_l)
+                candle_1 = (0.36*W, 0.44*L, candle_w, candle_l)
+                candle_2 = (0.56*W, 0.44*L, candle_w, candle_l)
+                book_1 = (0.1*W, 0.6*L, book_w, book_l)
+                book_2 = (0.1*W, 0.6*L, book_w, book_l)
+                book_3 = (0.1*W, 0.6*L, book_w, book_l)
+                book_4 = (0.1*W, 0.6*L, book_w, book_l)
+                tray = (0.35*W, 0.05*L, tray_w, tray_l)
+                keys = (0.45*W, 0.12*L, keys_w, keys_l)
+                remote_controller = (0.55*W, 0.15*L, remote_controller_w, remote_controller_l)
+                object_list = [vase, candle_1, candle_2, book_1, book_2, book_3, book_4, tray, keys, remote_controller]
+                names = ["vase", "candle_1", "candle_2", "book_1", "book_2", "book_3", "book_4", "tray", "keys", "remote_controller"]
+            elif x == "2":  
+                # snack for sharing
+                snack_bowl_1 = (0.33 * W, 0.45*L, snack_bowl_w, snack_bowl_l)
+                snack_bowl_2 = (0.51 * W, 0.45*L, snack_bowl_w, snack_bowl_l)
+               
+                tray = (0.6*W, 0.6*L, tray_w, tray_l)
+                keys = (0.65*W, 0.65*L, keys_w, keys_l)
+                remote_controller = (0.77*W, 0.66*L, remote_controller_w, remote_controller_l)
+                object_list = [snack_bowl_1, snack_bowl_2, tray, keys, remote_controller]
+                names = ["snack_bowl_1", "snack_bowl_2", "tray", "keys","remote_controller"]
+
+            elif x == "3":
+                # coffee table for cakes and coffee
+                coffee_pot = (0.38*W, 0.36*L, coffee_pot_w, coffee_pot_l)
+                small_plate_1 = (0.15*W, 0.1*L, small_plate_w, small_plate_l)
+                coffee_cup_1 = (0.27*W, 0.1*L, coffee_cup_w, coffee_cup_l)
+                small_plate_2 = (0.71*W, 0.1*L, small_plate_w, small_plate_l)
+                coffee_cup_2 = (0.83*W, 0.1*L, coffee_cup_w, coffee_cup_l)
+                book_1 = (0.02*W, 0.62*L, book_w, book_l)
+                book_2 = (0.02*W, 0.62*L, book_w, book_l)
+                book_3 = (0.02*W, 0.62*L, book_w, book_l)
+                book_4 = (0.02*W, 0.62*L, book_w, book_l)
                 
+                object_list = [coffee_pot, small_plate_1, coffee_cup_1, small_plate_2, coffee_cup_2, book_1, book_2, book_3, book_4]
+                names = ["coffee_pot", "small_plate_1", "coffee_cup_1", "small_plate_2", "coffee_cup_2", "book_1", "book_2", "book_3", "book_4"]
+
+            elif x == "4":
+                # coffee table for one book
+                vase = (0.45*W, 0.425*L, vase_w, vase_l)
+                candle_1 = (0.36*W, 0.44*L, candle_w, candle_l)
+                candle_2 = (0.56*W, 0.44*L, candle_w, candle_l)
+                book = (0.33*W, 0.1*L, book_w, book_l)
+                tray = (0.6*W, 0.6*L, tray_w, tray_l)
+                keys = (0.65*W, 0.65*L, keys_w, keys_l)
+                remote_controller = (0.77*W, 0.66*L, remote_controller_w, remote_controller_l)
+                object_list = [vase, candle_1, candle_2, book, tray, keys, remote_controller]
+                names = ["vase", "candle_1", "candle_2", "book", "tray", "keys", "remote_controller"]
+
+            elif x == "5":
+                # coffee table for key
+                vase_1 = (0.33*W, 0.425*L, vase_w, vase_l)
+                vase_2 = (0.45*W, 0.425*L, vase_w, vase_l)
+                vase_3 = (0.57*W, 0.425*L, vase_w, vase_l)
+                book_1 = (0.02*W, 0.62*L, book_w, book_l)
+                book_2 = (0.02*W, 0.62*L, book_w, book_l)
+                book_3 = (0.02*W, 0.62*L, book_w, book_l)
+                book_4 = (0.02*W, 0.62*L, book_w, book_l)
+                tray = (0.35*W, 0.05*L, tray_w, tray_l)
+                keys = (0.45*W, 0.12*L, keys_w, keys_l)
+                remote_controller = (0.55*W, 0.15*L, remote_controller_w, remote_controller_l)
+                
+                object_list = [vase_1, vase_2, vase_3, book_1, book_2, book_3, book_4, tray, keys, remote_controller]
+                names = ["vase_1", "vase_2", "vase_3", "book_1", "book_2", "book_3", "book_4", "tray", "keys", "remote_controller"]
+
+            return object_list, relation, names  
+        
+        def survey_table(W, L, x, relation):
+
+            serving_plate_w, serving_plate_l = 0.12*W, 0.18*L
+            napkin_w, napkin_l = 0.05*W, 0.24*L
+            fork_w, fork_l = 0.03*W, 0.22*L
+            knife_w, knife_l = 0.03*W, 0.22*L
+            spoon_w, spoon_l = 0.03*W, 0.2*L
+            seasoning_w, seasoning_l = 0.12*W, 0.1*L
+            candle_w, candle_l = 0.08*W, 0.12*L
+            
+            medium_plate_w, medium_plate_l = 0.12*W, 0.18*L
+            small_plate_w, small_plate_l = 0.1*W, 0.15*L
+            rice_bowl_w, rice_bowl_l = 0.09*W, 0.12*L
+            chopsticks_w, chopsticks_l = 0.03*W, 0.22*L
+            
+            
+            # case 1: 5pts
+
+            if x == "1":
+                front_base = 0.05*L
+                serving_plate_1= (0.44*W, front_base, serving_plate_w, serving_plate_l)
+                napkin_1 = (0.37*W, front_base, napkin_w, napkin_l)
+                fork_1 = (0.38*W, front_base, fork_w, fork_l)
+                knife_1 = (0.57*W, front_base, knife_w, knife_l)
+                spoon_1 = (0.63*W, front_base, spoon_w, spoon_l)
+                seasoning_1 = (0.85*W, 0.64*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.85*W, 0.52*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.85*W, 0.4*L, seasoning_w, seasoning_l)
+                seasoning_4 = (0.85*W, 0.28*L, seasoning_w, seasoning_l)
+                candle_1 = (0.2*W, 0.36*L, candle_w, candle_l)
+                candle_2 = (0.2*W, 0.52*L, candle_w, candle_l)
+
+                object_list = [serving_plate_1, napkin_1, fork_1, knife_1, spoon_1, seasoning_1, seasoning_2, seasoning_3, seasoning_4, candle_1, candle_2]
+                names = ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1", "seasoning_1", "seasoning_2", "seasoning_3", "seasoning_4", "candle_1", "candle_2"]
+
+                return object_list, relation, names
+            
+            # case 2: 4pts, objects not aligned
+            elif x == "2":
+                front_base = 0.15*L
+
+                random_padding = rn.uniform(-0.075, 0.075, size=5)*L
+                serving_plate_1= (0.44*W, front_base + random_padding[0], serving_plate_w, serving_plate_l)
+                napkin_1 = (0.37*W, front_base + random_padding[1], napkin_w, napkin_l)
+                fork_1 = (0.38*W, front_base + random_padding[2], fork_w, fork_l)
+                knife_1 = (0.57*W, front_base + random_padding[3], knife_w, knife_l)
+                spoon_1 = (0.63*W, front_base + random_padding[4], spoon_w, spoon_l)
+                seasoning_1 = (0.82*W, 0.72*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.81*W, 0.68*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.82*W, 0.65*L, seasoning_w, seasoning_l)
+                seasoning_4 = (0.80*W, 0.7*L, seasoning_w, seasoning_l)
+                candle_1 = (0.2*W, 0.45*L, candle_w, candle_l)
+                candle_2 = (0.23*W, 0.52*L, candle_w, candle_l)
+                
+
+                object_list = [serving_plate_1, napkin_1, fork_1, knife_1, spoon_1, seasoning_1, seasoning_2, seasoning_3, seasoning_4, candle_1, candle_2]
+                names = ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1", "seasoning_1", "seasoning_2", "seasoning_3", "seasoning_4", "candle_1", "candle_2"]
+
+                return object_list, relation, names
+
+            # case 3: 3pts, objects crowded
+            elif x == "3":
+                front_base = 0.15*L
+
+                random_padding = rn.uniform(-0.075, 0.075, size=5)*L
+                serving_plate_1= (0.44*W, front_base + random_padding[0], serving_plate_w, serving_plate_l)
+                napkin_1 = (0.37*W, front_base + random_padding[1], napkin_w, napkin_l)
+                fork_1 = (0.38*W, front_base + random_padding[2], fork_w, fork_l)
+                knife_1 = (0.57*W, front_base + random_padding[3], knife_w, knife_l)
+                spoon_1 = (0.63*W, front_base + random_padding[4], spoon_w, spoon_l)
+                seasoning_1 = (0.82*W, 0.72*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.81*W, 0.68*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.82*W, 0.65*L, seasoning_w, seasoning_l)
+                seasoning_4 = (0.80*W, 0.7*L, seasoning_w, seasoning_l)
+                candle_1 = (0.78*W, 0.68*L, candle_w, candle_l)
+                candle_2 = (0.78*W, 0.60*L, candle_w, candle_l)
+
+                object_list = [serving_plate_1, napkin_1, fork_1, knife_1, spoon_1, seasoning_1, seasoning_2, seasoning_3, seasoning_4, candle_1, candle_2]
+                names = ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1", "seasoning_1", "seasoning_2", "seasoning_3", "seasoning_4", "candle_1", "candle_2"]
+
+                return object_list, relation, names
+            
+            # case 4: 2pts, utensils misplaced
+            elif x == "4":
+                front_base = 0.4*L
+
+                random_padding = rn.uniform(-0.075, 0.075, size=5)*L
+                serving_plate_1= (0.44*W, front_base + random_padding[0], serving_plate_w, serving_plate_l)
+                napkin_1 = (0.37*W, front_base + random_padding[1], napkin_w, napkin_l)
+                fork_1 = (0.38*W, front_base + random_padding[2], fork_w, fork_l)
+                knife_1 = (0.31*W, front_base + random_padding[3], knife_w, knife_l)
+                spoon_1 = (0.25*W, front_base + random_padding[4], spoon_w, spoon_l)
+                seasoning_1 = (0.82*W, 0.72*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.81*W, 0.68*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.82*W, 0.65*L, seasoning_w, seasoning_l)
+                seasoning_4 = (0.80*W, 0.7*L, seasoning_w, seasoning_l)
+                candle_1 = (0.78*W, 0.68*L, candle_w, candle_l)
+                candle_2 = (0.78*W, 0.60*L, candle_w, candle_l)
+
+                object_list = [serving_plate_1, napkin_1, fork_1, knife_1, spoon_1, seasoning_1, seasoning_2, seasoning_3, seasoning_4, candle_1, candle_2]
+                names = ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1", "seasoning_1", "seasoning_2", "seasoning_3", "seasoning_4", "candle_1", "candle_2"]
+
+                return object_list, relation, names
+            
+            # case 5,1 pt
+            if x == "5":
+                front_base = 0.15*L
+
+                random_padding = rn.uniform(-0.075, 0.075, size=5)*L
+                serving_plate_1= (0.67*W, 0.64*L, serving_plate_w, serving_plate_l)
+                napkin_1 = (0.73*W, 0.65*L, napkin_w, napkin_l)
+                fork_1 = (0.74*W, 0.76*L, fork_w, fork_l)
+                knife_1 = (0.64*W, 0.59*L, knife_w, knife_l)
+                spoon_1 = (0.64*W, 0.79*L, spoon_w, spoon_l)
+                seasoning_1 = (0.82*W, 0.72*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.81*W, 0.68*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.82*W, 0.65*L, seasoning_w, seasoning_l)
+                seasoning_4 = (0.80*W, 0.7*L, seasoning_w, seasoning_l)
+                candle_1 = (0.78*W, 0.68*L, candle_w, candle_l)
+                candle_2 = (0.78*W, 0.60*L, candle_w, candle_l)
+
+                object_list = [serving_plate_1, napkin_1, fork_1, knife_1, spoon_1, seasoning_1, seasoning_2, seasoning_3, seasoning_4, candle_1, candle_2]
+                names = ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1", "seasoning_1", "seasoning_2", "seasoning_3", "seasoning_4", "candle_1", "candle_2"]
+
+                return object_list, relation, names
+            
+            elif x == "6":
+                front_base = 0.05*L
+                back_base = 0.95*L
+
+                rice_bowl = (0.455*W+0.2*W, front_base + 0.015*L, rice_bowl_w, rice_bowl_l)
+    
+                small_plate = (0.45*W+0.2*W, back_base - small_plate_l, small_plate_w, small_plate_l)
+
+                chopsticks = (0.48*W, front_base, chopsticks_w, chopsticks_l)
+            
+                spoon = (0.48*W, back_base - spoon_l, spoon_w, spoon_l)
+
+                medium_plate_1 = (0.24*W,  front_base, medium_plate_w, medium_plate_l)
+                medium_plate_2 = (0.24*W,  back_base - medium_plate_l, medium_plate_w, medium_plate_l)
+
+                object_list = [rice_bowl, small_plate, chopsticks, spoon, medium_plate_1, medium_plate_2]
+                names = ["rice_bowl", "small_plate", "chopsticks", "spoon", "medium_plate_1", "medium_plate_2"]
+
+                return object_list, relation, names
+        
+        def evaluate(method_name, table_type, x):
+            import json
+            with open(f"./tmp/result/{method_name}/{table_type}_table_obj_list.json", "r") as f:
+                obj_list = json.load(f)[f"{x}"]
+                
+                objs = []
+                names = []
+
+                for obj_name, obj_info in obj_list.items():
+                    centroid = obj_info["centroid"]
+                    size = obj_info["size"]
+
+                    obj = (centroid[0]-size[0]/2+1.5, centroid[1]-size[1]/2+1, size[0], size[1])
+                    objs.append(obj)
+                    names.append(obj_name)
+                return objs, "evaluate", names
+            
         # def dining_table(W, L, x, relation): 
         count = num_samples
 
@@ -1530,12 +1880,22 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 print("which idx")
                 x = input()
                 regions, relation_mode, names = coffee_table(W, L, x, relation)
+            elif "survey_table" in relation:
+                print("which idx")
+                x = input()
+                regions, relation_mode, names = survey_table(W, L, x, relation)
+            elif "evaluate" in relation:
+                print("which idx")
+                x = input()
+                method_name = relation.split("_")[1]
+                table_type = relation.split("_")[2]
+                regions, relation_mode, names = evaluate(method_name, table_type, x)
             try:
                 regions = filter_regions(regions, min_size)
             except:
                 pdb.set_trace()
             # (("ccollide" in relation or "integrated" in relation) and len(regions) == 2) or
-            if min_num_regions <= len(regions) <= max_num_regions or "study_table" in relation or "dining_table" in relation or "coffee_table" in relation:
+            if min_num_regions <= len(regions) <= max_num_regions or "study_table" in relation or "dining_table" in relation or "coffee_table" in relation or "survey_table" in relation or "evaluate" in relation:
                 count -= 1
                 print(len(regions), "added!")
                 yield regions, relation_mode, names

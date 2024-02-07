@@ -16,6 +16,7 @@ networks/**/*.pt
 visualizations/
 !visualizations/*.css
 tmp/
+language/
 denoise_fn.py
 
 *.gv

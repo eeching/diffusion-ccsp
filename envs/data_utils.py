@@ -188,12 +188,16 @@ def constraint_from_edge_attr(edge_attr, edge_index, composed_inference=False):
         constraints.append(constraint)
     return constraints
 
-def tidy_constraint_from_edge_attr(edge_attr, edge_index):
-    from networks.denoise_fns import tidy_constraints
+def tidy_constraint_from_edge_attr(edge_attr, edge_index, model):
+    from networks.denoise_fns import tidy_constraints, table_settings
     constraints = []
+    if model == "StructDiffusion":
+        all_constraints = tidy_constraints + table_settings
+    elif model == "Diffusion-CCSP":
+        all_constraints = tidy_constraints
     for i in range(len(edge_attr)):
         typ = int(edge_attr[i].detach().cpu().numpy().item())
-        constraint = tuple([tidy_constraints[typ]] + edge_index.T[i].detach().cpu().numpy().tolist()) # still use the index from the tidy constraints
+        constraint = tuple([all_constraints[typ]] + edge_index.T[i].detach().cpu().numpy().tolist()) # still use the index from the tidy constraints
         constraints.append(constraint)
     return constraints
 
@@ -697,6 +701,7 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
         composed_partial = True
     else:
         composed_partial = False
+
     def pad_constraints(tup):
         length = len(tup)
         
@@ -705,35 +710,47 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
         else:
             padding = (0,) * (25 - length)
             return tup + padding
+
+    # adding constraints for structdiffusion    
+    # if model_relation == "study_table" or model_relation == "dining_table" or model_relation == "coffee_table":
+    #     constraints.append(tuple([model_relation] + [i for i in range(1, len(tiles))]))
+    #     constraints = [pad_constraints(c) for c in constraints]
+    #     return list(set(constraints)), []
         
-    if model_relation == "study_table" or model_relation == "dining_table" or model_relation == "coffee_table":
-        constraints.append(tuple([model_relation] + [i for i in range(1, len(tiles))]))
-        constraints = [pad_constraints(c) for c in constraints]
-        return list(set(constraints)), []
+    if model_relation is not None and model_relation == "survey_table":
+        return [["central_column", 1]], [["central_column", 1]]
         
     if model_relation is not None and ("study_table_" in model_relation or "dining_table_" in model_relation or "coffee_table_" in model_relation):
         
         table_type, _, mode = model_relation.split("_")
-        filename = f'tmp/{table_type}_table/{mode}.json'
-        with open(filename) as json_file:
-            input_relations = json.load(json_file)
-            print("relation_idx: ")
-            x = input()
-            input_relations = input_relations[x]
-        obj_names = ['bottom'] + [objects[names[idx]]["name"] for idx in range(5, len(names))]
-        for c in input_relations:
+
+        if mode == "StructDiffusion":
+            obj_names = ['bottom'] + [objects[names[idx]]["name"] for idx in range(5, len(names))]
             
-            if c[0] == "right_of":
-                constraints.append(tuple(["left_of_front", obj_names.index(c[2]), obj_names.index(c[1])]))
-            else:
-                if c[0] == "left_of":
-                    typ = "left_of_front"
+            constraints = [tuple([f"{table_type}_table"] + [i for i in range(1, len(obj_names))])]
+            verbose_constraints = [tuple([f"{table_type}_table"] + [obj_names[i] for i in range(1, len(obj_names))])]
+        else:
+            filename = f'tmp/{table_type}_table/{mode}.json'
+            with open(filename) as json_file:
+                input_relations = json.load(json_file)
+                print("relation_idx: ")
+                x = input()
+                input_relations = input_relations[x]
+            obj_names = ['bottom'] + [objects[names[idx]]["name"] for idx in range(5, len(names))]
+            for c in input_relations:
+                
+                if c[0] == "right_of":
+                    constraints.append(tuple(["left_of_front", obj_names.index(c[2]), obj_names.index(c[1])]))
                 else:
-                    typ = c[0]
-                constraints.append(tuple([typ] + [obj_names.index(c[i]) for i in range(1, len(c))]))
-        verbose_constraints = [tuple(c) for c in input_relations]
+                    if c[0] == "left_of":
+                        typ = "left_of_front"
+                    else:
+                        typ = c[0]
+                    constraints.append(tuple([typ] + [obj_names.index(c[i]) for i in range(1, len(c))]))
+            verbose_constraints = [tuple(c) for c in input_relations]
+
         constraints = [pad_constraints(c) for c in constraints]
-    
+        
         return list(set(constraints)), list(set(verbose_constraints))
             
                 
@@ -795,7 +812,7 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
     alignment = 0.1 * scale
     farness = 0.5 * scale
     closeness = 0.3 * scale
-    touching = 0.1 * scale
+    touching = 0.15 * scale
     overlap_threshold = 0.6 * scale
     for i in range(len(names)):
         m = objects[names[i]]

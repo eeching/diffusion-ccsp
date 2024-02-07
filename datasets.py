@@ -37,6 +37,7 @@ class GraphDataset(InMemoryDataset): ## Dataset | InMemoryDataset
         root = join(DATASET_PATH, dir_name)
         processed = join(root, f'processed_relation_{self.model_relation}')
 
+
         self.composed_inference = False
         if self.input_mode == 'robot_qualitative' and ('test' in dir_name or 'robot_qualitative' in dir_name):
             """ need to run create_qualitative_data() in 3-panda-box-data.py on the dir_name first """
@@ -107,7 +108,7 @@ class GraphDataset(InMemoryDataset): ## Dataset | InMemoryDataset
                     data = stability_data_json_to_pt(data, data_sub_dir_name, self.input_mode)
             else:
                 data = torch.load(self.raw_paths[idx])
-
+    
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
             if self.pre_transform is not None:

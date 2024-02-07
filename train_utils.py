@@ -299,12 +299,12 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         render_dir = f"{render_dir}_id={log_name}"
     else:
         log_name = train_task
-
+  
     dataset_kwargs = dict(input_mode=input_mode, pre_transform=pre_transform, visualize=False)
    
-    test_datasets = {k: GraphDataset(task, model_relation=evaluate_relation, **dataset_kwargs) for k, task in test_tasks.items()}
+    test_datasets = {k: GraphDataset(task, model_relation=model_relation, **dataset_kwargs) for k, task in test_tasks.items()}
     if eval_only:
-        train_dataset = test_datasets[3]
+        train_dataset = test_datasets[0]
     else:
         train_dataset = GraphDataset(train_task, model_relation=model_relation, **dataset_kwargs)
     if data_only:
@@ -333,7 +333,7 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
     denoise_fn = ComposedEBMDenoiseFn(model_name=model, input_mode=input_mode, dims=dims, hidden_dim=hidden_dim, device='cuda', 
                                       relation_sets=relation_sets, EBM=EBM, pretrained=pretrained, normalize=normalize, 
                                       energy_wrapper=energy_wrapper, verbose=verbose, ebm_per_steps=ebm_per_steps, 
-                                      eval_only=eval_only).cuda()
+                                      eval_only=eval_only, evaluate_relation=evaluate_relation).cuda()
     
     diffusion = GaussianDiffusion(denoise_fn, timesteps=timesteps, EBM=EBM,
                                   samples_per_step=samples_per_step, step_sizes=step_sizes, extra_denoising_steps=extra_denoising_steps).cuda()
@@ -401,7 +401,7 @@ def load_trainer(run_id, milestone, visualize=False, rejection_sampling=False, v
     # args.test_tasks = kwargs.get('test_tasks', args.test_tasks)
     for k in ['input_mode', 'train_task', 'test_tasks', 'train_num_steps', 'EBM', 
               'model_relation', 'evaluate_relation', 'eval_only', 'energy_wrapper', 
-              'samples_per_step', 'extra_denoising_steps', 'step_sizes']:
+              'samples_per_step', 'extra_denoising_steps', 'step_sizes', 'model']:
         if k in kwargs:
             setattr(args, k, kwargs[k])
             kwargs.pop(k)

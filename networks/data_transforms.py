@@ -6,7 +6,7 @@ from os.path import join, isfile
 from envs.data_utils import print_tensor, get_one_hot, r, get_grasp_side_from_grasp, \
     get_ont_hot_grasp_side
 from networks.denoise_fns import robot_constraints, puzzle_constraints, \
-    stability_constraints, qualitative_constraints, robot_qualitative_constraints, tidy_constraints, dataset_relation_mapping
+    stability_constraints, qualitative_constraints, robot_qualitative_constraints, tidy_constraints, dataset_relation_mapping, table_settings
 import pdb
 
 ####################################################################################################
@@ -109,7 +109,7 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
                         pose = [x, y, cs, sn]
                     elif 'tidy' in input_mode:
                         if "all" in model_relation:
-                            all_constraints = tidy_constraints
+                            all_constraints = tidy_constraints + table_settings
                         else:
                             all_constraints = dataset_relation_mapping[model_relation]
                         _, w, l, x, y, sn, cs = dd
@@ -178,7 +178,7 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
                 all_constraints = robot_qualitative_constraints
             if 'tidy' in input_mode:
                 if "all" in model_relation:
-                    all_constraints = tidy_constraints
+                    all_constraints = tidy_constraints + table_settings
                 else:
                     all_constraints = dataset_relation_mapping[model_relation]
                 
@@ -192,7 +192,7 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
     
     # edge_attr = [all_constraints.index(elems[0]) for elems in data.edge_index]
     data.edge_index = [elem for elem in data.edge_index if elem[0] in all_constraints] # extract all the relations in model_relation
-    edge_attr =  [tidy_constraints.index(elems[0]) for elems in data.edge_index] # map the index of the relation to that in tidy_constraints
+    edge_attr =  [all_constraints.index(elems[0]) for elems in data.edge_index] # map the index of the relation to that in tidy_constraints
     edge_index = [elems[1:] for elems in data.edge_index]
 
     if visualize:

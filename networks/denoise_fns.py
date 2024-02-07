@@ -28,8 +28,9 @@ ignored_constraints = ['vertical_regular_grid', 'horizontal_regular_grid', 'alig
 tidy_constraints = ['horizontally_aligned', 'vertically_aligned', 'centered', 'centered_table', 'on_top_of', 'near_back_edge', 'near_front_edge',
                     'near_left_edge', 'near_right_edge', 'central_row', 'central_column', 'left_half', 'right_half', 'back_half', 
                     'front_half', "vertical_line_symmetry", "horizontal_line_symmetry", "vertical_symmetry_on_table", "horizontal_symmetry_on_table", "right_of_front", 
-                    "left_of_front", "right_of_back", "left_of_back", "horizontal_regular_grid", "vertical_regular_grid", "aligned_in_horizontal_line", "aligned_in_vertical_line",
-                    'study_table', 'dining_table', 'coffee_table']
+                    "left_of_front", "right_of_back", "left_of_back", "horizontal_regular_grid", "vertical_regular_grid", "aligned_in_horizontal_line", "aligned_in_vertical_line"]
+
+table_settings = ['study_table', 'dining_table', 'coffee_table']
 
 tidy_constraint_descriptions = ['two objects are horizontally aligned', 
                                 'two objects are vertically aligned', 
@@ -77,8 +78,45 @@ dataset_relation_mapping = {'horizontally_aligned': ['horizontally_aligned'], 'v
                             'symmetry': ['vertical_line_symmetry', 'vertical_symmetry_on_table', 'horizontal_line_symmetry', 'horizontal_symmetry_on_table'],
                             'next_to': ['left_of_front', 'right_of_front', 'left_of_back', 'right_of_back'],
                             'regular_grid': ['horizontal_regular_grid', 'vertical_regular_grid'],
-                            'aligned_in_horizontal_line': ['aligned_in_horizontal_line'], 'aligned_in_vertical_line': ['aligned_in_vertical_line']}
+                            'aligned_bottom_line': ['aligned_in_horizontal_line'], 'aligned_vertical_line': ['aligned_in_vertical_line']}
 
+coffee_table_composing_weights = {'horizontally_aligned': 1, 'vertically_aligned': 1, 'centered': 1, 'centered_table': 1, 
+                         'on_top_of': 1, 'near_back_edge': 1, 'near_front_edge':1, 'near_left_edge':1, 'near_right_edge':1, 
+                         'central_row': 0.7, 'central_column': 0.7, 'left_half': 0.7, 'right_half': 0.7, 'back_half': 1, 'front_half': 1, 
+                         "vertical_line_symmetry": 3, "horizontal_line_symmetry": 3, "vertical_symmetry_on_table": 3, 
+                         "horizontal_symmetry_on_table": 3, "right_of_front": 1, "left_of_front": 1, "right_of_back": 1, "left_of_back": 1,
+                        "horizontal_regular_grid": 4, "vertical_regular_grid": 4, "aligned_in_horizontal_line": 1, "aligned_in_vertical_line": 1}
+
+
+# dining_table_composing_weights = {'horizontally_aligned': 1, 'vertically_aligned': 3, 'centered': 2, 'centered_table': 1, 
+#                          'on_top_of': 1, 'near_back_edge': 3, 'near_front_edge':3, 'near_left_edge':1, 'near_right_edge':1, 
+#                          'central_row': 1, 'central_column':1, 'left_half': 0.7, 'right_half': 0.7, 'back_half': 1, 'front_half': 1, 
+#                          "vertical_line_symmetry": 3, "horizontal_line_symmetry": 4, "vertical_symmetry_on_table": 3, 
+#                          "horizontal_symmetry_on_table": 4, "right_of_front": 4, "left_of_front": 4, "right_of_back": 4, "left_of_back": 4,
+#                         "horizontal_regular_grid": 5, "vertical_regular_grid": 5, "aligned_in_horizontal_line": 5, "aligned_in_vertical_line": 5}
+
+
+study_table_composing_weights = {'horizontally_aligned': 2, 'vertically_aligned': 2, 'centered': 1, 'centered_table': 1, 
+                         'on_top_of': 1, 'near_back_edge': 1, 'near_front_edge':1, 'near_left_edge':1, 'near_right_edge':1, 
+                         'central_row': 1.3, 'central_column':1.3, 'left_half': 1, 'right_half': 1, 'back_half': 1, 'front_half': 1, 
+                         "vertical_line_symmetry": 1, "horizontal_line_symmetry": 1, "vertical_symmetry_on_table":1, 
+                         "horizontal_symmetry_on_table": 1, "right_of_front": 2, "left_of_front": 2, "right_of_back": 2, "left_of_back": 2,
+                        "horizontal_regular_grid": 1, "vertical_regular_grid": 1, "aligned_in_horizontal_line": 3, "aligned_in_vertical_line": 3}
+
+
+dining_table_composing_weights = {'horizontally_aligned': 1, 'vertically_aligned': 1, 'centered': 1, 'centered_table': 1, 
+                         'on_top_of': 1, 'near_back_edge': 1, 'near_front_edge':1, 'near_left_edge':1, 'near_right_edge':1, 
+                         'central_row': 1, 'central_column':1, 'left_half': 1, 'right_half': 1, 'back_half': 1, 'front_half': 1, 
+                         "vertical_line_symmetry": 1, "horizontal_line_symmetry": 2, "vertical_symmetry_on_table":2, 
+                         "horizontal_symmetry_on_table": 1, "right_of_front": 3, "left_of_front": 3, "right_of_back": 3, "left_of_back": 3,
+                        "horizontal_regular_grid": 1, "vertical_regular_grid": 1, "aligned_in_horizontal_line": 3, "aligned_in_vertical_line": 3}
+
+composing_weights = {'horizontally_aligned': 1, 'vertically_aligned': 1, 'centered': 1, 'centered_table': 1, 
+                         'on_top_of': 1, 'near_back_edge': 1, 'near_front_edge':1, 'near_left_edge':1, 'near_right_edge':1, 
+                         'central_row': 1, 'central_column':1, 'left_half': 1, 'right_half': 1, 'back_half': 1, 'front_half': 1, 
+                         "vertical_line_symmetry": 1, "horizontal_line_symmetry": 2, "vertical_symmetry_on_table":2, 
+                         "horizontal_symmetry_on_table": 1, "right_of_front": 3, "left_of_front": 3, "right_of_back": 3, "left_of_back": 3,
+                        "horizontal_regular_grid": 1, "vertical_regular_grid": 1, "aligned_in_horizontal_line": 3, "aligned_in_vertical_line": 3}
 def has_single_arity(edge_attr):
     for edge in edge_attr:
         if int(edge) in [3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]:
@@ -118,7 +156,7 @@ class ComposedEBMDenoiseFn(nn.Module):
     """ wrapper around ConstraintDiffuser as a composition of diffusion models """
 
     def __init__(self, model_name="Diffusion-CCSP", input_mode="tidy", dims=((2, 0, 2), (2, 2, 4)), hidden_dim=256, device='cuda', relation_sets=None, 
-                 EBM="MALA", pretrained=False, normalize=True, energy_wrapper=True, verbose=True, ebm_per_steps=1, eval_only=False):
+                 EBM="MALA", pretrained=False, normalize=True, energy_wrapper=True, verbose=True, ebm_per_steps=1, eval_only=False, evaluate_relation=None):
         super().__init__()
         self.model_name = model_name
         self.dims = dims
@@ -172,6 +210,18 @@ class ComposedEBMDenoiseFn(nn.Module):
             self.models = self.initiate_denoise_fn()
         elif self.model_name == "StructDiffusion":
             self.models = self.initiate_structformer()
+
+        print(evaluate_relation)
+        pdb.set_trace()
+        if evaluate_relation is not None and "table" in evaluate_relation:
+            if "study" in evaluate_relation:
+                self.composing_weights = study_table_composing_weights
+            elif "dining" in evaluate_relation:
+                self.composing_weights = dining_table_composing_weights
+            elif "coffee" in evaluate_relation:
+                self.composing_weights = coffee_table_composing_weights
+        else:
+            self.composing_weights = composing_weights
 
     def neg_logp_unnorm(self, poses_in, batch, t, **kwargs):
         # poses_in.requires_grad_(True)
@@ -318,7 +368,7 @@ class ComposedEBMDenoiseFn(nn.Module):
 
         return all_energy_out, all_counts_out
 
-    def _add_constraints_outputs(self, input_dict, outputs, all_poses_out, all_counts_out, pos_relation):
+    def _add_constraints_outputs(self, input_dict, outputs, all_poses_out, all_counts_out, relation, pos_relation):
         
         # batch_size
         n_features = all_poses_out.shape[0]
@@ -335,12 +385,16 @@ class ComposedEBMDenoiseFn(nn.Module):
 
         if pos_relation is False:
             outputs = -outputs
+        
+        composing_w = self.composing_weights[relation]
+        outputs = outputs * composing_w
 
         all_poses_out.scatter_add_(0, args.unsqueeze(-1).expand(outputs.shape), outputs)
 
         ## take the average of the output pose features of each object
         if all_counts_out is not None:
-            all_counts_out += torch.bincount(args, minlength=n_features).to(self.device)
+            weighted_added_counts = torch.bincount(args, minlength=n_features).to(self.device) * composing_w
+            all_counts_out += weighted_added_counts
 
         return all_poses_out, all_counts_out
     
@@ -417,7 +471,7 @@ class ComposedEBMDenoiseFn(nn.Module):
                 self._compute_energy(input_dict, outputs, all_energy_out, all_counts_out, pos_relation=True)
             else:
                 outputs = model(poses_in, input_dict, t)
-                self._add_constraints_outputs(input_dict, outputs, all_poses_out, all_counts_out, pos_relation=True) ##
+                self._add_constraints_outputs(input_dict, outputs, all_poses_out, all_counts_out, relation, pos_relation=True) ##
 
         if tag == 'EBM' and self.energy_wrapper:
 

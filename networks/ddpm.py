@@ -345,7 +345,7 @@ class GaussianDiffusion(nn.Module):
         for j in reversed(range(0, self.num_timesteps)):
             
             if self.extra_denoising_steps:
-                repeated_denosing = 3
+                repeated_denosing = 7
             else:
                 repeated_denosing = 1
             
@@ -695,13 +695,14 @@ class Trainer(object):
                     ## for each set of objects, we add-noise + denoise 3 times
                     for k in range(tries[m]):
                     
-                        if m == 0 and len(succeeded_graph_indices) == self.num_test_samples:
-                            break
-                        elif m == 1:
-                            k += tries[0]
+                        # if m == 0 and len(succeeded_graph_indices) == self.num_test_samples:
+                        #     break
+                        # elif m == 1:
+                        #     k += tries[0]
                             # if n in succeeded_graph_indices:
                             #     continue
-
+                        if m == 1:
+                            k += tries[0]
                         batch = data.clone()
                         world_dims = batch.world_dims[0]
                         all_failure_modes[k] = {}
@@ -817,7 +818,7 @@ class Trainer(object):
                                     #     edge_index -= (offset-1)
                                     # else:
                                     edge_index -= offset
-                                    constraints = tidy_constraint_from_edge_attr(edge_attr, edge_index)
+                                    constraints = tidy_constraint_from_edge_attr(edge_attr, edge_index, self.model.denoise_fn.model_name)
                                     render_kwargs.update(dict(constraints=constraints))
 
                                 evaluations, success_ratio = render_world_from_graph(features, **render_kwargs)
