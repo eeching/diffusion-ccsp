@@ -57,7 +57,8 @@ if __name__ == '__main__':
     # next_to
     # regular_grid
 
-    model = "StructDiffusion"
+    # model = "StructDiffusion"
+    model = "Diffusion-CCSP"
     energy_wrapper = False
     model_relation = "all_composed_None"
     evaluate_relation = model_relation

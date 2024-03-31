@@ -126,23 +126,32 @@ class DataCollector(object):
         counts = defaultdict(int)
         min_n = self.scene_sampler_args['min_num_objects']
         max_n = self.scene_sampler_args['max_num_objects']
+
         if 'tidy' in input_mode:
             self.scene_sampler_args['input_mode'] = input_mode
             self.scene_sampler_args['relation'] = relation
 
         scene_sampler_args = copy.deepcopy(self.scene_sampler_args)
         count_threshold = math.ceil(n / (max_n - min_n + 1))
-        if max_n <= 10:
-            count_threshold = math.ceil(n / (max_n - min_n + 1)) 
-        elif min_n < 12:
-            count_threshold = math.ceil(0.9 * n / (10 - min_n + 1))
-            count_threshold_ = math.ceil(0.1 * n / (max_n - 12 + 1))
-        else: 
-            count_threshold_ = math.ceil(n / (max_n - 12 + 1))
+
+        if input_mode == "tidy":
+            if max_n <= 10:
+                count_threshold = math.ceil(n / (max_n - min_n + 1)) 
+            elif min_n < 12:
+                count_threshold = math.ceil(0.9 * n / (10 - min_n + 1))
+                count_threshold_ = math.ceil(0.1 * n / (max_n - 12 + 1))
+            else: 
+                count_threshold_ = math.ceil(n / (max_n - 12 + 1))
+        elif input_mode == "clustered":
+            if relation == "2D_regular" and min_n < 11 and max_n > 11:
+                count_threshold = math.ceil(n / (max_n - min_n))
+            else:
+                count_threshold = math.ceil(n / (max_n - min_n + 1))
     
-        if "regular_grid" not in relation:
+        if input_mode == "tidy" and "regular_grid" not in relation:
             current_n = min_n
             scene_sampler_args['max_num_objects'] = current_n 
+
         for t in tqdm(range(n)):
             t = t * shake_per_world
             data_path = join(raw_dir, f'data_{t}.pt')
@@ -172,7 +181,7 @@ class DataCollector(object):
                     if newly_generated is not False:
                         break
                 ## balancing the dataset for the boxes dataset
-                if balance_data and "regular_grid" not in relation and t >= 15:
+                if input_mode == "tidy" and balance_data and "regular_grid" not in relation and t >= 15:
                     n_objects = len(world.tiles)
                     
                     counts[n_objects] += 1
@@ -189,6 +198,20 @@ class DataCollector(object):
                         
                         if scene_sampler_args['min_num_objects'] > scene_sampler_args['max_num_objects']:
                             scene_sampler_args['max_num_objects'] = scene_sampler_args['min_num_objects']
+                elif input_mode == "clustered" and balance_data:
+                    n_objects = len(world.tiles)
+                    counts[n_objects] += 1
+                
+
+                    if counts[n_objects] >= count_threshold:
+                        if n_objects == 10:
+                            scene_sampler_args['min_num_objects'] = n_objects + 2
+                        else:
+                            scene_sampler_args['min_num_objects'] = n_objects + 1
+                        
+                        if scene_sampler_args['min_num_objects'] > scene_sampler_args['max_num_objects']:
+                            scene_sampler_args['max_num_objects'] = scene_sampler_args['min_num_objects']
+
 
                 s = t
                 shake_scenes_gen = world.shake_scenes_gen(num=shake_per_world-1, is_generator=True)

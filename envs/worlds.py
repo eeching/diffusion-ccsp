@@ -17,14 +17,14 @@ from numpy.random import rand
 
 from envs.mesh_utils import CLOUD, create_tray, create_grid_meshes, Rotation2D, \
     get_color, fit_shape_in_bounds, transform_by_constraints, RENDER_PATH, \
-    add_shape, regions_to_meshes, BLACK, R, get_color_name, triangles_to_meshes, \
+    add_shape, regions_to_meshes, clustered_regions_to_meshes, BLACK, R, get_color_name, triangles_to_meshes, \
     reorganize_points, CLOUD, RAINBOW_COLORS, get_area, is_inside, save_mesh, \
     reorganize_points_2, RAINBOW_COLOR_NAMES
 from envs.data_utils import get_grid_index, get_grid_offset, save_graph_data, get_grids_offsets, \
     print_line, compute_pairwise_collisions, apply_grid_mask, print_tensor, grid_offset_to_pose, r, \
-    compute_world_constraints, expand_unordered_constraints, compute_tidy_constraints, get_ordered_constraints
+    compute_world_constraints, expand_unordered_constraints, compute_tidy_constraints, get_ordered_constraints, compute_clustered_constraints
 from envs.render_utils import export_gif
-from envs.builders import get_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen, get_tidy_data_gen
+from envs.builders import get_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen, get_tidy_data_gen, get_cluster_data_gen
 
 
 def get_world_class(world_name):
@@ -202,8 +202,12 @@ class CSPWorld(object):
             'name': self.name,
             'verbose_constraints':[],
             'objects': {},
-            'constraints': constraints
-        })
+            'constraints': constraints,
+            'w': self.w,
+            'l': self.l,
+            'h': self.h, 
+            'regions': [],
+            'areas': []})
       
         scene = self.get_scene()
         for name, mesh in scene.geometry.items():
@@ -281,7 +285,7 @@ class CSPWorld(object):
                         grid_label = get_grid_offset(mesh.centroid, self.w, self.l, self.grid_size)
                 world['objects'][name]['grid_label'] = grid_label
 
-        """ compute constraints """
+        """ compute constraints """ 
         if model_relation == 'customized_2' or model_relation == 'customized_4' or model_relation == 'customized_5' or model_relation == 'customized_3':
             filename = 'tmp_1.json'
             with open(filename) as json_file:
@@ -319,6 +323,12 @@ class CSPWorld(object):
         if 'qualitative' in input_mode:
             scale = min([self.w / 3, self.l / 2])
             world = compute_world_constraints(world, rotations=self.rotations, same_order=same_order, scale=scale)
+
+        if "cluster" in input_mode:
+            scale = min([self.w / 3, self.l / 2])
+            world['collisions'] = self.check_collisions_in_scene(world['objects'], verbose=False)
+            world = compute_pairwise_collisions(world)
+            world = compute_clustered_constraints(world, rotations=self.rotations, scale=scale, relation=model_relation)
 
         """ compute pairwise collisions """
         if 'collisions' in input_mode or 'diffuse_pairwise' in input_mode:
@@ -376,6 +386,14 @@ class CSPWorld(object):
                 shape_features = [w, l]
                 pose_feature = pose_feature[:2] + [np.sin(yaw), np.cos(yaw)]
             elif isinstance(self, RandomSplitSparseWorld):
+                w, l = shape_features[:2]
+                yaw = np.pi / 2
+                if l > w:
+                    l, w = shape_features[:2]
+                    yaw = np.pi
+                shape_features = [w, l]
+                pose_feature = pose_feature[:2] + [np.sin(yaw), np.cos(yaw)]
+            elif isinstance(self, RandomSplitTidyWorld):
                 w, l = shape_features[:2]
                 yaw = np.pi / 2
                 if l > w:
@@ -923,6 +941,79 @@ class RandomSplitSparseWorld(RandomSplitWorld):
         self.tidy_constraints = constraints
         super().construct_scene_from_graph_data(nodes, **kwargs)
 
+
+class RandomSplitTidyWorld(RandomSplitWorld):
+    """ 
+    Randomly sample a sub region of the box to split the boxes. This is to ensure that the dataset has more variability in the locations of the boxes.
+    c-free is ensured by randomly splitting the boxes.
+    three different types of the tidy clusters
+    1. 2D planar regular cluster
+    2. 2D planar irregular cluster
+    3. 3D stacking with 2D planar cluster
+    4. 3D stacking
+    """
+    def __init__(self, **kwargs):
+        super(RandomSplitTidyWorld, self).__init__(**kwargs)
+        self.regions = []
+        self.areas = []
+        self.rotations = {}
+
+    def sample_scene(self, min_num_objects=3, max_num_objects=16, relation="2D_regular", **kwargs):
+        """ first get region boxes from `get_tray_spliting_gen` """
+       
+        max_depth = math.ceil(math.log2(max_num_objects)) + 1 
+        gen = get_cluster_data_gen(num_samples=12, min_num_regions=min_num_objects, max_num_regions=max_num_objects)
+        regions, relation = next(gen(self.w, self.l, relation))
+        
+        meshes = clustered_regions_to_meshes(regions, self.w, self.l, self.h, relation=relation)
+    
+        self.tiles.extend(meshes)
+        return relation
+            
+    def get_current_constraints(self):
+        
+        data = self.generate_json(input_mode="clustered")
+        return data
+
+    def check_constraints_satisfied(self, **kwargs):
+       
+       
+        data = self.get_current_constraints() # current constraints satisfied
+        collisions = data['collisions']
+        regions = data['regions']
+        areas = data['areas']
+
+        clustered_flag = True
+
+        if len(collisions) == 0:
+           
+            for i in range(len(regions)):
+                X_0, X_1, Y_0, Y_1 = regions[i]
+                area = areas[i]
+                if (X_1 - X_0) * (Y_1 - Y_0) < area*1.3:
+                    clustered_flag *= True
+                else:
+                    clustered_flag *= False      
+        else:
+            clustered_flag = False  
+
+        if self.img_name is not None:
+            json_name = self.img_name.replace('.png', '.json')
+            world = {
+                'regions': regions,
+                'areas': areas,
+                'collisions': collisions,
+            }
+            # print('\n', self.img_name, missing)
+            # print('\t', current_constraints)
+            # print('\t', given_constraints)
+            self.generate_json(input_mode="clustered", json_name=json_name, world=world)
+        return collisions, [clustered_flag]
+
+    def construct_scene_from_graph_data(self, nodes, constraints=[], **kwargs):
+        """ give ground truth constraints to check if they are satisfied """
+        self.tidy_constraints = constraints
+        super().construct_scene_from_graph_data(nodes, **kwargs)
 
 class RandomSplitQualitativeWorld(RandomSplitWorld):
     """ tiles with extra labels such as

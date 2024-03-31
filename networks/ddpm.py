@@ -25,7 +25,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-from envs.data_utils import render_world_from_graph, print_tensor, constraint_from_edge_attr, tidy_constraint_from_edge_attr, translate_cfree_evaluations
+from envs.data_utils import render_world_from_graph, print_tensor, constraint_from_edge_attr, tidy_constraint_from_edge_attr, translate_cfree_evaluations, clustered_type_from_edge_attr
 from networks.denoise_fns import tidy_constraints, has_single_arity, ignored_constraints
 try:
     from apex import amp
@@ -343,7 +343,7 @@ class GaussianDiffusion(nn.Module):
             history = [pose_features]
 
         for j in reversed(range(0, self.num_timesteps)):
-            
+
             if self.extra_denoising_steps:
                 repeated_denosing = 7
             else:
@@ -402,7 +402,9 @@ class GaussianDiffusion(nn.Module):
     @torch.no_grad()
     def sample(self, batch, **kwargs):
         start = time.time()
+        pdb.set_trace()
         outputs = self.p_sample_loop(batch, **kwargs)
+        pdb.set_trace()
         passed = time.time() - start
         self.sample_loop_time.append(passed)
         if len(self.sample_loop_time) > 10:
@@ -670,10 +672,15 @@ class Trainer(object):
             sampling_time = []
             all_failure_modes = {}
             best_tries = {}
-
-            constraint_list = [c for c in tidy_constraints if c not in ignored_constraints]
-            for relation in constraint_list:
-                best_tries[relation] = dict()
+            
+            if "clustered" in self.input_mode:
+                from networks.denoise_fns import clustered_types
+                for relation in clustered_types:
+                    best_tries[relation] = dict()
+            else:
+                constraint_list = [c for c in tidy_constraints if c not in ignored_constraints]
+                for relation in constraint_list:
+                    best_tries[relation] = dict()
 
             percentage = 0
 
@@ -733,8 +740,14 @@ class Trainer(object):
                             print_out += f' (j = {graph_indices[0]})'
                         
                         for j in graph_indices: # graph indices corresponds to each test case
+
                             
-                            if j not in best_tries["horizontally_aligned"].keys():
+                            if "tidy" in self.input_mode:
+                                signal_type = "horizontally_aligned"
+                            elif "clustered" in self.input_mode:
+                                signal_type = "2D_regular"
+                            
+                            if j not in best_tries[signal_type].keys():
                                 for key in best_tries.keys():
                                     best_tries[key][j] = [None, 0]
 
@@ -821,6 +834,19 @@ class Trainer(object):
                                     constraints = tidy_constraint_from_edge_attr(edge_attr, edge_index, self.model.denoise_fn.model_name)
                                     render_kwargs.update(dict(constraints=constraints))
 
+                                if "clustered" in self.input_mode:
+
+                                    edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
+                                    edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
+                                    offset = edge_index.min() 
+
+                                    # if set(edge_attr.tolist()).issubset({tidy_constraints.index('symmetry_v'), tidy_constraints.index('symmetry_h')}):
+                                    #     edge_index -= (offset-1)
+                                    # else:
+                                    edge_index -= offset
+                                    constraints = clustered_type_from_edge_attr(edge_attr, edge_index, self.model.denoise_fn.model_name)
+                                    render_kwargs.update(dict(constraints=constraints))
+                                
                                 evaluations, success_ratio = render_world_from_graph(features, **render_kwargs)
                                 
                                 if verbose:
@@ -871,6 +897,17 @@ class Trainer(object):
                                 if return_history and self.visualize:  ##  and False
                                     self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
 
+                            elif 'clustered' in self.input_mode:
+
+                                from networks.denoise_fn import clustered_types
+                                all_failure_modes[k][j] = evaluations
+                               
+                                for key in best_tries.keys():
+                                    if success_ratio[key] > best_tries[key][j][1]:
+                                        best_tries[key][j] = [k, success_ratio[key]]
+
+                                if return_history and self.visualize:  ##  and False
+                                    self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
 
                             elif 'diffuse_pairwise' in self.input_mode:
                                 from envs.data_utils import yaw_from_sn_cs

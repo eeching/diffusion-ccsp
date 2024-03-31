@@ -330,11 +330,16 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
     else:
         from networks.denoise_fns import dataset_relation_mapping
         relation_sets = dataset_relation_mapping[model_relation]
+    # denoise_fn = ComposedEBMDenoiseFn(model_name=model, input_mode=input_mode, dims=dims, hidden_dim=hidden_dim, device='cuda', 
+    #                                   relation_sets=relation_sets, EBM=EBM, pretrained=pretrained, normalize=normalize, 
+    #                                   energy_wrapper=energy_wrapper, verbose=verbose, ebm_per_steps=ebm_per_steps, 
+    #                                   eval_only=eval_only, evaluate_relation=evaluate_relation).cuda()
+    
     denoise_fn = ComposedEBMDenoiseFn(model_name=model, input_mode=input_mode, dims=dims, hidden_dim=hidden_dim, device='cuda', 
                                       relation_sets=relation_sets, EBM=EBM, pretrained=pretrained, normalize=normalize, 
                                       energy_wrapper=energy_wrapper, verbose=verbose, ebm_per_steps=ebm_per_steps, 
-                                      eval_only=eval_only, evaluate_relation=evaluate_relation).cuda()
-    
+                                      eval_only=eval_only, evaluate_relation=evaluate_relation)
+
     diffusion = GaussianDiffusion(denoise_fn, timesteps=timesteps, EBM=EBM,
                                   samples_per_step=samples_per_step, step_sizes=step_sizes, extra_denoising_steps=extra_denoising_steps).cuda()
 

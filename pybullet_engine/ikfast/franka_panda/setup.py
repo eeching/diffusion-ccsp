@@ -15,12 +15,14 @@ from pybullet_engine.ikfast.compile import compile_ikfast
 sys.path.insert(0, dirname(dirname(__file__)))
 sys.argv[:] = sys.argv[:1] + ['build']
 
+base_folder = dirname(__file__)
+print(base_folder)
 
 def main():
     robot_name = 'panda_arm'
     compile_ikfast(
-        module_name='ikfast_{}'.format(robot_name),
-        cpp_filename='ikfast_{}.cpp'.format(robot_name),
+        module_name=f'ikfast_{robot_name}',
+        cpp_filename=f'{base_folder}/ikfast_{robot_name}.cpp',
         remove_build=True
     )
 

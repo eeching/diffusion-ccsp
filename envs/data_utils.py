@@ -201,6 +201,15 @@ def tidy_constraint_from_edge_attr(edge_attr, edge_index, model):
         constraints.append(constraint)
     return constraints
 
+def clustered_type_from_edge_attr(edge_attr, edge_index, model):
+    from networks.denoise_fns import clustered_types
+    clustered_relations = []
+    for i in range(len(edge_attr)):
+        typ = int(edge_attr[i].detach().cpu().numpy().item())
+        clustered_relation = tuple([clustered_types[typ]] + edge_index.T[i].detach().cpu().numpy().tolist()) # still use the index from the tidy constraints
+        clustered_relations.append(clustered_relation)
+    return clustered_relations
+
 
 def world_from_graph(nodes, world_name='ShapeSettingWorld', **kwargs):
     """ input_mode = 'grid_offset_mp4'
@@ -430,6 +439,15 @@ def compute_tidy_constraints(world, same_order=False, **kwargs):
         constraints = randomize_unordered_constraints(constraints)
     world['constraints'] += constraints
     world['verbose_constraints'] += verbose_constraints
+    return world
+
+def compute_clustered_constraints(world, relation, **kwargs):
+    objects = copy.deepcopy(world['objects'])
+    objects = {v['label']: v for k, v in objects.items()}  ##  if v['label'] not in ['bottom']
+    X_0, X_1, Y_0, Y_1, total_area = compute_clustered_atomic_constraints(objects, world['w'], world['l'], world['h'], relation, **kwargs)
+ 
+    world['regions'] += [(X_0, X_1, Y_0, Y_1)]
+    world['areas'] += [total_area]
     return world
 
 def randomize_unordered_constraints(constraints):
@@ -720,7 +738,7 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
     if model_relation is not None and model_relation == "survey_table":
         return [["central_column", 1]], [["central_column", 1]]
         
-    if model_relation is not None and ("study_table_" in model_relation or "dining_table_" in model_relation or "coffee_table_" in model_relation):
+    if model_relation is not None and "train" not in model_relation and ("study_table_" in model_relation or "dining_table_" in model_relation or "coffee_table_" in model_relation):
         
         table_type, _, mode = model_relation.split("_")
 
@@ -1065,6 +1083,51 @@ def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=
     if debug:
         summarize_constraints(constraints)
     return list(set(constraints)), list(set(verbose_constraints))
+
+def compute_clustered_atomic_constraints(objects, W, L, H, relation, rotations=None, scale=None, debug=False):
+
+    sides = ['east', 'west', 'north', 'south']
+    if debug:
+        print('scale', scale)
+        print('rotations', rotations)
+        pprint({k: {kk: r(vv) for kk, vv in v.items() if kk in ['extents', 'center']}
+                for k, v in objects.items() if k not in sides})
+        print()
+
+    
+    names = list(objects.keys())
+    tiles = ['bottom'] + [n for n in names if 'tile_' in n]
+    # print(rotations)
+
+    """ left, right, top, bottom """
+    X_0, Y_0, X_1, Y_1 = W, L, 0, 0
+    total_area = 0
+    for i in range(len(names)):
+        m = objects[names[i]]
+        if names[i] in ['bottom'] + sides:
+            continue
+        name = names[i] if 'tile_' in names[i] else 'bottom'
+
+        x1, y1, z1 = m['center']
+        lx1, ly1, lz1 = m['extents']
+        if rotations is not None and name in rotations:
+            rot = rotations[name]
+            if abs(abs(rot) - np.pi /2) < 0.1:
+                ly1, lx1, lz1 = m['extents']
+
+        x1_left = x1 - lx1 / 2
+        x1_right = x1 + lx1 / 2
+        y1_top = y1 + ly1 / 2
+        y1_bottom = y1 - ly1 / 2
+
+        X_0 = min(X_0, x1_left)
+        X_1 = max(X_1, x1_right)
+        Y_0 = min(Y_0, y1_bottom)
+        Y_1 = max(Y_1, y1_top)
+        total_area += lx1 * ly1
+
+    return X_0, Y_0, X_1, Y_1, total_area
+    
 
 def summarize_constraints(lst):
     data = defaultdict(list)

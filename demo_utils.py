@@ -24,13 +24,13 @@ from pybullet_engine.models.panda.panda_robot import PandaRobot
 from pybullet_engine.rotation_utils import compose_transformation
 from pybullet_engine.algorithms.rrt import smooth_path
 
-from config import DATASET_PATH, RENDER_PATH
+from envs.config import DATASET_PATH, RENDER_PATH
 from packing_models.assets import get_model_ids, load_asset_to_pdsketch, get_model_path, \
     get_instance_name
 from packing_models.bullet_utils import get_grasp_poses, set_pose, take_bullet_image, set_pose, \
     dump_json, get_datetime, draw_aabb, get_aabb, draw_goal_pose, get_pose, aabb_from_extent_center, \
     get_closest_points, parallel_processing, images_to_gif, save_image, get_bodies, equal, create_attachment
-from mesh_utils import DARKER_GREY, RAINBOW_COLOR_NAMES
+from envs.mesh_utils import DARKER_GREY, RAINBOW_COLOR_NAMES
 
 
 ## process name will be 'java' if ran inside the terminal in IDE

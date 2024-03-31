@@ -22,10 +22,10 @@ err = functools.partial(print, flush=True, file=sys.stderr)
 import pybullet_planning as pp
 from pybullet_engine.client import BulletClient
 
-from robot_data_monitor import get_dir_name_all_dirs
-from test_worlds import test_3d_box_split_world, test_2d_box_split_world
-from config import RENDER_PATH, DATASET_PATH
-from mesh_utils import DARKER_GREY
+from envs.robot_data_monitor import get_dir_name_all_dirs
+from envs.test_worlds import test_3d_box_split_world, test_2d_box_split_world
+from envs.config import RENDER_PATH, DATASET_PATH
+from envs.mesh_utils import DARKER_GREY
 from demo_utils import get_color, get_rainbow_colors, build_and_test_data, \
     build_and_test_test_data, DEMO_DIR, VideoSaver, has_ffmpeg, check_stable, \
     stability_given_solution_json, draw_world_bb, run_simulation, load_stability_shelf, \

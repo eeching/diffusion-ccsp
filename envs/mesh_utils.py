@@ -285,6 +285,46 @@ def regions_to_meshes(regions, width, length, height,
 
     return meshes
 
+
+def clustered_regions_to_meshes(regions, width, length, height, relation='2D_regular'):
+    
+    """ convert 2D regions [top, left, width, height] to 3D meshes centered at origin """
+
+    meshes = []
+    used_colors = []
+
+    for idx, region in enumerate(regions):
+       
+        x, y, w, l = region
+        z = 0
+        h = height
+       
+        # ps = np.random.uniform(max_offset*min_offset_perc, max_offset, 4)  ## padding [top, left, bottom, right]
+        # if "irregular" in relation:
+        ps = [0.025, 0.025, 0.025, 0.025]
+        # else:
+        #     ps = [0, 0, 0, 0]
+        
+        if w <= ps[1]+ps[3] or l <= ps[0]+ps[2]: # this will never happen for aligned_bottom
+            continue
+        w -= (ps[1]+ps[3])
+        x += ps[1]
+        l -= (ps[0]+ps[2])
+        y += ps[0]
+
+        mesh = box(extents=[w, l, h], transform=T([-width/2+x+w/2, -length/2+y+l/2, z+h/2]))
+        
+        color = get_color(used=used_colors, random_color=False)
+        used_colors.append(tuple(color))
+        mesh.visual.vertex_colors = color
+        mesh.metadata['label'] = f"tile_{len(meshes)}"
+      
+        meshes.append(mesh)
+
+    return meshes
+
+
+
 def load_panda_meshes(pose):
     import open3d as o3d
     import transformations as tf

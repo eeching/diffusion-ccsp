@@ -1495,7 +1495,7 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 book_4 = (0.23*W, 0.6*L, 0.04*W, 0.2*L)
                 mouse = (0.82*W, 0.4*L, 0.05*W, 0.1*L)
                 lamp = (0.8*W, 0.7*L, 0.2*W/3, 0.15*L)
-                obj_list = [laptop, book_1, book_2, book_3, book_4, mouse. lamp]
+                obj_list = [laptop, book_1, book_2, book_3, book_4, mouse, lamp]
                 names = ["laptop", "book_1", "book_2", "book_3", "book_4", "mouse", "lamp"]
 
             # external monitor 
@@ -1506,7 +1506,7 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 lamp = (0.8*W, 0.7*L, 0.2*W/3, 0.15*L)
                 mug = (0.9*W, 0.45*L, W/12, L/8)
                 obj_list = [monitor, laptop, mouse, lamp, mug]
-                names = ["monitor", "laptop", "keyboard", "mouse", "lamp", "mug"]
+                names = ["monitor", "laptop", "mouse", "lamp", "mug"]
             
             #external keyboard
             elif x == "3":
@@ -1591,8 +1591,8 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 names = ["vase", "candle_1", "candle_2", "book_1", "book_2", "book_3", "book_4", "tray", "keys", "remote_controller"]
             elif x == "2":  
                 # snack for sharing
-                snack_bowl_1 = (0.33 * W, 0.45*L, snack_bowl_w, snack_bowl_l)
-                snack_bowl_2 = (0.51 * W, 0.45*L, snack_bowl_w, snack_bowl_l)
+                snack_bowl_1 = (0.33 * W, 0.35*L, snack_bowl_w, snack_bowl_l)
+                snack_bowl_2 = (0.51 * W, 0.35*L, snack_bowl_w, snack_bowl_l)
                
                 tray = (0.6*W, 0.6*L, tray_w, tray_l)
                 keys = (0.65*W, 0.65*L, keys_w, keys_l)
@@ -1620,7 +1620,7 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 vase = (0.45*W, 0.425*L, vase_w, vase_l)
                 candle_1 = (0.36*W, 0.44*L, candle_w, candle_l)
                 candle_2 = (0.56*W, 0.44*L, candle_w, candle_l)
-                book = (0.33*W, 0.1*L, book_w, book_l)
+                book = (0.41*W, 0.03*L, book_w, book_l)
                 tray = (0.6*W, 0.6*L, tray_w, tray_l)
                 keys = (0.65*W, 0.65*L, keys_w, keys_l)
                 remote_controller = (0.77*W, 0.66*L, remote_controller_w, remote_controller_l)
@@ -1791,6 +1791,137 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
 
                 return object_list, relation, names
         
+        def dining_table_train(W, L, x, relation): 
+
+            serving_plate_w, serving_plate_l = 0.12*W, 0.18*L
+            napkin_w, napkin_l = 0.05*W, 0.24*L
+            fork_w, fork_l = 0.03*W, 0.22*L
+            knife_w, knife_l = 0.03*W, 0.22*L
+            spoon_w, spoon_l = 0.03*W, 0.2*L
+            chopsticks_w, chopsticks_l = 0.03*W, 0.22*L
+            glass_w, glass_l = 0.06*W, 0.09*L
+            medium_plate_w, medium_plate_l = 0.12*W, 0.18*L
+            small_plate_w, small_plate_l = 0.1*W, 0.15*L
+            rice_bowl_w, rice_bowl_l = 0.09*W, 0.12*L
+            ramen_bowl_w, ramen_bowl_l = 0.12*W, 0.18*L
+            seasoning_w, seasoning_l = 0.12*W, 0.1*L
+            baby_bowl_w, baby_bowl_l = 0.08*W, 0.12*L
+            baby_plate_w, baby_plate_l = 0.1*W, 0.15*L
+            baby_spoon_w, baby_spoon_l = 0.02*W, 0.15*L
+            baby_cup_w, baby_cup_l = 0.05*W, 0.07*L
+
+            front_base = 0.1*L
+            back_base = 0.9*L
+
+
+            if x == "1":
+                # dinner table for 1
+                serving_plate_1= (0.44*W, front_base, serving_plate_w, serving_plate_l)
+                napkin_1 = (0.35*W, front_base, napkin_w, napkin_l)
+                fork_1 = (0.36*W, front_base, fork_w, fork_l)
+                knife_1 = (0.59*W, front_base, knife_w, knife_l)
+                spoon_1 = (0.67*W, front_base, spoon_w, spoon_l)
+               
+                serving_plate_2 = (0.44*W, back_base - serving_plate_l, serving_plate_w, serving_plate_l)
+                napkin_2 = (0.60*W, back_base - napkin_l, napkin_w, napkin_l)
+                fork_2 = (0.61*W, back_base - fork_l, fork_w, fork_l)
+                knife_2 = (0.38*W, back_base - knife_l, knife_w, knife_l)
+                spoon_2 = (0.32*W, back_base - spoon_l, spoon_w, spoon_l)
+                
+                obj_list = [serving_plate_1, napkin_1, fork_1, knife_1, spoon_1, serving_plate_2, napkin_2, fork_2, knife_2, spoon_2]
+                names = ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1",
+                         "serving_plate_2", "napkin_2", "fork_2", "knife_2", "spoon_2"]
+            
+            if x == "2":
+                # chinese dinner table for 2
+                medium_plate_1 = (0.375*W, 0.41*L, medium_plate_w, medium_plate_l)
+                medium_plate_2 = (0.505*W, 0.41*L, medium_plate_w, medium_plate_l)
+                small_plate_1 = (0.45*W, front_base, small_plate_w, small_plate_l)
+                small_plate_2 = (0.45*W, back_base - small_plate_l, small_plate_w, small_plate_l)
+                rice_bowl_1 = (0.455*W, front_base + 0.015*L, rice_bowl_w, rice_bowl_l)
+                rice_bowl_2 = (0.455*W, back_base - 0.015*L - rice_bowl_l, rice_bowl_w, rice_bowl_l)
+                chopsticks_1 = (0.59*W, front_base, chopsticks_w, chopsticks_l)
+                chopsticks_2 = (0.38*W, back_base - chopsticks_l, chopsticks_w, chopsticks_l)
+                spoon_1 = (0.66*W, front_base, spoon_w, spoon_l)
+                spoon_2 = (0.31*W, back_base - spoon_l, spoon_w, spoon_l)
+                obj_list = [medium_plate_1, medium_plate_2, small_plate_1, small_plate_2, rice_bowl_1, rice_bowl_2, chopsticks_1, chopsticks_2, spoon_1, spoon_2]
+                names = ["medium_plate_1", "medium_plate_2", "small_plate_1", 
+                         "small_plate_2", "rice_bowl_1", "rice_bowl_2", "chopsticks_1", "chopsticks_2", "spoon_1", 
+                         "spoon_2"]
+            
+            if x == "3":
+                # dinner table for 2 same side
+                serving_plate_1= (0.17*W, front_base, serving_plate_w, serving_plate_l)
+                napkin_1 = (0.09*W, front_base, napkin_w, napkin_l)
+                fork_1 = (0.10*W, front_base, fork_w, fork_l)
+                knife_1 = (0.31*W, front_base, knife_w, knife_l)
+                spoon_1 = (0.35*W, front_base, spoon_w, spoon_l)
+               
+                serving_plate_2= (0.68*W, front_base, serving_plate_w, serving_plate_l)
+                napkin_2 = (0.60*W, front_base, napkin_w, napkin_l)
+                fork_2 = (0.61*W, front_base, fork_w, fork_l)
+                knife_2 = (0.82*W, front_base, knife_w, knife_l)
+                spoon_2 = (0.86*W, front_base, spoon_w, spoon_l)
+                seasoning_1 = (0.85*W, 0.62*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.85*W, 0.5*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.85*W, 0.38*L, seasoning_w, seasoning_l)
+                
+                obj_list = [serving_plate_1, napkin_1, fork_1, knife_1, spoon_1, serving_plate_2, napkin_2, fork_2, knife_2, spoon_2,
+                seasoning_1, seasoning_2, seasoning_3]
+                names = ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1", 
+                         "serving_plate_2", "napkin_2", "fork_2", "knife_2", "spoon_2",
+                          "seasoning_1",  "seasoning_2", "seasoning_3"]
+            
+            if x == "4":
+                # ramen set for 2, left-handed
+                ramen_bowl_1 = (0.44*W, front_base, ramen_bowl_w, ramen_bowl_l)
+                chopsticks_1 = (0.59*W, front_base, chopsticks_w, chopsticks_l)
+                spoon_1 = (0.64*W, front_base, spoon_w, spoon_l)
+                glass_1 = (0.70*W, front_base, glass_w, glass_l)
+
+                ramen_bowl_2 = (0.44*W, back_base - ramen_bowl_l, ramen_bowl_w, ramen_bowl_l)
+                chopsticks_2 = (0.59*W, back_base - chopsticks_l, chopsticks_w, chopsticks_l)
+                spoon_2 = (0.64*W, back_base - spoon_l, spoon_w, spoon_l)
+                glass_2 = (0.70*W, back_base - glass_l, glass_w, glass_l)
+
+                seasoning_1 = (0.85*W, 0.62*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.85*W, 0.5*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.85*W, 0.38*L, seasoning_w, seasoning_l)
+
+                obj_list = [ramen_bowl_1, chopsticks_1, spoon_1, glass_1, 
+                            ramen_bowl_2, chopsticks_2, spoon_2, glass_2, 
+                            seasoning_1, seasoning_2, seasoning_3]
+                names = ["ramen_bowl_1", "chopsticks_1", "spoon_1", "glass_1", 
+                         "ramen_bowl_2", "chopsticks_2", "spoon_2", "glass_2", "seasoning_1", 
+                         "seasoning_2", "seasoning_3"]
+                
+            if x == "5":
+                # dinner table for two with sharing dishes
+                serving_plate_1= (0.44*W, front_base, serving_plate_w, serving_plate_l)
+                napkin_1 = (0.35*W, front_base, napkin_w, napkin_l)
+                fork_1 = (0.36*W, front_base, fork_w, fork_l)
+                knife_1 = (0.59*W, front_base, knife_w, knife_l)
+                spoon_1 = (0.67*W, front_base, spoon_w, spoon_l)
+                medium_plate_1 = (0.375*W, 0.41*L, medium_plate_w, medium_plate_l)
+                medium_plate_2 = (0.505*W, 0.41*L, medium_plate_w, medium_plate_l)
+               
+                serving_plate_2 = (0.44*W, back_base - serving_plate_l, serving_plate_w, serving_plate_l)
+                napkin_2 = (0.60*W, back_base - napkin_l, napkin_w, napkin_l)
+                fork_2 = (0.61*W, back_base - fork_l, fork_w, fork_l)
+                knife_2 = (0.38*W, back_base - knife_l, knife_w, knife_l)
+                spoon_2 = (0.32*W, back_base - spoon_l, spoon_w, spoon_l)
+                seasoning_1 = (0.85*W, 0.62*L, seasoning_w, seasoning_l)
+                seasoning_2 = (0.85*W, 0.5*L, seasoning_w, seasoning_l)
+                seasoning_3 = (0.85*W, 0.38*L, seasoning_w, seasoning_l)
+                obj_list = [serving_plate_1, napkin_1, fork_1, knife_1, spoon_1, serving_plate_2, napkin_2, fork_2, knife_2, spoon_2, medium_plate_1, medium_plate_2, 
+                seasoning_1, seasoning_2, seasoning_3]
+                names = ["serving_plate_1", "napkin_1", "fork_1", "knife_1", "spoon_1",
+                         "serving_plate_2", "napkin_2", "fork_2", "knife_2", "spoon_2",
+                         "medium_plate_1", "medium_plate_2", "seasoning_1", "seasoning_2",
+                         "seasoning_3"]
+                
+            return obj_list, relation, names
+
         def evaluate(method_name, table_type, x):
             import json
             with open(f"./tmp/result/{method_name}/{table_type}_table_obj_list.json", "r") as f:
@@ -1868,6 +1999,18 @@ def get_tidy_data_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_
                 regions, relation_mode = get_aligned_bottom_line()
             elif relation == "aligned_vertical_line":   
                 regions, relation_mode = get_aligned_vertical_line()
+            elif "dining_table_train" in relation:
+                print("which idx")
+                x = input()
+                regions, relation_mode, names = dining_table_train(W, L, x, relation)
+            elif "study_table_train" in relation:
+                print("which idx")
+                x = input()
+                regions, relation_mode, names = study_table_train(W, L, x, relation)
+            elif "coffee_table_train" in relation:
+                print("which idx")
+                x = input()
+                regions, relation_mode, names = coffee_table_train(W, L, x, relation)
             elif "dining_table" in relation:
                 print("which idx")
                 x = input()
@@ -1958,6 +2101,203 @@ def get_sub_region_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num
         yield None
         
     return gen
+
+def get_cluster_data_gen(num_samples=40, min_num_regions=3, max_num_regions=16, default_min_size=0.05):
+    
+    Region = Tuple[float, float, float, float] # x, y, w, l
+
+    def partition(box: Region, depth: int = 3) -> Iterable[Region]:
+        if rand() < 0.15 or depth == 0 or box[2] < 0.15 or box[3] < 0.15:
+            yield box
+
+        else:
+            if rand() < 0.5:
+                axis = 0
+            else:
+                axis = 1
+
+            split_point = rand() * (box[axis + 2] * 0.6)
+            padding = 0.2 * box[axis + 2]
+            if axis == 0:
+                yield from partition((box[0], box[1], split_point + padding, box[3]), depth - 1)
+                yield from partition((box[0] + split_point + padding, box[1], box[2] - split_point - padding, box[3]), depth - 1)
+            else:
+                yield from partition((box[0], box[1], box[2], split_point + padding), depth - 1)
+                yield from partition((box[0], box[1] + split_point + padding, box[2], box[3] - split_point - padding), depth - 1)
+
+
+    def filter_regions(regions: Iterable[Region], min_size: float) -> Iterable[Region]:
+        
+        if len(regions) == 0:
+            return regions
+        else:
+            return [r for r in regions if r[2] > min_size and r[3] > min_size]
+
+    def gen(W, L, relation, offset=0.05):
+
+        min_size = min([W, L]) / 2 * default_min_size
+
+        def get_base_region():
+
+            w, l = rn.uniform(0.3, 0.5)*W, rn.uniform(0.3, 0.5)*L
+
+            x_0, y_0 = rn.uniform(0, W - w), rn.uniform(0.3*L, L - l)
+
+            return x_0, y_0, w, l
+
+        def get_2D_regular():
+
+            x_0, y_0, w_0, l_0 = get_base_region()
+
+            padding = 0.025
+
+            def _get_unit_sub_regions(x_cut, y_cut, mac_region):
+                x_0, y_0, w_0, l_0 = mac_region
+                sub_regions = []
+                for i in range(x_cut):
+                    for j in range(y_cut):
+                        sub_regions.append((x_0 + i*w_0/x_cut + padding, y_0 + j*l_0/y_cut + padding, 
+                                               w_0/x_cut - 2*padding, l_0/y_cut-2*padding))
+
+                sub_regions = filter_regions(sub_regions, min_size)
+
+                return  sub_regions, len(sub_regions) == x_cut * y_cut
+            
+            flag = False
+
+            while not flag:
+            
+                m = rn.choice([3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 16])
+                
+                mac_region = (x_0, y_0, w_0, l_0)
+            
+                if m == 3:
+                    if w_0 > l_0:
+                        x_cut, y_cut = 3, 1
+                    else:
+                        x_cut, y_cut = 1, 3
+
+                elif m == 4: # 2,2 
+                    x_cut, y_cut = 2, 2
+
+                elif m == 5:
+                    if w_0 > l_0:
+                        x_cut, y_cut = 5, 1
+                    else:
+                        y_cut, x_cut = 5, 1
+                    
+                elif m == 6: # 2,3
+                    if w_0 > l_0:
+                        x_cut, y_cut = 3, 2
+                    else:
+                        x_cut, y_cut = 2, 3
+
+                elif m == 7:
+                    if w_0 > l_0:
+                        x_cut, y_cut = 7, 1
+                    else:
+                        x_cut, y_cut = 1, 7
+                            
+                elif m == 8: # 2,4
+                    if w_0 > l_0:
+                        x_cut, y_cut = 4, 2
+                    else:
+                        x_cut, y_cut = 2, 4
+
+                elif m == 9:
+                    x_cut, y_cut = 3, 3
+
+                elif m == 10:
+                    if w_0 > l_0:
+                        x_cut, y_cut = 5, 2
+                    else:
+                        x_cut, y_cut = 2, 5
+                elif m == 12:
+                    if w_0 > l_0:
+                        if w_0 > 1.5*l_0:
+                            x_cut, y_cut = 6, 2
+                        else:
+                            x_cut, y_cut = 3, 4
+                    else:
+                        if l_0 > 1.5*w_0:
+                            x_cut, y_cut = 2, 6
+                        else:
+                            x_cut, y_cut = 4, 3
+                elif m == 14: 
+                    if w_0 > l_0:
+                        x_cut, y_cut = 7, 2
+                    else:
+                        x_cut, y_cut = 2, 7   
+                elif m == 15:
+                    if w_0 > l_0:
+                        x_cut, y_cut = 5, 3
+                    else:
+                        x_cut, y_cut = 3, 5
+
+                elif m == 16:
+                    x_cut, y_cut = 4, 4
+                
+                
+                sub_regions, flag = _get_unit_sub_regions(x_cut, y_cut, mac_region)
+
+    
+            return sub_regions, f"2D_regular_{x_cut}_{y_cut}"
+        
+        def get_2D_irregular():
+
+            x_0, y_0, w_0, l_0 = get_base_region()
+
+            regions = []
+
+            max_depth = rn.choice([2, 3, 4])
+
+            for region in partition((x_0, y_0, w_0, l_0), max_depth):
+                regions.append(region)
+
+            print(len(regions))
+            # pdb.set_trace()
+
+            return regions, f"2D_irregular_{len(regions)}"
+        
+        def get_3D_stacking():
+            return [], []
+        
+        def get_3D_stacking_2D_regular():
+            return [], []
+        
+        def get_3D_stacking_2D_irregular():
+            return [], []
+
+        while True:
+            if relation == "2D_regular":
+                regions, relation_mode = get_2D_regular()
+            elif relation == "2D_irregular":
+                regions, relation_mode = get_2D_irregular()
+            elif relation == "3D_stacking":
+                regions, relation_mode = get_3D_stacking()
+            elif relation == "3D_stacking_2D_regular":
+                regions, relation_mode = get_3D_stacking_2D_regular()
+            elif relation == "3D_stacking_2D_irregular":
+                regions, relation_mode = get_3D_stacking_2D_irregular()
+           
+            try:
+                regions = filter_regions(regions, min_size)
+            except:
+                pdb.set_trace()
+            
+            count = num_samples
+
+            if min_num_regions <= len(regions) <= max_num_regions:
+                count -= 1
+                print(len(regions), "added!")
+                yield regions, relation_mode
+            if count == 0:
+                break
+        yield None
+        
+    return gen
+
+
 
 
 def test_tray_splitting():

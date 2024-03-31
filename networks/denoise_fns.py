@@ -117,6 +117,9 @@ composing_weights = {'horizontally_aligned': 1, 'vertically_aligned': 1, 'center
                          "vertical_line_symmetry": 1, "horizontal_line_symmetry": 2, "vertical_symmetry_on_table":2, 
                          "horizontal_symmetry_on_table": 1, "right_of_front": 3, "left_of_front": 3, "right_of_back": 3, "left_of_back": 3,
                         "horizontal_regular_grid": 1, "vertical_regular_grid": 1, "aligned_in_horizontal_line": 3, "aligned_in_vertical_line": 3}
+
+clustered_types = ["2D_regular", "2D_irregular", "3D_stacking", "3D_stacking_2D_regular", "3D_stacking_2D_irregular"]
+
 def has_single_arity(edge_attr):
     for edge in edge_attr:
         if int(edge) in [3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]:
@@ -241,7 +244,7 @@ class ComposedEBMDenoiseFn(nn.Module):
                 text = clip.tokenize([con]).to(device)
                 text_features = clip_model.encode_text(text)
                 self.language_embedding.append(text_features)
-        # self.language_embedding = torch.cat(self.language_embedding, dim=0)
+        self.language_embedding = torch.cat(self.language_embedding, dim=0)
 
     def initiate_denoise_fn(self):
 
