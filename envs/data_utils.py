@@ -126,7 +126,6 @@ def save_graph_data(nodes, edge_index, labels, data_path):
         labels = [0] * len(nodes)
     data = Data(x=torch.tensor(nodes, dtype=torch.float), edge_index=edge_index,
                 y=torch.tensor(np.asarray(labels), dtype=torch.float))
-    
     torch.save(data, data_path)
 
 
@@ -431,6 +430,15 @@ def compute_world_constraints(world, same_order=False, **kwargs):
     world['constraints'] += constraints
     return world
 
+def compute_bedroom_constraints(world, same_order=False, **kwargs):
+    objects = copy.deepcopy(world['objects'])
+    objects = {v['label']: v for k, v in objects.items()}  ##  if v['label'] not in ['bottom']
+    constraints = compute_bedroom_atomic_constraints(objects, **kwargs)
+    if not same_order:
+        constraints = randomize_unordered_constraints(constraints)
+    world['constraints'] += constraints
+    return world
+
 def compute_tidy_constraints(world, same_order=False, **kwargs):
     objects = copy.deepcopy(world['objects'])
     objects = {v['label']: v for k, v in objects.items()}  ##  if v['label'] not in ['bottom']
@@ -693,6 +701,371 @@ def compute_qualitative_constraints(objects, rotations=None, debug=False, scale=
     # print()
     if debug:
         summarize_constraints(constraints)
+    return constraints
+
+def compute_bedroom_atomic_constraints(objects, rotations=None, debug=True, scale=1, test_only=False, model_relation=None, composed_relation=None, generating_data=True):
+    """ 
+    Given a dictionary of objects, compute the atomic constraints between them.
+    """
+    W, L = 3 * scale, 4 * scale  # Room dimensions, adjust for scale
+    epsilon = 0.1 * scale  # small threshold for numerical comparisons
+
+    # Function to map rotation angle to the closest standard orientation
+    def map_rotation_to_closest(x):
+        targets = [-np.pi/2, 0, np.pi/2, np.pi]
+        for target in targets:
+            if abs(x - target) < 0.1:
+                return target
+        return x
+
+    # Function to get bounding box of an object
+    def get_bounding_box(obj):
+        x_center, y_center = obj['center'][:2]
+        width, length = obj['extents'][:2]
+        angle = obj['rotation_angle']
+        angle = map_rotation_to_closest(angle)
+        if angle in [0, np.pi]:
+            # Aligned along x and y axes
+            min_x = x_center - width / 2 + W/2
+            max_x = x_center + width / 2 + W/2
+            min_y = y_center - length / 2 + L/2
+            max_y = y_center + length / 2 + L/2
+        elif angle in [np.pi / 2, -np.pi / 2]:
+            # Width and length swapped
+            min_x = x_center - length / 2 + W/2
+            max_x = x_center + length / 2 + W/2
+            min_y = y_center - width / 2 + L/2
+            max_y = y_center + width / 2 + L/2
+        else:
+            raise ValueError(f'Invalid rotation angle: {angle}')
+        return min_x, max_x, min_y, max_y
+
+    sides = ['east', 'west', 'north', 'south']
+    if debug:
+        print('scale', scale)
+        pprint({k: {kk: round(vv, 2) if isinstance(vv, float) else vv 
+                for kk, vv in v.items() if kk in ['extents', 'center', 'rotation_angle']}
+                for k, v in objects.items() if k not in sides})
+        print()
+
+    names = list(objects.keys())
+    tiles = ['bottom'] + [n for n in names if 'tile_' in n]
+
+    constraints = []  # a list of atomic constraints
+
+    # Store walls each object is against
+    object_walls = {}
+
+    # Store walls each object is facing
+    object_facing_walls = {}
+
+    # Extract window information if present
+    window = objects.get('tile_0', None)
+    assert window["name"] == "window"
+    if window:
+        window_center_x, window_center_y = window['center'][:2] 
+        
+        window_walls = []
+        if abs(window_center_x + W/2) <= epsilon:
+            window_walls.append('left-wall')
+        if abs(window_center_x - W/2) <= epsilon:
+            window_walls.append('right-wall')
+        if abs(window_center_y + L/2) <= epsilon:
+            window_walls.append('front-wall')
+        if abs(window_center_y - L/2) <= epsilon:
+            window_walls.append('back-wall')
+        if window_walls:
+            window_wall = window_walls[0]  # Assuming window is on one wall
+        else:
+            window_wall = None
+    else:
+        window_wall = None
+    
+    # Iterate over all objects
+    for i in range(len(names)):
+        m = objects[names[i]]
+        name1 = names[i]
+        if names[i] == 'bottom' or names[i] in sides or m.get('name', '') == 'window':
+            continue
+
+        x1, y1, z1 = m['center']
+        w1, l1, h1 = m['extents']
+        rotation_angle_1 = m['rotation_angle']  # rotation in (x, y) plane
+
+        rotation_angle_1 = map_rotation_to_closest(rotation_angle_1)
+        m['rotation_angle'] = rotation_angle_1  # Update rotation angle
+
+        if rotation_angle_1 == 0:
+            object_facing_walls[name1] = ['back-wall']
+        elif rotation_angle_1 == np.pi / 2:
+            object_facing_walls[name1] = ['left-wall']
+        elif rotation_angle_1 == np.pi:
+            object_facing_walls[name1] = ['front-wall']
+        elif rotation_angle_1 ==  - np.pi / 2:
+            object_facing_walls[name1] = ['right-wall']
+
+        # Compute bounding box
+        min_x1, max_x1, min_y1, max_y1 = get_bounding_box(m)
+
+        # Distance to walls
+        dist_left_wall = min_x1  # x = 0
+        dist_right_wall = W - max_x1  # x = W
+        dist_front_wall = min_y1  # y = 0
+        dist_back_wall = L - max_y1  # y = L
+
+        # Check if the object is against each wall
+        walls = []
+
+        if abs(dist_left_wall) <= epsilon:
+            # Check orientation
+            expected_angle = np.pi / 2  # Facing positive x
+            if rotation_angle_1 == expected_angle:
+                walls.append('left-wall')
+                constraints.append((f"against-left-wall", tiles.index(name1)))
+        if abs(dist_right_wall) <= epsilon:
+            expected_angle = -np.pi / 2  # Facing negative x
+            if rotation_angle_1 == -np.pi / 2:
+                walls.append('right-wall')
+                constraints.append((f"against-right-wall", tiles.index(name1)))
+        if abs(dist_front_wall) <= epsilon:
+            expected_angle = np.pi  # Facing negative y
+            if rotation_angle_1 == expected_angle:
+                walls.append('front-wall')
+                constraints.append((f"against-front-wall", tiles.index(name1)))
+
+        if abs(dist_back_wall) <= epsilon:
+            expected_angle = 0  # Facing positive y
+            if rotation_angle_1 == 0 or rotation_angle_1 == 2 * np.pi:
+                walls.append('back-wall')
+                constraints.append((f"against-back-wall", tiles.index(name1)))
+
+        object_walls[name1] = walls  # Store walls for binary constraints
+
+        assert len(walls) <= 1  # Object can be against at most one wall
+
+        # Check relative position along the wall
+        if walls:
+            wall = walls[0]  # Assume the first wall if object is against multiple walls
+            if wall == 'back-wall':
+                # Wall extends along x from 0 to W
+                if max_x1 < W / 2:
+                    constraints.append(("left-of-wall", tiles.index(name1)))
+                elif min_x1 > W / 2:
+                    constraints.append(("right-of-wall", tiles.index(name1)))
+                elif abs(x1) <= epsilon:
+                    constraints.append(("center-of-wall", tiles.index(name1)))
+            elif wall == 'front-wall':
+                # Wall extends along x from 0 to W
+                if max_x1 < W / 2:
+                    constraints.append(("right-of-wall", tiles.index(name1)))
+                elif min_x1 > W / 2:
+                    constraints.append(("left-of-wall", tiles.index(name1)))
+                elif abs(x1) <= epsilon:
+                    constraints.append(("center-of-wall", tiles.index(name1)))
+            elif wall == 'left-wall':
+                # Wall extends along y from 0 to L
+                if max_y1 < L / 2:
+                    constraints.append(("left-of-wall", tiles.index(name1)))
+                elif min_y1 > L / 2:
+                    constraints.append(("right-of-wall", tiles.index(name1)))
+                elif abs(y1) <= epsilon:
+                    constraints.append(("center-of-wall", tiles.index(name1)))
+            elif wall == 'right-wall':
+                # Wall extends along y from 0 to L
+                if max_y1 < L / 2:
+                    constraints.append(("right-of-wall", tiles.index(name1)))
+                elif min_y1 > L / 2:
+                    constraints.append(("left-of-wall", tiles.index(name1)))
+                elif abs(y1) <= epsilon:
+                    constraints.append(("center-of-wall", tiles.index(name1)))
+
+        
+        # Check for object under window
+        if window and walls and window_wall == walls[0]:
+            # Check alignment along the wall
+            if window_wall in ['back-wall', 'front-wall']:
+                # Check x alignment
+                if abs(x1 - window_center_x) <= epsilon:
+                    constraints.append(("under-window", tiles.index(name1), tiles.index('tile_0')))
+            elif window_wall in ['left-wall', 'right-wall']:
+                # Check y alignment
+                if abs(y1 - window_center_y) <= epsilon:
+                    constraints.append(("under-window", tiles.index(name1), tiles.index('tile_0')))
+
+        # Check if object is at the center of the room
+        if abs(x1) <= epsilon and abs(y1) <= epsilon:
+            constraints.append(("at-center", tiles.index(name1)))
+
+        # Check if object is at any corner
+        corners = {
+            "not_rotated": {
+            'front-left-corner': (w1/2 - W/2, l1/2 - L/2),
+            'front-right-corner': (W-w1/2 - W/2, l1/2 - L/2),
+            'back-left-corner': (w1/2 - W/2, L-l1/2 - L/2),
+            'back-right-corner': (W-w1/2 - W/2, L-l1/2 - L/2)
+            },
+            "rotated": {
+            'front-left-corner': (l1/2 - W/2, w1/2 - L/2),
+            'front-right-corner': (W-l1/2 - W/2, w1/2 - L/2),
+            'back-left-corner': (l1/2 - W/2, L-w1/2 - L/2),
+            'back-right-corner': (W-l1/2 - W/2, L-w1/2 - L/2)
+            }
+        }
+
+        rotation_sign = "rotated" if abs(rotation_angle_1) in [-np.pi/2, np.pi/2] else "not_rotated"
+        for corner_name, (xc, yc) in corners[rotation_sign].items():
+            if abs(x1 - xc) <= epsilon and abs(y1 - yc) <= epsilon:
+                constraints.append((f"at-{corner_name}", tiles.index(name1)))
+                break  # Object cannot be at more than one corner
+
+    # Check binary constraints
+    for i in range(len(names)):
+        m = objects[names[i]]
+        name1 = names[i]
+        if names[i] == 'bottom' or names[i] in sides or m.get('name', '') == 'window':
+            continue
+
+        x1, y1, z1 = m['center']
+        w1, l1, h1 = m['extents']
+        rotation_angle_1 = m['rotation_angle']
+        rotation_angle_1 = map_rotation_to_closest(rotation_angle_1)
+        min_x1, max_x1, min_y1, max_y1 = get_bounding_box(m)
+        walls1 = object_walls.get(name1, [])
+        facing_walls1 = object_facing_walls.get(name1, [])
+
+        for j in range(i + 1, len(names)):
+            n = objects[names[j]]
+            name2 = names[j]
+            if names[j] == 'bottom' or names[j] in sides or n.get('name', '') == 'window':
+                continue
+
+            x2, y2, z2 = n['center']
+            w2, l2, h2 = n['extents']
+            rotation_angle_2 = n['rotation_angle']
+            rotation_angle_2 = map_rotation_to_closest(rotation_angle_2)
+            min_x2, max_x2, min_y2, max_y2 = get_bounding_box(n)
+            walls2 = object_walls.get(name2, [])
+            facing_walls2 = object_facing_walls.get(name2, [])
+
+            # Check if both objects are against the same wall
+            common_walls = set(walls1) & set(walls2)
+            common_facing_walls = set(facing_walls1) & set(facing_walls2)
+
+            for wall in common_walls:
+                # Check for left-touching
+                if wall in ['back-wall', 'front-wall']:
+                    # Objects extend along x-axis
+                    if abs(max_x1 - min_x2) <= epsilon:
+                        y_overlap = min(max_y1, max_y2) - max(min_y1, min_y2)
+                        if y_overlap > epsilon:
+                            if wall == 'back-wall':
+                                constraints.append(("left-touching", tiles.index(name1), tiles.index(name2)))
+                            else:
+                                constraints.append(("left-touching", tiles.index(name2), tiles.index(name1)))
+                    elif abs(max_x2 - min_x1) <= epsilon:
+                        y_overlap = min(max_y1, max_y2) - max(min_y1, min_y2)
+                        if y_overlap > epsilon:
+                            if wall == 'back-wall':
+                                constraints.append(("left-touching", tiles.index(name2), tiles.index(name1)))
+                            else:
+                                constraints.append(("left-touching", tiles.index(name1), tiles.index(name2)))
+
+                    # Check for left-of
+                    max_distance = max(min(3 * 0.2, max(w1, w2) * 0.35), 0.5)
+                    
+                    if epsilon < (min_x2 - max_x1) <= max_distance:
+                        y_overlap = min(max_y1, max_y2) - max(min_y1, min_y2)
+                        if y_overlap > epsilon:
+                            if wall == 'back-wall':
+                                constraints.append(("left-of", tiles.index(name1), tiles.index(name2)))
+                            else:
+                                constraints.append(("left-of", tiles.index(name2), tiles.index(name1)))
+                    elif epsilon < (min_x1 - max_x2) <= max_distance:
+                        y_overlap = min(max_y1, max_y2) - max(min_y1, min_y2)
+                        if y_overlap > epsilon:
+                            if wall == 'back-wall':
+                                constraints.append(("left-of", tiles.index(name2), tiles.index(name1)))
+                            else: 
+                                constraints.append(("left-of", tiles.index(name1), tiles.index(name2)))
+
+                elif wall in ['left-wall', 'right-wall']:
+                    # Objects extend along y-axis
+                    if abs(max_y1 - min_y2) <= epsilon:
+                        x_overlap = min(max_x1, max_x2) - max(min_x1, min_x2)
+                        if x_overlap > epsilon:
+                            if wall == 'left-wall':
+                                constraints.append(("left-touching", tiles.index(name1), tiles.index(name2)))
+                            else:
+                                constraints.append(("left-touching", tiles.index(name2), tiles.index(name1)))
+                    elif abs(max_y2 - min_y1) <= epsilon:
+                        x_overlap = min(max_x1, max_x2) - max(min_x1, min_x2)
+                        if x_overlap > epsilon:
+                            if wall == 'left-wall':
+                                constraints.append(("left-touching", tiles.index(name2), tiles.index(name1)))
+                            else:
+                                constraints.append(("left-touching", tiles.index(name1), tiles.index(name2)))
+
+                    # Check for left-of
+                    max_distance = max(min(4 * 0.2, max(l1, l2) * 0.35), 0.5)
+                    if epsilon < (min_y2 - max_y1) <= max_distance:
+                        x_overlap = min(max_x1, max_x2) - max(min_x1, min_x2)
+                        if x_overlap > epsilon:
+                            if wall == 'left-wall':
+                                constraints.append(("left-of", tiles.index(name1), tiles.index(name2)))
+                            else:
+                                constraints.append(("left-of", tiles.index(name2), tiles.index(name1)))
+                    elif epsilon < (min_y1 - max_y2) <= max_distance:
+                        x_overlap = min(max_x1, max_x2) - max(min_x1, min_x2)
+                        if x_overlap > epsilon:
+                            if wall == 'left-wall':
+                                constraints.append(("left-of", tiles.index(name2), tiles.index(name1)))
+                            else:
+                                constraints.append(("left-of", tiles.index(name1), tiles.index(name2)))
+
+            for wall in common_facing_walls:
+                # Check for in-front-of
+                if wall == 'back-wall':
+                    max_spacing = max(min(0.3 * l1, 0.2), 0.5)
+                    if min_y2 >= max_y1 and min_y2 - max_y1 <= max_spacing: # Object 2 is against the back wall
+                        if abs(x1 - x2) <= epsilon:
+                            constraints.append(("in-front-of", tiles.index(name2), tiles.index(name1)))
+                    max_spacing = min(0.3 * l2, 0.2)
+                    if min_y1 >= max_y2 and min_y1 - max_y2 <= max_spacing:
+                        if abs(x1 - x2) <= epsilon:
+                            constraints.append(("in-front-of", tiles.index(name1), tiles.index(name2)))
+                elif wall == 'front-wall':        
+                    max_spacing = max(min(0.3 * l1, 0.2), 0.5)
+                    if max_y2 <= min_y1 and min_y1 - max_y2 <= max_spacing: # Object 2 is against the front wall
+                        if abs(x1 - x2) <= epsilon:
+                            constraints.append(("in-front-of", tiles.index(name2), tiles.index(name1)))
+                    max_spacing = max(min(0.3 * l2, 0.2), 0.5)
+                    if max_y1 <= min_y2 and min_y2 - max_y1 <= max_spacing:
+                        if  abs(x1 - x2) <= epsilon:
+                            constraints.append(("in-front-of", tiles.index(name1), tiles.index(name2)))   
+                elif wall == 'left-wall':
+                    max_spacing = max(min(0.3 * l1, 0.2), 0.5)
+                    if min_x1 >= max_x2 and min_x1 - max_x2 <= max_spacing: # Object 2 is against the left wall
+                        if abs(y1 - y2) <= epsilon:
+                            constraints.append(("in-front-of", tiles.index(name2), tiles.index(name1)))
+                    max_spacing = max(min(0.3 * l2, 0.2), 0.5)
+                    if min_x2 >= max_x1 and min_x2 - max_x1 <= max_spacing:
+                        if abs(y1 - y2) <= epsilon:
+                            constraints.append(("in-front-of", tiles.index(name1), tiles.index(name2)))
+                elif wall == 'right-wall':
+                    max_spacing = max(min(0.3 * l1, 0.2), 0.5)
+                    if max_x1 <= min_x2 and min_x2 - max_x1 <= max_spacing: # Object 2 is against the right wall
+                        if abs(y1 - y2) <= epsilon:
+                            constraints.append(("in-front-of", tiles.index(name2), tiles.index(name1)))
+                    max_spacing = max(min(0.3 * l2, 0.2), 0.5)
+                    if max_x2 <= min_x1 and min_x1 - max_x2 <= max_spacing:
+                        if abs(y1 - y2) <= epsilon:
+                            constraints.append(("in-front-of", tiles.index(name1), tiles.index(name2)))
+                
+    if debug:
+        print("Constraints:")
+        for c in constraints:
+            print(c)
+
     return constraints
 
 def compute_tidy_atomic_constraints(objects, rotations=None, debug=False, scale=1, test_only=False, model_relation=None, composed_relation=None, generating_data=False): # if the relation is None, compute all relations, if not, only compute the specified relations

@@ -46,17 +46,7 @@ class DataCollector(object):
             name += f"_{label}"
         from networks.denoise_fns import tidy_constraints
         ## accounting for data distribution
-        if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode:
-            class_counts = defaultdict(int)
-        else:
-            classes = []
-            if input_mode == 'collisions':
-                n_classes = 2
-                classes = range(n_classes)
-            elif 'grid' in input_mode:
-                n_classes = int(world.w/world.grid_size) * int(world.l/world.grid_size)
-                classes = range(n_classes)
-            class_counts = {k: 0 for k in classes}
+        class_counts = defaultdict(int)
 
         ## dataset directory
         if relation == 'all':
@@ -108,6 +98,7 @@ class DataCollector(object):
                 return False
             
             c = world.generate_pt(data=data, data_path=data_path, verbose=verbose, input_mode=input_mode, **kwargs)
+            
             for k, v in c.items():
                 class_counts[k] += v
 
@@ -124,16 +115,17 @@ class DataCollector(object):
 
         n = n // shake_per_world
         counts = defaultdict(int)
-        min_n = self.scene_sampler_args['min_num_objects']
-        max_n = self.scene_sampler_args['max_num_objects']
+        if self.world_class.__name__ != "RandomBedroomWorld":
+            min_n = self.scene_sampler_args['min_num_objects']
+            max_n = self.scene_sampler_args['max_num_objects']
+            count_threshold = math.ceil(n / (max_n - min_n + 1))
 
         if 'tidy' in input_mode:
             self.scene_sampler_args['input_mode'] = input_mode
             self.scene_sampler_args['relation'] = relation
 
         scene_sampler_args = copy.deepcopy(self.scene_sampler_args)
-        count_threshold = math.ceil(n / (max_n - min_n + 1))
-
+        
         if input_mode == "tidy":
             if max_n <= 10:
                 count_threshold = math.ceil(n / (max_n - min_n + 1)) 
@@ -251,7 +243,6 @@ class DataCollector(object):
             print(class_weights)
         print('saved', dataset_dir)
 
-
 def get_data_collection_args(world_name='RandomSplitWorld', input_mode='diffuse_pairwise',
                              num_worlds=10, verbose=False, num_shakes=1, data_type='train',
                              min_num_objects=2, max_num_objects=5, pngs=False, jsons=False,
@@ -312,7 +303,10 @@ def generate_train_dataset(args=None, debug=False, save_meshes=False, same_order
         args = get_data_collection_args(**kwargs)
     # scene_sampler_args = dict(min_num_objects=2, max_num_objects=2)
 
-    scene_sampler_args = dict(min_num_objects=args.min_num_objects, max_num_objects=args.max_num_objects, relation=args.relation)
+    if args.world_name == "RandomBedroomWorld":
+        scene_sampler_args = dict(relation=args.relation, input_mode=args.input_mode)
+    else:
+        scene_sampler_args = dict(min_num_objects=args.min_num_objects, max_num_objects=args.max_num_objects, relation=args.relation)
 
     print(args.pngs, args.jsons)
 
@@ -340,16 +334,25 @@ def generate_test_dataset(args=None, pngs=True, jsons=True,
     world_class = get_world_class(args.world_name)
     kwargs.update(dict(input_mode=args.input_mode, shake_per_world=1,
                        pngs=args.pngs, jsons=args.jsons, verbose=False))
-    for i in range(args.min_num_objects, args.max_num_objects + 1):
-        if "regular_grid" in args.relation and i not in [4, 6, 8, 9, 10, 12, 13, 14, 15, 16]:
-            continue
-        if args.relation == 'all' and i == 11:
-            continue
-        scene_sampler_args = dict(min_num_objects=i, max_num_objects=i, relation=args.relation)
+
+    if args.world_name == "RandomBedroomWorld":
+        scene_sampler_args = dict(relation=args.relation, input_mode=args.input_mode)
         collector = DataCollector(world_class, world_args=args.world_args, scene_sampler_args=scene_sampler_args)
-        collector.collect(args.num_worlds, label=f'{args.input_mode}_test_{i}_split', pngs=args.pngs, jsons=args.jsons,
-                          save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, 
-                          test_only=True, relation=args.relation, composed_relation=args.composed_relation)
+        collector.collect(args.num_worlds, label=f'{args.input_mode}_test', pngs=args.pngs, jsons=args.jsons,
+                        save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, 
+                        test_only=True, relation=args.relation, composed_relation=args.composed_relation)
+    else:
+        
+        for i in range(args.min_num_objects, args.max_num_objects + 1):
+            if "regular_grid" in args.relation and i not in [4, 6, 8, 9, 10, 12, 13, 14, 15, 16]:
+                continue
+            if args.relation == 'all' and i == 11:
+                continue
+            scene_sampler_args = dict(min_num_objects=i, max_num_objects=i, relation=args.relation)
+            collector = DataCollector(world_class, world_args=args.world_args, scene_sampler_args=scene_sampler_args)
+            collector.collect(args.num_worlds, label=f'{args.input_mode}_test_{i}_split', pngs=args.pngs, jsons=args.jsons,
+                            save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, 
+                            test_only=True, relation=args.relation, composed_relation=args.composed_relation)
 
 
 ######################## tests ############################

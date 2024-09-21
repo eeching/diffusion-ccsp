@@ -323,7 +323,59 @@ def clustered_regions_to_meshes(regions, width, length, height, relation='2D_reg
 
     return meshes
 
+def convert_regions_to_meshes(meta_regions, W, L, H, relation):
+    
+    """ convert 2D regions [x, y, w, l, rotation_angle] to 3D meshes centered at origin """
 
+    meshes = []
+    used_colors = []
+
+    for idx, meta_region in enumerate(meta_regions):
+
+        region, relation = meta_region
+       
+        x, y, w, l, rotation_angle = region
+        z = 0
+        h = H
+        # Step 1: Create a box mesh with the given dimensions
+        mesh = box(extents=(w, l, h))
+
+        if rotation_angle % np.pi != 0:
+            centroid_x, centroid_y = x + l/2, y + w/2
+        else:
+            centroid_x, centroid_y = x + w/2, y + l/2
+        # Step 2: Create the translation matrix for (x, y, l) transformation
+        # translation_vector = np.array([-W/2+x+w/2, -L/2+y+l/2, z+h/2])
+        translation_vector = np.array([-W/2 + centroid_x, -L/2 + centroid_y, z+h/2])
+        translation_matrix = np.eye(4)
+        translation_matrix[:3, 3] = translation_vector
+
+        # Step 4: Create the rotation matrix based on the selected angle
+        rotation_matrix = trimesh.transformations.rotation_matrix(
+            rotation_angle, 
+            direction=[0, 0, 1], 
+            point=mesh.centroid
+        )
+
+        # Step 5: Combine translation and rotation matrices
+        transformation_matrix = translation_matrix @ rotation_matrix
+
+        # Step 6: Apply the transformation to the box mesh
+        mesh.apply_transform(transformation_matrix)
+        
+        color = get_color(used=used_colors, random_color=False)
+        used_colors.append(tuple(color))
+        mesh.visual.vertex_colors = color
+        mesh.metadata['label'] = f"tile_{len(meshes)}"
+        mesh.metadata['w'] = w
+        mesh.metadata['l'] = l
+        mesh.metadata['rotation_angle'] = rotation_angle
+        if len(relation) > 0 and relation[0] == "window" or relation[0] == "door":
+            mesh.metadata['name'] = relation[0]
+
+        meshes.append(mesh)
+
+    return meshes
 
 def load_panda_meshes(pose):
     import open3d as o3d

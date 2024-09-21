@@ -8,7 +8,8 @@ import math
 from envs.data_utils import compute_qualitative_constraints, summarize_constraints, r as rd
 import pdb
 from networks.denoise_fns import tidy_constraints_dict
-
+from typing import Tuple, List, Dict
+import random as rn
 
 def get_tray_splitting_gen(num_samples=40, min_num_regions=2, max_num_regions=6, max_depth=3, default_min_size=0.3):
 
@@ -2297,15 +2298,747 @@ def get_cluster_data_gen(num_samples=40, min_num_regions=3, max_num_regions=16, 
         
     return gen
 
-
-
-
 def test_tray_splitting():
     gen = get_tray_splitting_gen(num_samples=2)
     for boxes in gen(4, 3):
         print(boxes)
+                
+def get_bedroom_data_gen(num_samples, window_loc=None, door_loc=None, furniture_num=None, bedroom_dim=(3, 4), relation="against-wall"):
+    
+    # A bedroom is a rectangle with width W and length L that can be read from bedroom_dim
+    # It has four walls: "back-wall", "right-wall", "front-wall", "left-wall" 
+    # It has four corners: "back-left-corner", "back-right-corner", "front-left-corner", "front-right-corner"
+    # For each wall, it has three relative sides: "left", "right", "center"
+    # The relative side is viewed from the center of the room facing that wall, therefore the left for the back-wall and front-wall is reversed, similarly for the left-wall and right-wall
+    # The front-left-corner is with coordinates (0, 0), the back-right-corner is with coordinates (W, L)
 
+    # Furniture_region is a tuple of 5 floats: (x, y, w, l, orientation)
+    # (x, y) is the coordinate of the lower left corner of the furniture, w is the width, l is the length, orientation is the angle of the furniture, 0 means the furniture is facing the back wall, Pi/2 means the furniture is facing the right wall.
+   
+    Furniture_region = Tuple[float, float, float, float, float]  
+    
+    def get_furniture_dim(furniture_type = None, furniture_num = 1, along_same_wall = False, wall_index=None, room_dim=(3, 4)):
+        # Return the dims of the furniture
+        furniture_dims = []
+        if furniture_type == "window":
+            # Create window dim (width only)
+            window_width = rn.uniform(0.5, 1.5)
+            return window_width
+        elif furniture_type == "door":
+            # Create door dim (width only)
+            door_width = rn.uniform(0.8, 1.2)
+            return door_width
+        elif along_same_wall:
+            # Create furniture_num of furnitures that fit along the wall_index
+            wall_length = room_dim[0] if wall_index in ["back-wall", "front-wall"] else room_dim[1]
+            max_total_width = wall_length * 0.9
+            min_furniture_width = wall_length * 0.1
+            max_furniture_width = wall_length * 0.5
 
+            widths = []
+            total_width = 0
+            for _ in range(furniture_num):
+                remaining_width = max_total_width - total_width
+                if remaining_width <= 0:
+                    break
+                width = rn.uniform(min_furniture_width, min(max_furniture_width, remaining_width))
+                total_width += width
+                widths.append(width)
+            furniture_num = len(widths)  # Update furniture_num in case we couldn't fit all
+
+            # Now, generate lengths and orientations
+            for width in widths:
+                max_furniture_length = min(room_dim[1], room_dim[0]) * 0.4
+                min_furniture_length = max_furniture_length * 0.5
+                length = rn.uniform(min_furniture_length, max_furniture_length)
+                if wall_index in ["back-wall", "front-wall"]:
+                    orientation = 0 if wall_index == "back-wall" else math.pi
+                else:
+                    orientation = math.pi / 2 if wall_index == "left-wall" else -math.pi/2
+                furniture_dims.append((width, length, orientation))
+            return furniture_dims
+        else:
+            for _ in range(furniture_num):
+                max_furniture_width = min(room_dim) * 0.35
+                max_furniture_length = max(room_dim) * 0.35
+                min_furniture_width = max_furniture_width * 0.2
+                min_furniture_length = max_furniture_length * 0.2
+                width = rn.uniform(min_furniture_width, max_furniture_width)
+                length = rn.uniform(min_furniture_length, max_furniture_length)
+                if wall_index in ["back-wall", "front-wall"]:
+                    orientation = 0 if wall_index == "back-wall" else math.pi
+                else:
+                    orientation = math.pi / 2 if wall_index == "left-wall" else -math.pi/2
+                furniture_dims.append((width, length, orientation))
+            return furniture_dims
+
+    def init_bedroom_layout(bedroom_dim, window_loc, door_loc):
+        W, L = bedroom_dim
+
+        if window_loc is None:
+            window_wall_index = rn.choice(["back-wall", "front-wall", "left-wall", "right-wall"])
+        else:
+            window_wall_index = window_loc
+
+        # window_loc is a string indicating the wall index of the window, the window center would be on the middle of the wall
+        window_region, window_wall_index = get_window_location(bedroom_dim, window_wall_index)
+        regions = [(window_region, ["window", f"againts-{window_wall_index}"])]
+        # door_loc is a tuple of string, the first indicates the wall index of the door, the second indicates if the door center is on the left or right side of the wall, viewed from the room center.
+        if door_loc is not None:
+            door_region, door_wall_index, door_side = get_door_location(bedroom_dim, door_loc)
+            regions.append((door_region, ["door", f"against-{door_wall_index}", f"{door_side}_of_wall"]))
+            door_info = (door_region, door_wall_index, door_side)
+        else:
+            door_info = None
+
+        return {"window": (window_region, window_wall_index), "door": None}, regions
+      
+    def get_window_location(bedroom_dim, window_loc):
+        W, L = bedroom_dim
+        window_width = get_furniture_dim(furniture_type="window", room_dim=bedroom_dim)
+        window_length = 0.1
+        wall_index = window_loc
+        # Calculate the region tuple for the window based on its dim, the wall index, and the wall_length
+        if wall_index == "back-wall":
+            x_center = W / 2
+            orientation = 0
+            x = x_center - window_width / 2
+            y = L 
+        elif wall_index == "front-wall":
+            x_center = W / 2
+            orientation = math.pi
+            x = x_center - window_width / 2
+            y = 0 - window_length
+        elif wall_index == "left-wall":
+            y_center = L / 2
+            orientation = math.pi / 2
+            x = 0 - window_length
+            y = y_center - window_width / 2
+        elif wall_index == "right-wall":
+            y_center = L / 2
+            orientation = -math.pi / 2
+            x = W 
+            y = y_center - window_width / 2
+        else:
+            raise ValueError("Invalid wall index for window location")
+        window_region = (x, y, window_width, 0.1, orientation)
+        return window_region, wall_index
+
+    def get_door_location(bedroom_dim, door_loc):
+        W, L = bedroom_dim
+        wall_index, door_side = door_loc
+        door_width = get_furniture_dim(furniture_type="door", room_dim=bedroom_dim)
+        if wall_index == "back-wall":
+            y = L
+            if door_side == "left":
+                x = 0
+            elif door_side == "right":
+                x = W - door_width
+            elif door_side == "center":
+                x = (W - door_width) / 2
+            else:
+                raise ValueError("Invalid door side")
+            orientation = 0
+        elif wall_index == "front-wall":
+            y = 0
+            if door_side == "left":
+                x = W - door_width
+            elif door_side == "right":
+                x = 0
+            elif door_side == "center":
+                x = (W - door_width) / 2
+            else:
+                raise ValueError("Invalid door side")
+            orientation = math.pi
+        elif wall_index == "left-wall":
+            x = 0
+            if door_side == "left":
+                y = 0
+            elif door_side == "right":
+                y = L - door_width
+            elif door_side == "center":
+                y = (L - door_width) / 2
+            else:
+                raise ValueError("Invalid door side")
+            orientation = math.pi / 2
+        elif wall_index == "right-wall":
+            x = W
+            if door_side == "left":
+                y = L - door_width
+            elif door_side == "right":
+                y = 0
+            elif door_side == "center":
+                y = (L - door_width) / 2
+            else:
+                raise ValueError("Invalid door side")
+            orientation = -math.pi / 2
+        else:
+            raise ValueError("Invalid wall index for door location")
+        door_region = (x, y, door_width, 0.1, orientation)
+        return door_region, wall_index, door_side
+
+    def get_furniture_locations_against_wall(furniture_num, wall_index=None, rel_side=None, room_dim=(3, 4)):
+        W, L = room_dim
+        regions = []
+        # Step 1: determine the wall_index if not provided
+        if wall_index is None:
+            wall_index = rn.choice(["back-wall", "right-wall", "front-wall", "left-wall"])
+        
+        # Step 2: create the furniture dims that can fit into the same wall
+        furniture_dims = get_furniture_dim(furniture_num=furniture_num, along_same_wall=True, wall_index=wall_index, room_dim=room_dim)
+        furniture_num = len(furniture_dims)
+
+        if rel_side:
+            assert len(rel_side) == furniture_num and furniture_num <= 3
+            # For each side ("left", "center", "right"), collect the furniture assigned to that side
+            side_furniture_map = {"center": [], "left": [], "right": []}
+            for i, side in enumerate(rel_side):
+                side_furniture_map[side].append(i)
+            
+            # Start by placing the 'center' furniture
+            placed_regions = {}
+            if side_furniture_map["center"]:
+                idx = side_furniture_map["center"][0]  # Assuming only one center furniture
+                width, length, _ = furniture_dims[idx]
+                if wall_index in ["back-wall", "front-wall"]:
+                    x = (W - width) / 2 + np.random.uniform(-0.1, 0.1)
+                    y = L - length if wall_index == "back-wall" else 0
+                    orientation = 0 if wall_index == "back-wall" else math.pi
+                else:
+                    y = (L - width) / 2 + np.random.uniform(-0.1, 0.1)
+                    x = 0 if wall_index == "left-wall" else W - length
+                    orientation = math.pi / 2 if wall_index == "left-wall" else -math.pi / 2
+                region = (x, y, width, length, orientation)
+                regions.append((region, [f"against-{wall_index}", "center_of_wall"]))
+                placed_regions[idx] = region
+                center_furniture_dims = (x, y, width, length)
+            else:
+                center_furniture_dims = None
+            
+            def place_side_furniture(side):
+                indices = side_furniture_map[side]
+                if not indices:
+                    return
+                if wall_index in ["back-wall", "front-wall"]:
+                    wall_length = W
+                    if side == "left":
+                        x_start = 0
+                        if center_furniture_dims:
+                            x_end = center_furniture_dims[0] - 0.01
+                        else:
+                            x_end = (W / 2) - 0.01
+                    else:  # side == "right"
+                        if center_furniture_dims:
+                            x_start = center_furniture_dims[0] + center_furniture_dims[2] + 0.01
+                        else:
+                            x_start = (W / 2) + 0.01  # Slight buffer
+                        x_end = W
+                    orientation = 0 if wall_index == "back-wall" else math.pi
+                    y = L - max([furniture_dims[i][1] for i in indices]) if wall_index == "back-wall" else 0
+                else:
+                    wall_length = L
+                    if side == "left":
+                        y_start = 0
+                        if center_furniture_dims:
+                            y_end = center_furniture_dims[1] - 0.01
+                        else:
+                            y_end = (L / 2) - 0.01  # Slight buffer
+                    else:  # side == "right"
+                        if center_furniture_dims:
+                            y_start = center_furniture_dims[1] + center_furniture_dims[2] + 0.01
+                        else:
+                            y_start = (L / 2) + 0.01  # Slight buffer
+                        y_end = L
+                    orientation = math.pi / 2 if wall_index == "left-wall" else -math.pi / 2
+                    x = 0 if wall_index == "left-wall" else W - max([furniture_dims[i][1] for i in indices])
+                
+                available_length = (x_end - x_start) if wall_index in ["back-wall", "front-wall"] else (y_end - y_start)
+                widths = [furniture_dims[i][0] for i in indices]
+                total_width = sum(widths)
+                
+                overlap = False
+                if total_width > available_length:
+                    # Adjust sizes proportionally only if necessary
+                    scale_factor = available_length / total_width
+                    widths = [w * scale_factor for w in widths]
+                    for idx, w in zip(indices, widths):
+                        furniture_dims[idx] = (w, furniture_dims[idx][1], furniture_dims[idx][2])
+                    overlap = True  # Sizes were adjusted
+                else:
+                    # No size adjustment needed
+                    overlap = False
+                
+                # Place the furniture
+                num_furniture = len(indices)
+                spacing = (available_length - sum(widths)) / (num_furniture + 1)
+                current_pos = x_start + spacing if wall_index in ["back-wall", "front-wall"] else y_start + spacing
+                
+                for idx, w in zip(indices, widths):
+                    width, length, _ = furniture_dims[idx]
+                    if wall_index in ["back-wall", "front-wall"]:
+                        x = current_pos
+                        y = L - length if wall_index == "back-wall" else 0
+                        current_pos += width + spacing
+                    else:
+                        y = current_pos
+                        x = 0 if wall_index == "left-wall" else W - length
+                        current_pos += width + spacing
+                    orientation = 0 if wall_index == "back-wall" else (math.pi if wall_index == "front-wall" else
+                                    (math.pi / 2 if wall_index == "left-wall" else -math.pi / 2))
+                    region = (x, y, width, length, orientation)
+                    regions.append((region, [f"against-{wall_index}", f"{side}_of_wall"]))
+                    placed_regions[idx] = region
+            
+            # Place left and right furniture
+            for side in ["left", "right"]:
+                place_side_furniture(side)
+            
+            # Check for overlaps and adjust sizes if necessary
+            # We can implement an optional check here, but since we've already adjusted sizes if needed,
+            # and included slight buffers, overlaps should be minimal or non-existent.
+           
+        else:
+            # When rel_side is not provided, evenly space the furniture along the wall
+            wall_length = W if wall_index in ["back-wall", "front-wall"] else L
+            total_width = sum([dim[0] for dim in furniture_dims])
+            remaining_space = wall_length - total_width
+            if remaining_space < 0:
+                raise ValueError("Furniture too big for wall")
+            spacing = remaining_space / (furniture_num + 1)
+            current_pos = spacing
+            for i, dim in enumerate(furniture_dims): # for each furniture
+                width, length, _ = dim
+                if wall_index in ["back-wall", "front-wall"]:
+                    y = L - length if wall_index == "back-wall" else 0
+                    x = current_pos
+                    orientation = 0 if wall_index == "back-wall" else math.pi
+                    current_pos += width + spacing
+                    # Determine rel_side based on position
+                    if x + width / 2 <= W / 3:
+                        side = "left"
+                    elif x + width / 2 >= 2 * W / 3:
+                        side = "right"
+                    else:
+                        side = "center"
+                else:
+                    x = 0 if wall_index == "left-wall" else W - length
+                    y = current_pos
+                    orientation = math.pi / 2 if wall_index == "left-wall" else -math.pi / 2
+                    current_pos += width + spacing
+                    if y + width / 2 <= L / 3:
+                        side = "left"
+                    elif y + width / 2 >= 2 * L / 3:
+                        side = "right"
+                    else:
+                        side = "center"
+                region = (x, y, width, length, orientation)
+                regions.append((region, [f"against-{wall_index}", f"{side}_of_wall"]))
+        return regions
+ 
+    def get_furniture_locations_side_touching(wall_index, room_dim=(3, 4)):
+        W, L = room_dim
+
+        # Step 1: Create 2 furniture dims that can fit onto the same wall_index
+        furniture_dims = get_furniture_dim(furniture_num=2, along_same_wall=True, wall_index=wall_index, room_dim=room_dim)
+        width1, length1, _ = furniture_dims[0]
+        width2, length2, _ = furniture_dims[1]
+        total_width = width1 + width2
+        wall_length = W if wall_index in ["back-wall", "front-wall"] else L
+
+        # If total width exceeds wall_length, scale down the furniture sizes
+        if total_width > wall_length * 0.9:
+            scale_factor = (wall_length * 0.9) / total_width
+            width1 *= scale_factor
+            width2 *= scale_factor
+            total_width = width1 + width2  # Update total_width after scaling
+
+        # Step 2: Randomly sample starting position along the wall
+        max_start = wall_length - total_width
+        if max_start < 0:
+            raise ValueError("Furniture too big for the wall")
+        start_pos = rn.uniform(0, max_start)
+
+        regions = []
+        if wall_index == "back-wall":
+            # For back-wall, y is fixed at y = L - length (furniture extends into the room)
+            y1 = L - length1
+            y2 = L - length2  # Both have same y (furniture backs against the wall)
+            orientation = 0  # Facing positive y
+            # x varies along the wall
+            x1 = start_pos
+            x2 = x1 + width1  # Right side of furniture1 touching left side of furniture2
+
+            region1 = (x1, y1, width1, length1, orientation)
+            region2 = (x2, y2, width2, length2, orientation)
+        elif wall_index == "front-wall":
+            # For front-wall, y is fixed at y=0
+            y1 = 0
+            y2 = 0
+            orientation = math.pi  # Facing negative y
+            # x varies along the wall
+            x1 = start_pos
+            x2 = x1 + width1
+
+            region1 = (x1, y1, width1, length1, orientation)
+            region2 = (x2, y2, width2, length2, orientation)
+        elif wall_index == "left-wall":
+            # For left-wall, x is fixed at x=0
+            x1 = 0
+            x2 = 0
+            orientation = math.pi / 2  # Facing positive x
+            # y varies along the wall
+            y1 = start_pos
+            y2 = y1 + width1  # Top of furniture1 touching bottom of furniture2
+
+            region1 = (x1, y1, width1, length1, orientation)
+            region2 = (x2, y2, width2, length2, orientation)
+        elif wall_index == "right-wall":
+            # For right-wall, x is fixed at x = W - length (since furniture extends into room)
+            x1 = W - length1
+            x2 = W - length2
+            orientation = -math.pi / 2  # Facing negative x
+            # y varies along the wall
+            y1 = start_pos
+            y2 = y1 + width1
+
+            region1 = (x1, y1, width1, length1, orientation)
+            region2 = (x2, y2, width2, length2, orientation)
+        else:
+            raise ValueError("Invalid wall_index")
+
+        regions = [(region1, [f"against-{wall_index}"]), (region2, [f"against-{wall_index}"])]
+        return regions
+
+    def get_furniture_locations_on_left_side(wall_index, room_dim=(3, 4)):
+        W, L = room_dim
+        regions = []
+        
+        # Step 1: Create 2 furniture dims that can fit onto the same wall_index
+        furniture_dims = get_furniture_dim(furniture_num=2, along_same_wall=True,
+                                        wall_index=wall_index, room_dim=room_dim)
+        width1, length1, _ = furniture_dims[0]
+        width2, length2, _ = furniture_dims[1]
+        wall_length = W if wall_index in ["back-wall", "front-wall"] else L
+        total_furniture_width = width1 + width2
+
+        # Scale down furniture widths if they are too big
+        if total_furniture_width >= wall_length * 0.7:
+            scale_factor = (wall_length * 0.7) / total_furniture_width
+            width1 *= scale_factor
+            width2 *= scale_factor
+            total_furniture_width = width1 + width2
+
+        # Set maximum spacing threshold min(20% of wall_length, 35% of the max furniture width)
+        if wall_index in ["back-wall", "front-wall"]:
+            max_spacing = min(wall_length * 0.2, max(width1, width2) * 0.35)
+        else:
+            max_spacing = min(wall_length * 0.2, max(length1, length2) * 0.35)
+
+        # Determine maximum possible spacing given furniture sizes and wall_length
+        max_possible_spacing = wall_length - total_furniture_width
+        max_possible_spacing = min(max_possible_spacing, max_spacing)
+
+        # Minimum spacing (can be zero or a small positive number)
+        min_spacing = 0.1
+
+        # Check if there is space to place both furnitures with at least min_spacing
+        if total_furniture_width + min_spacing > wall_length:
+            raise ValueError("Furniture too big for the wall")
+
+        # Randomly sample spacing between min_spacing and max_possible_spacing
+        spacing = rn.uniform(min_spacing, max_possible_spacing)
+
+        # Calculate the maximum starting position for the first furniture
+        max_start_pos = wall_length - (total_furniture_width + spacing)
+        max_start_pos = max(0, max_start_pos)  # Ensure non-negative
+
+        # Randomly sample the starting position of the first furniture
+        start_pos = rn.uniform(0, max_start_pos)
+
+        # Calculate positions of furnitures
+        if wall_index in ["back-wall", "front-wall"]:
+            ys = [L - length1, L-length2] if wall_index == "back-wall" else [0, 0]
+            orientation = 0 if wall_index == "back-wall" else math.pi
+            x1 = start_pos
+            x2 = x1 + width1 + spacing
+            region1 = (x1, ys[0], width1, length1, orientation)
+            region2 = (x2, ys[1], width2, length2, orientation)
+        elif wall_index == "left-wall":
+            x = 0
+            orientation = math.pi / 2
+            y1 = start_pos
+            y2 = y1 + width1 + spacing
+            region1 = (x, y1, width1, length1, orientation)
+            region2 = (x, y2, width2, length2, orientation)
+        elif wall_index == "right-wall":
+            x1 = W - length1
+            x2 = W - length2
+            orientation = - math.pi / 2
+            y1 = start_pos
+            y2 = y1 + width1 + spacing
+            region1 = (x1, y1, width1, length1, orientation)
+            region2 = (x2, y2, width2, length2, orientation)
+        else:
+            raise ValueError("Invalid wall_index")
+
+        regions = [(region1, [f"against-{wall_index}"]), (region2, [f"against-{wall_index}"])]
+        return regions
+
+    def get_furniture_locations_in_front_of(wall_index, room_dim=(3, 4)):
+        W, L = room_dim
+        # Step 1: Create 2 furniture dims
+        furniture_dims = get_furniture_dim(furniture_num=2, along_same_wall=False, room_dim=room_dim)
+        width1, length1, _ = furniture_dims[0]  # Furniture 1, against wall
+        width2, length2, _ = furniture_dims[1]  # Furniture 2, in front of furniture 1
+
+        # Step 2: Calculate the region tuple for the furniture
+        if wall_index in ["back-wall", "front-wall"]:
+            # We'll align the centroids along the x-axis
+            # Calculate the maximum and minimum x positions to ensure both furnitures fit within the room
+            max_furniture_width = max(width1, width2)
+            x_min = max_furniture_width / 2
+            x_max = W - max_furniture_width / 2
+
+            # Randomly sample the centroid x position within the allowable range
+            centroid_x = rn.uniform(x_min, x_max)
+
+            # Calculate x positions for each furniture so that their centroids align at centroid_x
+            x1 = centroid_x - width1 / 2
+            x2 = centroid_x - width2 / 2
+
+            # Ensure furnitures are within room boundaries
+            if x1 < 0 or x1 + width1 > W or x2 < 0 or x2 + width2 > W:
+                raise ValueError("Furniture does not fit within room boundaries")
+
+            # Place furniture 1 against the wall
+            orientation1 = 0 if wall_index == "back-wall" else math.pi
+            y1 = L - length1 if wall_index == "back-wall" else 0
+
+            spacing = min(rn.uniform(0.1, 0.3) * length1, 0.2)
+            # Place furniture 2 in front of furniture 1
+            orientation2 = orientation1
+            if wall_index == "back-wall":
+                y2 = y1 - length2 - spacing
+                if y2 < 0:
+                    y2 = 0  # Adjust if out of bounds
+            else:
+                y2 = y1 + length1 + spacing
+                if y2 + length2 > L:
+                    y2 = L - length2  # Adjust if out of bounds
+
+            region1 = (x1, y1, width1, length1, orientation1)
+            region2 = (x2, y2, width2, length2, orientation2)
+        else:  # "left-wall" or "right-wall"
+            # Align the centroids along the y-axis
+            max_furniture_width = max(width1, width2)
+            y_min = max_furniture_width / 2
+            y_max = L - max_furniture_width / 2
+
+            # Randomly sample the centroid y position within the allowable range
+            centroid_y = rn.uniform(y_min, y_max)
+
+            # Calculate y positions for each furniture so that their centroids align at centroid_y
+            y1 = centroid_y - width1 / 2
+            y2 = centroid_y - width2 / 2
+
+            # Ensure furnitures are within room boundaries
+            if y1 < 0 or y1 + width1 > L or y2 < 0 or y2 + width2 > L:
+                raise ValueError("Furniture does not fit within room boundaries")
+
+            # Place furniture 1 against the wall
+            orientation1 = math.pi / 2 if wall_index == "left-wall" else - math.pi / 2
+            x1 = 0 if wall_index == "left-wall" else W - length1
+
+            spacing = rn.uniform(0.1, 0.3) * length1
+            # Place furniture 2 in front of furniture 1
+            orientation2 = orientation1
+            if wall_index == "left-wall":
+                x2 = x1 + length1 + spacing
+                if x2 + length2 > W:
+                    x2 = W - length2  # Adjust if out of bounds
+            else:
+                x2 = x1 - length2 - spacing
+                if x2 < 0:
+                    x2 = 0  # Adjust if out of bounds
+
+            region1 = (x1, y1, width1, length1, orientation1)
+            region2 = (x2, y2, width2, length2, orientation2)
+
+        regions = [(region1, [f"against-{wall_index}"]), (region2, [f"against-{wall_index}"])]
+        return regions
+
+    def get_furniture_locations_under_window(window_location, room_dim=(3, 4)):
+        W, L = room_dim
+        window_region, window_wall_index = window_location
+        # Step 1: create furniture dim
+        furniture_dim = get_furniture_dim(furniture_num=1, along_same_wall=False, room_dim=room_dim)[0]
+        width, length, _ = furniture_dim
+
+        # Step 2: calculate the region tuple for the furniture
+        if window_wall_index in ["back-wall", "front-wall"]:
+            x_window, y_window, w_window, l_window, _ = window_region
+            x_furniture = x_window + (w_window - width)/2
+            y_furniture = y_window - length if window_wall_index == "back-wall" else y_window + l_window
+            orientation = 0 if window_wall_index == "back-wall" else math.pi
+            region = (x_furniture, y_furniture, width, length, orientation)
+        elif window_wall_index in ["left-wall", "right-wall"]:
+            x_window, y_window, w_window, l_window, _ = window_region
+            x_furniture = 0 if window_wall_index == "left-wall" else W - length
+            y_furniture = y_window + (w_window - width)/2
+            orientation = math.pi / 2 if window_wall_index == "left-wall" else -math.pi /2
+            region = (x_furniture, y_furniture, width, length, orientation)
+        else:
+            raise ValueError("Invalid wall index")
+        regions = [(region, ["under-window", f"against-{window_wall_index}"])]
+        return regions
+
+    def get_furniture_locations_at_center(room_dim=(3, 4)):
+        W, L = room_dim
+        # Step 1: create furniture dim
+        furniture_dim = get_furniture_dim(furniture_num=1, room_dim=room_dim)[0]
+        width, length, _ = furniture_dim
+        # Random orientation
+        orientation = rn.choice([-math.pi/2, 0, math.pi/2, math.pi])
+        # Step 2: calculate the region tuple for the furniture
+        if orientation in [0, math.pi]:
+            x_center = (W - width) /2
+            y_center = (L - length)/2
+        else:
+            x_center = (W - length) /2
+            y_center = (L - width) / 2
+        region = (x_center, y_center, width, length, orientation)
+        regions = [(region, "at-center")]
+        return regions
+
+    def get_furniture_locations_at_corners(furniture_num=None, corners=None, facing_wall_indices=None, room_dim=(3, 4)):
+        W, L = room_dim
+        # Step 1: create furniture dims
+        furniture_dims = get_furniture_dim(furniture_num=furniture_num, room_dim=room_dim)
+        regions = []
+        # Step 2: determine the corners and the facing_wall_indices if not provided
+        corner_list = ["front-left-corner", "front-right-corner", "back-left-corner", "back-right-corner"]
+        if corners is None:
+            corners = rn.sample(corner_list, furniture_num)
+        if facing_wall_indices is None:
+            facing_wall_indices = []
+            for corner in corners:
+                if corner == "front-left-corner":
+                    facing_wall_indices.append(rn.choice(["front-wall", "left-wall"]))
+                elif corner == "front-right-corner":
+                    facing_wall_indices.append(rn.choice(["front-wall", "right-wall"]))
+                elif corner == "back-left-corner":
+                    facing_wall_indices.append(rn.choice(["back-wall", "left-wall"]))
+                elif corner == "back-right-corner":
+                    facing_wall_indices.append(rn.choice(["back-wall", "right-wall"]))
+
+        # Step 3: calculate the region tuple for the furniture
+        for i in range(furniture_num):
+            corner = corners[i]
+            facing_wall = facing_wall_indices[i]
+            width, length, orientation = furniture_dims[i]
+            # Orientation based on facing_wall
+            if facing_wall == "back-wall":
+                orientation = 0
+                w, l = width, length
+            elif facing_wall == "front-wall":
+                orientation = math.pi
+                w, l = width, length
+            elif facing_wall == "left-wall":
+                orientation = math.pi / 2
+                w, l = length, width
+            elif facing_wall == "right-wall":
+                orientation = - math.pi / 2
+                w, l = length, width
+            else:
+                orientation = 0  # default
+                w, l = width, length
+
+            if corner == "front-left-corner":
+                x = 0
+                y = 0
+            elif corner == "front-right-corner":
+                x = W - w
+                y = 0
+            elif corner == "back-left-corner":
+                x = 0
+                y = L - l
+            elif corner == "back-right-corner":
+                x = W - w
+                y = L - l
+            else:
+                raise ValueError("Invalid corner")
+            
+            region = (x, y, width, length, orientation)
+            regions.append((region, [f"at-{corner}", f"against-{facing_wall}"]))
+        return regions
+        
+    def gen(relation, window_loc=None, door_loc=None, furniture_num=None, bedroom_dim=(3, 4)):
+
+        # should return regions and relations to each region
+        count = num_samples
+
+        while True:
+            window_door_loc, regions = init_bedroom_layout(bedroom_dim, window_loc, door_loc)
+            if relation == "against-wall":
+                if furniture_num is None:
+                    furniture_num = rn.choice([1, 2, 3, 4, 5])
+                    
+                if furniture_num <=3 and rn.uniform(0, 1) < 0.5:
+                    rel_side = rn.sample(["left", "right", "center"], furniture_num)
+                else:
+                    rel_side = None
+                regions += get_furniture_locations_against_wall(furniture_num, wall_index=None, rel_side=rel_side, room_dim=bedroom_dim)
+           
+            elif relation == "side-touching":
+                if furniture_num is None:
+                    num_pairs = rn.choice([1, 2])
+                else:
+                    num_pairs = furniture_num//2
+                wall_pairs = rn.sample([["back-wall", "front-wall"], ["right-wall", "left-wall"]], 1)[0]
+                wall_indices = rn.sample(wall_pairs, num_pairs)
+                
+                for wall_index in wall_indices:
+                    regions += get_furniture_locations_side_touching(wall_index, bedroom_dim)
+
+            elif relation == "on-left-side":
+                if furniture_num is None:
+                    num_pairs = rn.choice([1, 2])
+                else:
+                    num_pairs = furniture_num//2
+                wall_pairs = rn.sample([["back-wall", "front-wall"], ["right-wall", "left-wall"]], 1)[0]
+                wall_indices = rn.sample(wall_pairs, num_pairs)
+
+                for wall_index in wall_indices:
+                    regions += get_furniture_locations_on_left_side(wall_index, bedroom_dim)
+                    
+            elif relation == "in-front-of":
+                if furniture_num is None:
+                    num_pairs = rn.choice([1, 2])
+                else:
+                    num_pairs = furniture_num//2
+                wall_pairs = rn.sample([["back-wall", "front-wall"], ["right-wall", "left-wall"]], 1)[0]
+                wall_indices = rn.sample(wall_pairs, num_pairs)
+
+                for wall_index in wall_indices:
+                    regions += get_furniture_locations_in_front_of(wall_index, bedroom_dim)
+
+            elif relation == "under-window":
+                regions += get_furniture_locations_under_window(window_door_loc["window"], bedroom_dim)
+            elif relation == "at-center":
+                regions += get_furniture_locations_at_center(bedroom_dim)
+            elif relation == "at-corners":
+                if furniture_num is None:
+                    furniture_num = rn.choice([1, 2, 3, 4])
+                regions += get_furniture_locations_at_corners(furniture_num, room_dim=bedroom_dim)
+                
+            count -= 1
+            print(len(regions), "added!")
+            yield relation, regions
+            if count == 0:
+                break
+        yield None
+    
+    return gen   
 ##########################################################################
 
 

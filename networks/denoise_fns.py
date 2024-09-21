@@ -120,6 +120,9 @@ composing_weights = {'horizontally_aligned': 1, 'vertically_aligned': 1, 'center
 
 clustered_types = ["2D_regular", "2D_irregular", "3D_stacking", "3D_stacking_2D_regular", "3D_stacking_2D_irregular"]
 
+bedroom_constraints = ["against-right-wall", "against-left-wall", "against-front-wall", "against-back-wall", "right-of-wall", "left-of-wall", "center-of-wall", "left-touching", "left-of", "in-front-of", "under-window", "at-center",
+                        "at-front-left-corner", "at-front-right-corner", "at-back-left-corner", "at-back-right-corner"]
+                        
 def has_single_arity(edge_attr):
     for edge in edge_attr:
         if int(edge) in [3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]:

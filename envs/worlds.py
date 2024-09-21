@@ -17,14 +17,14 @@ from numpy.random import rand
 
 from envs.mesh_utils import CLOUD, create_tray, create_grid_meshes, Rotation2D, \
     get_color, fit_shape_in_bounds, transform_by_constraints, RENDER_PATH, \
-    add_shape, regions_to_meshes, clustered_regions_to_meshes, BLACK, R, get_color_name, triangles_to_meshes, \
+    add_shape, regions_to_meshes, clustered_regions_to_meshes, convert_regions_to_meshes, BLACK, R, get_color_name, triangles_to_meshes, \
     reorganize_points, CLOUD, RAINBOW_COLORS, get_area, is_inside, save_mesh, \
     reorganize_points_2, RAINBOW_COLOR_NAMES
 from envs.data_utils import get_grid_index, get_grid_offset, save_graph_data, get_grids_offsets, \
     print_line, compute_pairwise_collisions, apply_grid_mask, print_tensor, grid_offset_to_pose, r, \
-    compute_world_constraints, expand_unordered_constraints, compute_tidy_constraints, get_ordered_constraints, compute_clustered_constraints
+    compute_world_constraints, expand_unordered_constraints, compute_tidy_constraints, get_ordered_constraints, compute_clustered_constraints, compute_bedroom_constraints
 from envs.render_utils import export_gif
-from envs.builders import get_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen, get_tidy_data_gen, get_cluster_data_gen
+from envs.builders import get_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen, get_tidy_data_gen, get_cluster_data_gen, get_bedroom_data_gen
 
 
 def get_world_class(world_name):
@@ -208,7 +208,7 @@ class CSPWorld(object):
             'h': self.h, 
             'regions': [],
             'areas': []})
-      
+
         scene = self.get_scene()
         for name, mesh in scene.geometry.items():
             if name not in self.labels:
@@ -244,6 +244,10 @@ class CSPWorld(object):
 
             rgba = mesh.visual.face_colors.tolist()[0] if hasattr(mesh.visual, 'face_colors') else [255] * 4
             color = get_color_name(rgba)
+            if 'rotation_angle' in mesh.metadata:
+                rotation_angle = mesh.metadata["rotation_angle"]
+            else:
+                rotation_angle = 0
             
             world['objects'][name] = {
                 'label': label,
@@ -252,7 +256,8 @@ class CSPWorld(object):
                 'center': tuple(center),
                 'centroid': tuple(mesh.centroid),
                 'rgba': rgba,
-                'color': color
+                'color': color,
+                'rotation_angle': rotation_angle
             }
             if 'name' in mesh.metadata:
                 obj_name = mesh.metadata['name']
@@ -305,15 +310,22 @@ class CSPWorld(object):
 
         if len(world['constraints']) == 0:
             world['constraints'] = []
-            if input_mode != "tidy":
-                world['constraints'] = self.generate_constraints(world['objects'], same_order=same_order)
-            else: 
+            if input_mode == "tidy" or input_mode == "bedroom":
                 if generating_data:
                     world['collisions'] = self.check_collisions_in_scene(world['objects'], verbose=False)
                     collisions = world['collisions']
                     
                 if len(world['constraints']) == 0:
                     world['constraints'] = []
+            else:
+                world['constraints'] = self.generate_constraints(world['objects'], same_order=same_order)
+
+        if 'bedroom' in input_mode:
+            scale = min([self.w / 3, self.l / 4])
+
+            world = compute_bedroom_constraints(world, rotations=self.rotations, same_order=same_order, scale=scale, test_only=test_only,
+                                                model_relation=model_relation, composed_relation=composed_relation, generating_data=generating_data)
+            
     
         if 'tidy' in input_mode:
             scale = min([self.w / 3, self.l / 2])
@@ -341,6 +353,8 @@ class CSPWorld(object):
                 for k, data in world['objects'].items():
                     world['objects'][k]['extents'] = list(data['extents'])
                     world['objects'][k]['center'] = list(data['center'])
+                    world['objects'][k]['centroid'] = list(data['centroid'])
+                    world['objects'][k]['rotation_angle'] = data['rotation_angle']
                     if 'name' in data:
                         world['objects'][k]['name'] = data['name']
                 json.dump(world, fp=f, indent=3)
@@ -373,9 +387,11 @@ class CSPWorld(object):
                 continue
 
             ## basic type, shape, and pose encoding
-            obj_type = 1 if name.startswith('tile_') else 0
+            # obj_type = 1 if name.startswith('tile_') else 0
+            obj_type = 0 if name == 'tile_0' or name == 'bottom' else 1
             shape_features = list(mesh['extents'])
             pose_feature = list(mesh['center'])
+            rotation_feature = [np.sin(mesh['rotation_angle']), np.cos(mesh['rotation_angle'])]
 
             if isinstance(self, RandomSplitQualitativeWorld):
                 w, l = shape_features[:2]
@@ -401,9 +417,16 @@ class CSPWorld(object):
                     yaw = np.pi
                 shape_features = [w, l]
                 pose_feature = pose_feature[:2] + [np.sin(yaw), np.cos(yaw)]
+
+            elif isinstance(self, RandomBedroomWorld):
+
+                shape_features = shape_features[:2]
+                pose_feature = pose_feature[:2] + rotation_feature
+
             elif not isinstance(self, TriangularRandomSplitWorld):
                 shape_features = shape_features[:2]
                 pose_feature = pose_feature[:2]
+
             elif len(shape_features) == 3 and self.encoding == 'P2':
                 shape_features = shape_features[:2] + [0, 0, 0, 0]
                 pose_feature = pose_feature[:2] + [0, 0]
@@ -447,8 +470,9 @@ class CSPWorld(object):
             return np.array(nodes)
 
         ## add edge_index
-        from networks.denoise_fns import tidy_constraints
-        if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints:
+        from networks.denoise_fns import tidy_constraints, bedroom_constraints
+
+        if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints or input_mode == "bedroom":
             edge_index = data['constraints']
             class_counts[len(nodes)-1] = 1
         else:
@@ -841,7 +865,6 @@ class RandomSplitWorld(ShapeSettingWorld):
 
             self.add_shape('box', size=(bw, bl), x=x, y=y, color=color, R=rot_matrix)
 
-
 class RandomSplitSparseWorld(RandomSplitWorld):
     """ 
     Randomly sample a sub region of the box to split the boxes. This is to ensure that the dataset has more variability in the locations of the boxes.
@@ -941,80 +964,6 @@ class RandomSplitSparseWorld(RandomSplitWorld):
         self.tidy_constraints = constraints
         super().construct_scene_from_graph_data(nodes, **kwargs)
 
-
-class RandomSplitTidyWorld(RandomSplitWorld):
-    """ 
-    Randomly sample a sub region of the box to split the boxes. This is to ensure that the dataset has more variability in the locations of the boxes.
-    c-free is ensured by randomly splitting the boxes.
-    three different types of the tidy clusters
-    1. 2D planar regular cluster
-    2. 2D planar irregular cluster
-    3. 3D stacking with 2D planar cluster
-    4. 3D stacking
-    """
-    def __init__(self, **kwargs):
-        super(RandomSplitTidyWorld, self).__init__(**kwargs)
-        self.regions = []
-        self.areas = []
-        self.rotations = {}
-
-    def sample_scene(self, min_num_objects=3, max_num_objects=16, relation="2D_regular", **kwargs):
-        """ first get region boxes from `get_tray_spliting_gen` """
-       
-        max_depth = math.ceil(math.log2(max_num_objects)) + 1 
-        gen = get_cluster_data_gen(num_samples=12, min_num_regions=min_num_objects, max_num_regions=max_num_objects)
-        regions, relation = next(gen(self.w, self.l, relation))
-        
-        meshes = clustered_regions_to_meshes(regions, self.w, self.l, self.h, relation=relation)
-    
-        self.tiles.extend(meshes)
-        return relation
-            
-    def get_current_constraints(self):
-        
-        data = self.generate_json(input_mode="clustered")
-        return data
-
-    def check_constraints_satisfied(self, **kwargs):
-       
-       
-        data = self.get_current_constraints() # current constraints satisfied
-        collisions = data['collisions']
-        regions = data['regions']
-        areas = data['areas']
-
-        clustered_flag = True
-
-        if len(collisions) == 0:
-           
-            for i in range(len(regions)):
-                X_0, X_1, Y_0, Y_1 = regions[i]
-                area = areas[i]
-                if (X_1 - X_0) * (Y_1 - Y_0) < area*1.3:
-                    clustered_flag *= True
-                else:
-                    clustered_flag *= False      
-        else:
-            clustered_flag = False  
-
-        if self.img_name is not None:
-            json_name = self.img_name.replace('.png', '.json')
-            world = {
-                'regions': regions,
-                'areas': areas,
-                'collisions': collisions,
-            }
-            # print('\n', self.img_name, missing)
-            # print('\t', current_constraints)
-            # print('\t', given_constraints)
-            self.generate_json(input_mode="clustered", json_name=json_name, world=world)
-        return collisions, [clustered_flag]
-
-    def construct_scene_from_graph_data(self, nodes, constraints=[], **kwargs):
-        """ give ground truth constraints to check if they are satisfied """
-        self.tidy_constraints = constraints
-        super().construct_scene_from_graph_data(nodes, **kwargs)
-
 class RandomSplitQualitativeWorld(RandomSplitWorld):
     """ tiles with extra labels such as
             'in', 'center-in', 'left-in', 'right-in', 'top-in', 'bottom-in',
@@ -1070,7 +1019,6 @@ class RandomSplitQualitativeWorld(RandomSplitWorld):
         """ give ground truth constraints to check if they are satisfied """
         self.qualitative_constraints = constraints
         super().construct_scene_from_graph_data(nodes, **kwargs)
-
 
 class RandomSplitWorld3D(ShapeSettingWorld):
     """ boxes are arranged by random splitting the tray into sections
@@ -1128,7 +1076,6 @@ class RandomSplitWorld3D(ShapeSettingWorld):
             if verbose:
                 print(f"{i}\t nodes: {r(nodes[i])}\t -> (predictions = {r(prediction)})\t | labels: {r(labels[i])}")
             self.add_shape('box', size=(bw, bl), x=x, y=y, color=color)
-
 
 class TriangularRandomSplitWorld(ShapeSettingWorld):
     """ triangles are arranged by random splitting the tray into sections
@@ -1485,3 +1432,166 @@ class TriangularRandomSplitWorld(ShapeSettingWorld):
         self.construct_scene_from_graph_data(nodes, height=0.5)
         for i, mesh in enumerate(self.tiles[len(original_meshes):]):
             save_mesh(mesh, join(mesh_dir, f'tile_{i}.obj'))
+
+class RandomSplitTidyWorld(RandomSplitWorld):
+    """ 
+    Randomly sample a sub region of the box to split the boxes. This is to ensure that the dataset has more variability in the locations of the boxes.
+    c-free is ensured by randomly splitting the boxes.
+    three different types of the tidy clusters
+    1. 2D planar regular cluster
+    2. 2D planar irregular cluster
+    3. 3D stacking with 2D planar cluster
+    4. 3D stacking
+    """
+    def __init__(self, **kwargs):
+        super(RandomSplitTidyWorld, self).__init__(**kwargs)
+        self.regions = []
+        self.areas = []
+        self.rotations = {}
+
+    def sample_scene(self, min_num_objects=3, max_num_objects=16, relation="2D_regular", **kwargs):
+        """ first get region boxes from `get_tray_spliting_gen` """
+       
+        max_depth = math.ceil(math.log2(max_num_objects)) + 1 
+        gen = get_cluster_data_gen(num_samples=12, min_num_regions=min_num_objects, max_num_regions=max_num_objects)
+        regions, relation = next(gen(self.w, self.l, relation))
+        
+        meshes = clustered_regions_to_meshes(regions, self.w, self.l, self.h, relation=relation)
+    
+        self.tiles.extend(meshes)
+        return relation
+            
+    def get_current_constraints(self):
+        
+        data = self.generate_json(input_mode="clustered")
+        return data
+
+    def check_constraints_satisfied(self, **kwargs):
+           
+        data = self.get_current_constraints() # current constraints satisfied
+        collisions = data['collisions']
+        regions = data['regions']
+        areas = data['areas']
+
+        clustered_flag = True
+
+        if len(collisions) == 0:
+           
+            for i in range(len(regions)):
+                X_0, X_1, Y_0, Y_1 = regions[i]
+                area = areas[i]
+                if (X_1 - X_0) * (Y_1 - Y_0) < area*1.3:
+                    clustered_flag *= True
+                else:
+                    clustered_flag *= False      
+        else:
+            clustered_flag = False  
+
+        if self.img_name is not None:
+            json_name = self.img_name.replace('.png', '.json')
+            world = {
+                'regions': regions,
+                'areas': areas,
+                'collisions': collisions,
+            }
+            # print('\n', self.img_name, missing)
+            # print('\t', current_constraints)
+            # print('\t', given_constraints)
+            self.generate_json(input_mode="clustered", json_name=json_name, world=world)
+        return collisions, [clustered_flag]
+
+    def construct_scene_from_graph_data(self, nodes, constraints=[], **kwargs):
+        """ give ground truth constraints to check if they are satisfied """
+        self.tidy_constraints = constraints
+        super().construct_scene_from_graph_data(nodes, **kwargs)
+
+class RandomBedroomWorld(RandomSplitWorld):
+    """ 
+    Generate the bedroom scene with the following constraints:
+    1. "against-wall" - all objects are against the wall
+    2. "side-touching" - two furnitures touching each other
+    3. "on-left-side" - one furniture is on the left side of the other furniture
+    4. "in-front-of" - one furniture is in front of the other furniture
+    5. "under-window" - one furniture is under the window
+    6. "at-center" - one furniture is at the center of the room
+    7. "at-corners" - furnitures at the corners of the room
+
+    # 16 relationships: 
+    "against-right-wall", "against-left-wall", "against-front-wall", "against-back-wall"
+    "right-of-wall", "left-of-wall", "center-of-wall", 
+    "left-touching", "left-of", "in-front-of", "under-window", "at-center",
+    "at-front-left-corner", "at-front-right-corner", "at-back-left-corner", "at-back-right-corner"
+
+    """
+    def __init__(self, **kwargs):
+        super(RandomBedroomWorld, self).__init__(**kwargs)
+        self.regions = []
+        self.areas = []
+        self.rotations = {}
+        self.bedroom_dim = (3, 4)
+
+    def sample_scene(self, window_loc = None, door_loc = None, relation="against-wall", **kwargs):
+
+        gen = get_bedroom_data_gen(num_samples=200, bedroom_dim=self.bedroom_dim)
+
+        relation, regions = next(gen(relation))
+        meshes = convert_regions_to_meshes(regions, self.w, self.l, self.h, relation=relation)
+    
+        self.tiles.extend(meshes)
+        return relation
+            
+    def get_current_constraints(self):
+        
+        data = self.generate_json(input_mode="bedroom")
+        return data
+
+    def check_constraints_satisfied(self, **kwargs):
+           
+        data = self.get_current_constraints() # current constraints satisfied
+        collisions = data['collisions']
+        regions = data['regions']
+        areas = data['areas']
+
+        clustered_flag = True
+
+        if len(collisions) == 0:
+           
+            for i in range(len(regions)):
+                X_0, X_1, Y_0, Y_1, rotation_angle = regions[i]
+                area = areas[i]
+                if (X_1 - X_0) * (Y_1 - Y_0) < area*1.3:
+                    clustered_flag *= True
+                else:
+                    clustered_flag *= False      
+        else:
+            clustered_flag = False  
+
+        if self.img_name is not None:
+            json_name = self.img_name.replace('.png', '.json')
+            # world = {
+            #     'regions': regions,
+            #     'areas': areas,
+            #     'collisions': collisions,
+            # }
+            # print('\n', self.img_name, missing)
+            # print('\t', current_constraints)
+            # print('\t', given_constraints)
+            # self.generate_json(input_mode="clustered", json_name=json_name, world=world)
+            world  = data
+            
+            with open(json_name, 'w') as f:
+                for k, data in world['objects'].items():
+                    world['objects'][k]['extents'] = list(data['extents'])
+                    world['objects'][k]['center'] = list(data['center'])
+                    world['objects'][k]['centroid'] = list(data['centroid'])
+                    world['objects'][k]['rotation_angle'] = data['rotation_angle']
+                    if 'name' in data:
+                        world['objects'][k]['name'] = data['name']
+                json.dump(world, fp=f, indent=3)
+
+        return collisions, [clustered_flag]
+
+    def construct_scene_from_graph_data(self, nodes, constraints=[], **kwargs):
+        """ give ground truth constraints to check if they are satisfied """
+        self.bedroom_constraints = constraints
+        super().construct_scene_from_graph_data(nodes, **kwargs)
