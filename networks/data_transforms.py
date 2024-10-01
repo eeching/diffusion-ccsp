@@ -6,15 +6,16 @@ from os.path import join, isfile
 from envs.data_utils import print_tensor, get_one_hot, r, get_grasp_side_from_grasp, \
     get_ont_hot_grasp_side
 from networks.denoise_fns import robot_constraints, puzzle_constraints, \
-    stability_constraints, qualitative_constraints, robot_qualitative_constraints, tidy_constraints, dataset_relation_mapping, table_settings
+    stability_constraints, qualitative_constraints, robot_qualitative_constraints, tidy_constraints, tidy_dataset_relation_mapping, \
+        table_settings, bedroom_constraints, bedroom_dataset_relation_mapping, bookshelf_constraints, bookshelf_dataset_relation_mapping, \
+            tabletop_constraints, tabletop_dataset_relation_mapping
 import pdb
 
 ####################################################################################################
 
 
 def pre_transform(data, data_idx, input_mode, model_relation, debug_mode=0, **kwargs):
-    if 'diffuse_pairwise' in input_mode or 'robot' in input_mode or 'stability' in input_mode \
-            or 'qualitative' in input_mode or 'tidy' in input_mode:
+    if 'tidy' in input_mode or 'bedroom' in input_mode or 'bookshelf' in input_mode or 'table' in input_mode:
         return data_transform_cn_diffuse_batch(data, data_idx, input_mode, model_relation=model_relation, **kwargs)
     if input_mode == 'collisions':
         return data_transform_cn_graph(data, data_idx, **kwargs)
@@ -23,7 +24,7 @@ def pre_transform(data, data_idx, input_mode, model_relation, debug_mode=0, **kw
 
 ####################################################################################################
 
-def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, visualize=False, verbose=False, model_relation="all_composed_False"):
+def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, visualize=False, verbose=False, model_relation="all-composed"):
     """
         excluding the first feature on type [0 (container) / 1 (tiles)]
         for BoxWorld: each object has 4 features
@@ -39,10 +40,22 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
             var node (1) obj :     n = (w, l, w0, l0)
             var node (2) pose :    n = (x, y, x0, y0)
             var node (3) grasp :   n = (sx+, sy+, sx-, sy-, sz+)
+        for RandomSplitWorld: each object has 6 features
+            var node (1) obj :     n = (w, l)
+            var node (2) pose :    n = (x, y, sn, cn)
+        for RandomBedroomWorld: each object has 6 features
+            var node (1) obj :     n = (w, l)
+            var node (2) pose :    n = (x, y, sn, cn)
+
     """
 
     features = []
-    conditioned_variables = [0] ## don't change the pose of tray
+
+    if 'bedroom' in input_mode:
+        conditioned_variables = [0, 1] ## don't change the pose of the room and the window
+    else:
+        conditioned_variables = [0] ## don't change the pose of tray
+
     all_constraints = puzzle_constraints
 
     ## --------------------- normalization --------------------- ##
@@ -84,22 +97,36 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
                     geom = [l, x3, y3]
                     pose = [x1, y1, r1]
 
-            ## box encoding with sin/cos (stability, qualitative)
+            ## box encoding with sin/cos (stability, qualitative, tidy, bedroom)
             else:
 
-                if dd[0] == 0:
-                    typ, w, l, x, y, _, _ = dd
-                    w /= w_tray
-                    l /= l_tray
-                    geom = [w, l]
-                    pose = [x, y, 0, 0]
-                else:
-                    if 'stability' in input_mode:
-                        all_constraints = stability_constraints
+                # if dd[0] == 0:
+                #     typ, w, l, x, y, _, _ = dd
+                #     w /= w_tray
+                #     l /= l_tray
+                #     geom = [w, l]
+                #     pose = [x, y, 0, 0]
+                # else:
+                if 'stability' in input_mode:
+                    all_constraints = stability_constraints
+                    if dd[0] == 0:
+                        typ, w, l, x, y, _, _ = dd
+                        w /= w_tray
+                        l /= l_tray
+                        geom = [w, l]
+                        pose = [x, y, 0, 0]
+                    else:        
                         geom = dd[1:3]
                         pose = dd[3:]
-                    elif 'qualitative' in input_mode:
-                        all_constraints = qualitative_constraints
+                elif 'qualitative' in input_mode:
+                    all_constraints = qualitative_constraints
+                    if dd[0] == 0:
+                        typ, w, l, x, y, _, _ = dd
+                        w /= w_tray
+                        l /= l_tray
+                        geom = [w, l]
+                        pose = [x, y, 0, 0]
+                    else:  
                         _, w, l, x, y, sn, cs = dd
                         w /= w_tray
                         l /= l_tray
@@ -107,11 +134,18 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
                         y /= (l_tray / 2)
                         geom = [w, l]
                         pose = [x, y, cs, sn]
-                    elif 'tidy' in input_mode:
+                elif 'tidy' in input_mode:
+                    if dd[0] == 0:
+                        typ, w, l, x, y, _, _ = dd
+                        w /= w_tray
+                        l /= l_tray
+                        geom = [w, l]
+                        pose = [x, y, 0, 0]
+                    else:  
                         if "all" in model_relation:
                             all_constraints = tidy_constraints + table_settings
                         else:
-                            all_constraints = dataset_relation_mapping[model_relation]
+                            all_constraints = tidy_dataset_relation_mapping[model_relation]
                         _, w, l, x, y, sn, cs = dd
                         w /= w_tray
                         l /= l_tray
@@ -119,7 +153,47 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
                         y /= (l_tray / 2)
                         geom = [w, l]
                         pose = [x, y, cs, sn]
-
+                elif 'bedroom' in input_mode:
+                    if "all" in model_relation:
+                        all_constraints = bedroom_constraints
+                    else:
+                        all_constraints = bedroom_dataset_relation_mapping[model_relation]
+                    all_constraints = bedroom_constraints
+                    
+                    _, w, l, x, y, sn, cs = dd
+                    w /= w_tray
+                    l /= l_tray
+                    x /= (w_tray / 2)
+                    y /= (l_tray / 2)
+                    geom = [w, l]
+                    pose = [x, y, sn, cs]
+                elif 'bookshelf' in input_mode:
+                    if "all" in model_relation:
+                        all_constraints = bookshelf_constraints
+                    else:
+                        all_constraints = bookshelf_dataset_relation_mapping[model_relation]
+                    all_constraints = bookshelf_constraints
+                    _, w, l, x, y, sn, cs = dd
+                    w /= w_tray
+                    l /= l_tray
+                    x /= (w_tray / 2)
+                    y /= (l_tray / 2)
+                    geom = [w, l]
+                    pose = [x, y, sn, cs]
+                elif 'table' in input_mode:
+                    if "all" in model_relation:
+                        all_constraints = tabletop_constraints
+                    else:
+                        all_constraints = tabletop_dataset_relation_mapping[model_relation]
+                    all_constraints = tabletop_constraints
+                    _, w, l, x, y, sn, cs = dd
+                    w /= w_tray
+                    l /= l_tray
+                    x /= (w_tray / 2)
+                    y /= (l_tray / 2)
+                    geom = [w, l]
+                    pose = [x, y, sn, cs]      
+                        
         ## triangle P1 encoding with sin/cos
         elif len(dd) == 8 or len(dd) == 8 + 32 ** 2 or len(dd) == 8 + 64 ** 2:
             if dd[0] == 0:
@@ -176,20 +250,13 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
 
             if 'robot' in input_mode and 'qualitative' in input_mode:
                 all_constraints = robot_qualitative_constraints
-            if 'tidy' in input_mode:
-                if "all" in model_relation:
-                    all_constraints = tidy_constraints + table_settings
-                else:
-                    all_constraints = dataset_relation_mapping[model_relation]
                 
         feature = geom + pose
         if verbose:
             print(f'feature {i}: {r(feature)}')
         features.append(feature)
-    
-   
+
     ## for each edge, add one constraint node, and add edge_attr
-    
     # edge_attr = [all_constraints.index(elems[0]) for elems in data.edge_index]
     data.edge_index = [elem for elem in data.edge_index if elem[0] in all_constraints] # extract all the relations in model_relation
     edge_attr =  [all_constraints.index(elems[0]) for elems in data.edge_index] # map the index of the relation to that in tidy_constraints
@@ -222,6 +289,7 @@ def data_transform_cn_diffuse_batch(data, data_idx, input_mode, dir_name=None, v
                 x_extract=torch.ones(x.shape[0])*data_idx,
                 edge_extract=torch.ones(edge_index.shape[1])*data_idx,
                 world_dims=world_dims, original_x=data.x, original_y=data.y)
+
     return [data]
 
 

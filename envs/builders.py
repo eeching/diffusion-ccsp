@@ -2302,7 +2302,9 @@ def test_tray_splitting():
     gen = get_tray_splitting_gen(num_samples=2)
     for boxes in gen(4, 3):
         print(boxes)
-                
+
+##########################################################################
+             
 def get_bedroom_data_gen(num_samples, window_loc=None, door_loc=None, furniture_num=None, bedroom_dim=(3, 4), relation="against-wall"):
     
     # A bedroom is a rectangle with width W and length L that can be read from bedroom_dim
@@ -2316,7 +2318,7 @@ def get_bedroom_data_gen(num_samples, window_loc=None, door_loc=None, furniture_
     # (x, y) is the coordinate of the lower left corner of the furniture, w is the width, l is the length, orientation is the angle of the furniture, 0 means the furniture is facing the back wall, Pi/2 means the furniture is facing the right wall.
    
     Furniture_region = Tuple[float, float, float, float, float]  
-    
+
     def get_furniture_dim(furniture_type = None, furniture_num = 1, along_same_wall = False, wall_index=None, room_dim=(3, 4)):
         # Return the dims of the furniture
         furniture_dims = []
@@ -2421,7 +2423,7 @@ def get_bedroom_data_gen(num_samples, window_loc=None, door_loc=None, furniture_
             y = y_center - window_width / 2
         else:
             raise ValueError("Invalid wall index for window location")
-        window_region = (x, y, window_width, 0.1, orientation)
+        window_region = (x, y, window_width, window_length, orientation)
         return window_region, wall_index
 
     def get_door_location(bedroom_dim, door_loc):
@@ -2476,6 +2478,179 @@ def get_bedroom_data_gen(num_samples, window_loc=None, door_loc=None, furniture_
             raise ValueError("Invalid wall index for door location")
         door_region = (x, y, door_width, 0.1, orientation)
         return door_region, wall_index, door_side
+
+    def get_test_case_furniture_locations(test_idx, room_dim=(3, 4)):
+
+        def get_furniture_dim(name, orientation):
+
+            furniture_dims = {
+
+                "bed": (0.9, 1.8),
+                "wardrobe": (2.0, 0.5),
+                "study_desk": (1.1, 0.5),
+                "study_chair": (0.3, 0.3),
+                "bookshelf": (0.6, 0.3),
+                "bedside_table": (0.25, 0.25),
+                "piano": (1.0, 0.4),
+                "guitar": (0.3, 0.2),
+                "carpet": (0.5, 0.5),
+                "cello": (0.4, 0.25),
+                "painting_s": (0.45, 0.1),
+                "painting_m": (0.5, 0.1),
+                "painting_l": (0.55, 0.1),
+                "painting_xl": (0.6, 0.1),
+                "couch": (0.4, 0.4),
+                "mirror": (0.3, 0.1),
+                "dressing_table": (1.0, 0.4),
+                "dressing_chair": (0.3, 0.3),
+                "storage_cabinet": (0.35, 0.35)
+            }
+
+            w, l = furniture_dims[name]
+            
+            return (w, l, orientation)
+            
+
+        # furniture dim (W, L, rotation)
+
+        W, L = room_dim
+
+        if test_idx == 1:
+
+            furniture_names = ["bed", "bedside_table_1", "bedside_table_2", "wardrobe", "study_desk", "study_chair", "bookshelf", "couch"]
+
+            door_window_loc, regions = init_bedroom_layout(room_dim, window_loc="right-wall", door_loc=("left-wall", "left"))
+
+            bed_dim = get_furniture_dim("bed", 0)
+            bedside_table_1_dim = get_furniture_dim("bedside_table", 0)
+            bedside_table_2_dim = get_furniture_dim("bedside_table", 0)
+            wardrobe_dim = get_furniture_dim("wardrobe", np.pi/2)
+            study_desk_dim = get_furniture_dim("study_desk", np.pi)
+            study_chair_dim = get_furniture_dim("study_chair", np.pi)
+            bookshelf_dim = get_furniture_dim("bookshelf", np.pi)
+            couch_dim = get_furniture_dim("couch", 0)
+
+            bed_location = ((W-bed_dim[0])/2, L-bed_dim[1], bed_dim[0], bed_dim[1], bed_dim[2])
+            bedside_table_1_location = (bed_location[0] - bedside_table_1_dim[0], L - bedside_table_1_dim[1], bedside_table_1_dim[0], bedside_table_1_dim[1], bedside_table_1_dim[2])
+            bedside_table_2_location = (bed_location[0] + bed_dim[0], L - bedside_table_2_dim[1], bedside_table_2_dim[0], bedside_table_2_dim[1], bedside_table_2_dim[2])
+            wardrobe_location = (0, L-wardrobe[0], wardrobe[0], wardrobe[1], wardrobe[2])
+            study_desk_location = ((W-study_desk[0])/2, 0, study_desk[0], study_desk[1], study_desk[2])
+            study_chair_location = ((W-study_chair[0])/2, study_desk[1] + 0.1, study_chair[0], study_chair[1], study_chair[2])
+            bookshelf_location = (W - bookshelf[0]-0.3, 0, bookshelf[0], bookshelf[1], bookshelf[2])
+            couch_location = (W - couch_dim[0], L - couch_dim[0], couch[0], couch[1], couch[2])
+
+            region_list = regions + [(bed_location, ["bed"]), (bedside_table_1_location, ["bedside_table"]), (bedside_table_2_location, ["bedside_table"]), (wardrobe_location, ["wardrobe"]), (study_desk_location, ["study_desk"]), (study_chair_location, ["study_chair"]), (bookshelf_location, ["bookshelf"]), (couch_location, ["couch"])]
+
+        if test_idx == 2:
+
+            furniture_names = ["bed", "bedside_table_1", "bedside_table_2", "wardrobe", "study_desk", "study_chair", "painting_s_1", "painting_s_2"]
+
+            door_window_loc, regions = init_bedroom_layout(room_dim, window_loc="front-wall", door_loc=("right-wall", "right"))
+
+            bed_dim = get_furniture_dim("bed", 0)
+            bedside_table_1_dim = get_furniture_dim("bedside_table", 0)
+            bedside_table_2_dim = get_furniture_dim("bedside_table", 0)
+            wardrobe_dim = get_furniture_dim("wardrobe", -np.pi/2)
+            study_desk_dim = get_furniture_dim("study_desk", np.pi)
+            study_chair_dim = get_furniture_dim("study_chair", np.pi)
+            painting_s_1_dim = get_furniture_dim("painting_s", np.pi/2)
+            painting_s_2_dim = get_furniture_dim("painting_s", np.pi/2)
+
+            bed_location = ((W-bed_dim[0])/2, L-bed_dim[1], bed_dim[0], bed_dim[1], bed_dim[2])
+            bedside_table_1_location = (bed_location[0] - bedside_table_1_dim[0], L - bedside_table_1_dim[1], bedside_table_1_dim[0], bedside_table_1_dim[1], bedside_table_1_dim[2])
+            bedside_table_2_location = (bed_location[0] + bed_dim[0], L - bedside_table_2_dim[1], bedside_table_2_dim[0], bedside_table_2_dim[1], bedside_table_2_dim[2])
+            wardrobe_location = (W-wardrobe[1], L-wardrobe[0], wardrobe[0], wardrobe[1], wardrobe[2])
+            study_desk_location = ((W-study_desk[0])/2, 0, study_desk[0], study_desk[1], study_desk[2])
+            study_chair_location = ((W-study_chair[0])/2, study_desk[1] + 0.1, study_chair[0], study_chair[1], study_chair[2])
+            painting_s_1_location = (0, L/2-painting_s_1_dim[0]-0.3, painting_s_1_dim[0], painting_s_1_dim[1], painting_s_1_dim[2])
+            painting_s_2_location = (0, L/2+0.3, painting_s_2_dim[0], painting_s_2_dim[1], painting_s_2_dim[2])
+
+            region_list = regions + [(bed_location, ["bed"]), (bedside_table_1_location, ["bedside_table"]), (bedside_table_2_location, ["bedside_table"]), (wardrobe_location, ["wardrobe"]), (study_desk_location, ["study_desk"]), (study_chair_location, ["study_chair"]), (painting_s_1_location, ["painting_s"]), (painting_s_2_location, ["painting_s"])]
+
+            return region_list
+
+        if test_idx == 3:
+
+            furniture_names = ["bed", "bedside_table_1", "bedside_table_2", "wardrobe", "dressing_table", "dressing_chair", "couch", "mirror"]
+            door_window_loc, regions = init_bedroom_layout(room_dim, window_loc="back-wall", door_loc=("front-wall", "left"))
+
+            bed_dim = get_furniture_dim("bed", np.pi/2)
+            bedside_table_1_dim = get_furniture_dim("bedside_table", np.pi/2)
+            bedside_table_2_dim = get_furniture_dim("bedside_table", np.pi/2)
+            wardrobe_dim = get_furniture_dim("wardrobe", np.pi)
+            dressing_table_dim = get_furniture_dim("dressing_table", 0)
+            dressing_chair_dim = get_furniture_dim("dressing_chair", 0)
+            couch_dim = get_furniture_dim("couch", 0)
+            mirror_dim = get_furniture_dim("mirror", 0)
+
+            bed_location = (0, (L-bed_dim[0])/2, bed_dim[0], bed_dim[1], bed_dim[2])
+            bedside_table_1_location = (0, bed_location[1] - bedside_table_1_dim[0], bedside_table_1_dim[0], bedside_table_1_dim[1], bedside_table_1_dim[2])
+            bedside_table_2_location = (0, bed_location[1] + bed_dim[0], bedside_table_2_dim[0], bedside_table_2_dim[1], bedside_table_2_dim[2])
+            wardrobe_location = (0, 0, wardrobe_dim[0], wardrobe_dim[1], wardrobe_dim[2])
+            dressing_table_location = ((W - dressing_table_dim[0])/2, L - dressing_table_dim[1], dressing_table_dim[0], dressing_table_dim[1], dressing_table_dim[2])
+            dressing_chair_location = ((W - dressing_chair_dim[0])/2, dressing_table_location[1] - dressing_chair_dim[1] - 0.1, dressing_chair_dim[0], dressing_chair_dim[1], dressing_chair_dim[2])
+            couch_location = (W - couch_dim[0], L - couch_dim[1], couch_dim[0], couch_dim[1], couch_dim[2])
+            mirror_location = (0, L - mirror_dim[1], mirror_dim[0], mirror_dim[1], mirror_dim[2])
+
+            region_list = regions + [(bed_location, ["bed"]), (bedside_table_1_location, ["bedside_table"]), (bedside_table_2_location, ["bedside_table"]), (wardrobe_location, ["wardrobe"]), (dressing_table_location, ["dressing_table"]), (dressing_chair_location, ["dressing_chair"]), (couch_location, ["couch"]), (mirror_location, ["mirror"])]
+
+            return region_list
+        
+        if test_idx == 4:
+
+            furniture_names = ["bed", "wardrobe", "study_desk", "study_chair", "bookshelf", "storage_unit_1", "storage_unit_2", "carpet"]
+
+            door_window_loc, regions = init_bedroom_layout(room_dim, window_loc="right-wall", door_loc=("left-wall", "left"))
+
+            bed_dim = get_furniture_dim("bed", -np.pi/2)
+            wardrobe_dim = get_furniture_dim("wardrobe", np.pi/2)
+            study_desk_dim = get_furniture_dim("study_desk", np.pi/2)
+            study_chair_dim = get_furniture_dim("study_chair", np.pi/2)
+            bookshelf_dim = get_furniture_dim("bookshelf", np.pi/2)
+            storage_unit_1_dim = get_furniture_dim("storage_cabinet", np.pi/2)
+            storage_unit_2_dim = get_furniture_dim("storage_cabinet", np.pi/2)
+            carpet_dim = get_furniture_dim("carpet", 0)
+
+            bed_location = (W - bed_dim[1], L - bed_dim[0], bed_dim[0], bed_dim[1], bed_dim[2])
+            wardrobe_location = (0, L - wardrobe_dim[0], wardrobe_dim[0], wardrobe_dim[1], wardrobe_dim[2])
+            study_desk_location = (W - study_desk[1], (L - study_desk[0])/2, study_desk_dim[0], study_desk_dim[1], study_desk_dim[2])
+            study_chair_location = (study_desk_location[0] - study_chair_dim[0] - 0.1, (L - study_chair_dim[0])/2, study_chair_dim[0], study_chair_dim[1], study_chair_dim[2])
+            bookshelf_location = (W - bookshelf_dim[1], study_desk_location[1] - bookshelf_dim[0]-0.2, bookshelf_dim[0], bookshelf_dim[1], bookshelf_dim[2])
+            storage_unit_1_location = (0, wardrobe_location[1] - storage_unit_1_dim[1], storage_unit_1_dim[0], storage_unit_1_dim[1], storage_unit_1_dim[2])
+            storage_unit_2_location = (0, storage_unit_1_location[1] - storage_unit_2_dim[1] , storage_unit_2_dim[0], storage_unit_2_dim[1], storage_unit_2_dim[2])
+            carpet_location = ((W - carpet_dim[0])/2, (L - carpet_dim[1])/2, carpet_dim[0], carpet_dim[1], carpet_dim[2])
+
+            region_list = regions + [(bed_location, ["bed"]), (wardrobe_location, ["wardrobe"]), (study_desk_location, ["study_desk"]), (study_chair_location, ["study_chair"]), (bookshelf_location, ["bookshelf"]), (storage_unit_1_location, ["storage_unit"]), (storage_unit_2_location, ["storage_unit"]), (carpet_location, ["carpet"])]
+
+            return region_list
+        
+        if test_idx == 5:
+
+            furniture_names = ["bed", "wardrobe", "study_desk", "study_chair", "bookshelf", "storage_unit_1", "storage_unit_2", "carpet"]
+
+            door_window_loc, regions = init_bedroom_layout(room_dim, window_loc="right-wall", door_loc=("left-wall", "left"))
+
+            bed_dim = get_furniture_dim("bed", -np.pi/2)
+            wardrobe_dim = get_furniture_dim("wardrobe", np.pi/2)
+            study_desk_dim = get_furniture_dim("study_desk", np.pi/2)
+            study_chair_dim = get_furniture_dim("study_chair", np.pi/2)
+            bookshelf_dim = get_furniture_dim("bookshelf", np.pi/2)
+            storage_unit_1_dim = get_furniture_dim("storage_cabinet", np.pi/2)
+            storage_unit_2_dim = get_furniture_dim("storage_cabinet", np.pi/2)
+            carpet_dim = get_furniture_dim("carpet", 0)
+
+            bed_location = (W - bed_dim[1], L - bed_dim[0], bed_dim[0], bed_dim[1], bed_dim[2])
+            wardrobe_location = (0, L - wardrobe_dim[0], wardrobe_dim[0], wardrobe_dim[1], wardrobe_dim[2])
+            study_desk_location = (W - study_desk[1], (L - study_desk[0])/2, study_desk_dim[0], study_desk_dim[1], study_desk_dim[2])
+            study_chair_location = (study_desk_location[0] - study_chair_dim[0] - 0.1, (L - study_chair_dim[0])/2, study_chair_dim[0], study_chair_dim[1], study_chair_dim[2])
+            bookshelf_location = (W - bookshelf_dim[1], study_desk_location[1] - bookshelf_dim[0]-0.2, bookshelf_dim[0], bookshelf_dim[1], bookshelf_dim[2])
+            storage_unit_1_location = (0, wardrobe_location[1] - storage_unit_1_dim[1], storage_unit_1_dim[0], storage_unit_1_dim[1], storage_unit_1_dim[2])
+            storage_unit_2_location = (0, storage_unit_1_location[1] - storage_unit_2_dim[1] , storage_unit_2_dim[0], storage_unit_2_dim[1], storage_unit_2_dim[2])
+            carpet_location = ((W - carpet_dim[0])/2, (L - carpet_dim[1])/2, carpet_dim[0], carpet_dim[1], carpet_dim[2])
+
+            region_list = regions + [(bed_location, ["bed"]), (wardrobe_location, ["wardrobe"]), (study_desk_location, ["study_desk"]), (study_chair_location, ["study_chair"]), (bookshelf_location, ["bookshelf"]), (storage_unit_1_location, ["storage_unit"]), (storage_unit_2_location, ["storage_unit"]), (carpet_location, ["carpet"])]
+        
+        return region_list
 
     def get_furniture_locations_against_wall(furniture_num, wall_index=None, rel_side=None, room_dim=(3, 4)):
         W, L = room_dim
@@ -2979,6 +3154,12 @@ def get_bedroom_data_gen(num_samples, window_loc=None, door_loc=None, furniture_
 
         while True:
             window_door_loc, regions = init_bedroom_layout(bedroom_dim, window_loc, door_loc)
+
+            if relation == "all-composed":
+                relation_options = ["against-wall", "side-touching", "on-left-side", "in-front-of", "under-window", "at-center", "at-corners"]
+                relation_probability = [0.2, 0.2, 0.2, 0.2, 0.06, 0.07, 0.07]
+                relation = rn.choices(relation_options, relation_probability, k=1)[0]
+                
             if relation == "against-wall":
                 if furniture_num is None:
                     furniture_num = rn.choice([1, 2, 3, 4, 5])
@@ -3012,15 +3193,8 @@ def get_bedroom_data_gen(num_samples, window_loc=None, door_loc=None, furniture_
                     regions += get_furniture_locations_on_left_side(wall_index, bedroom_dim)
                     
             elif relation == "in-front-of":
-                if furniture_num is None:
-                    num_pairs = rn.choice([1, 2])
-                else:
-                    num_pairs = furniture_num//2
-                wall_pairs = rn.sample([["back-wall", "front-wall"], ["right-wall", "left-wall"]], 1)[0]
-                wall_indices = rn.sample(wall_pairs, num_pairs)
-
-                for wall_index in wall_indices:
-                    regions += get_furniture_locations_in_front_of(wall_index, bedroom_dim)
+                wall_index = rn.choice(["back-wall", "front-wall", "left-wall", "right-wall"])
+                regions += get_furniture_locations_in_front_of(wall_index, bedroom_dim)
 
             elif relation == "under-window":
                 regions += get_furniture_locations_under_window(window_door_loc["window"], bedroom_dim)
@@ -3030,6 +3204,11 @@ def get_bedroom_data_gen(num_samples, window_loc=None, door_loc=None, furniture_
                 if furniture_num is None:
                     furniture_num = rn.choice([1, 2, 3, 4])
                 regions += get_furniture_locations_at_corners(furniture_num, room_dim=bedroom_dim)
+
+            elif relation == "test-case":
+                print("which index")
+                x = input()
+                regions = get_test_case_furniture_locations(int(x), bedroom_dim)
                 
             count -= 1
             print(len(regions), "added!")
@@ -3039,7 +3218,1481 @@ def get_bedroom_data_gen(num_samples, window_loc=None, door_loc=None, furniture_
         yield None
     
     return gen   
-##########################################################################
+
+def get_shelf_data_gen(num_samples, shelf_dim=None, object_num=None, relation="wall-contact"):
+    # A shelf is a rectangle with width W and height H that represent the x-z plane of a single shelf, viewed facing the front of the bookshelf.
+    # W, H = shelf_dim.
+    # It has two walls: left-wall and right-wall, viewed facing the front of the bookshelf 
+    # The bottom of the left-wall is with coordinates (0, 0), the top of the right-wall is with coordinates (W, H)
+    # We assume the shelf is deep enough to hold the objects, L > l for all objects
+    # Furniture_region is a tuple of 5 floats: (x, z, w, h, rotation)
+    # (x, z) is the coordinate of the lower left corner of the furniture, w is the width, h is the height, rotation is the angle of the object on the x-z plane, 0 means the object is standing upright, Pi/2 means the object is sitting on its left surface.
+   
+    Object_region = Tuple[float, float, float, float, float]  
+
+    def get_object_dim(object_num, shelf_dim):
+        # Generate the object dimensions (w, h, rotation) for object_num objects
+        W, H = shelf_dim
+        object_dims = []
+
+        # Step 1: Define appropriate range for the object dimensions
+        min_width = W * 0.05  # 5% of shelf width
+        max_width = W * 0.25  # 25% of shelf width
+        min_height = H * 0.3  # 30% of shelf height
+        max_height = H * 0.9   # 90% of shelf height
+
+        # Step 2: Generate the object dimensions, ensuring they fit within the shelf
+        total_width = 0
+        for i in range(object_num):
+            w = rn.uniform(min_width, max_width)
+            h = rn.uniform(min_height, max_height)
+            rotation = 0  # Assuming upright objects for simplicity
+            object_dims.append((w, h, rotation))
+            total_width += w
+
+        # Check if total width exceeds shelf width
+        max_W = W * 0.9  # 90% of shelf width
+        if total_width > max_W:
+            # Calculate the scale factor to adjust widths
+            scale_factor = max_W / total_width
+            # Adjust the widths of all objects
+            adjusted_object_dims = []
+            for w, h, rotation in object_dims:
+                w_adjusted = w * scale_factor
+                adjusted_object_dims.append((w_adjusted, h, rotation))
+            object_dims = adjusted_object_dims
+
+        return object_dims
+
+    def divide_total_spacing(x, N):
+        # Generate N - 1 random cut points between 0 and x
+        cut_points = sorted([random.uniform(0, x) for _ in range(N-1)])
+        # Add the start and end points
+        points = [0.0] + cut_points + [x]
+        # Compute the sizes of each compartment
+        compartments = [points[i+1] - points[i] for i in range(N)]
+        return compartments
+
+    def get_object_locations_wall_contact(object_num, shelf_dim):
+        # Generate object locations that satisfy the wall-contact relation
+        W, H = shelf_dim
+
+        assert object_num == 2
+
+        # Step 1: Generate the object relations
+        object_relations = ["left-wall-contact", "right-wall-contact"]
+        
+        # Step 2: Get object dimensions
+        object_dims = get_object_dim(object_num, shelf_dim)
+
+        # Step 3: Get object locations based on the object relations
+        regions = []
+        for i in range(object_num):
+            w, h, rotation = object_dims[i]
+            if object_relations[i] == "left-wall-contact":
+                x = 0  # Left wall
+            elif object_relations[i] == "right-wall-contact":
+                x = W - w  # Right wall
+            z = 0
+
+            regions.append(((x, z, w, h, rotation), [object_relations[i]]))
+        return "wall-contact", regions
+
+    def get_object_locations_wall_side(object_num, shelf_dim):
+        # Generate object locations that satisfy the wall-side relation
+        W, H = shelf_dim
+
+        # Step 1: Generate the object relations
+        relations = ["left-side", "right-side", "at-center"]
+        object_relations = []
+        
+        # Ensure 'at-center' is included at most once
+        has_center = False
+        for _ in range(object_num):
+            if not has_center and rn.random() < 0.3:
+                object_relations.append("at-center")
+                has_center = True
+            else:
+                object_relations.append(rn.choice(["left-side", "right-side"]))
+        # Ensure we have the correct number of relations
+        object_relations = object_relations[:object_num]
+
+        # Step 2: Get object dimensions
+        object_dims = get_object_dim(object_num, shelf_dim)
+        
+        # Step 3: Get object locations based on the object relations
+        regions = []
+        occupied_areas = []
+
+        # Step 3.1: Place the 'at-center' object, if any
+        if "at-center" in object_relations:
+            center_index = object_relations.index("at-center")
+            w_center, h_center, rotation_center = object_dims[center_index]
+            x_center = (W - w_center) / 2  # Center horizontally
+            z_center = 0  # Bottom of the shelf
+            regions.append(((x_center, z_center, w_center, h_center, rotation_center), ["at-center"]))
+            occupied_areas.append((x_center, z_center, w_center, h_center))
+            # Remove the center object from lists
+            del object_relations[center_index]
+            del object_dims[center_index]
+            # Update left_most and right_most positions
+            left_most = x_center
+            right_most = x_center + w_center
+        else:
+            # If there's no center object, the center is at W/2
+            left_most = W / 2
+            right_most = W / 2
+
+        # Separate remaining objects into left-side and right-side
+        left_side_indices = [i for i, rel in enumerate(object_relations) if rel == "left-side"]
+        right_side_indices = [i for i, rel in enumerate(object_relations) if rel == "right-side"]
+
+        # Step 3.3: Place the left-side objects
+        left_total_width = sum([object_dims[i][0] for i in left_side_indices])
+
+        # Adjust widths if necessary
+        if left_total_width > left_most * 0.8:
+            scale_factor = left_most * 0.8/ left_total_width
+            for i in left_side_indices:
+                w, h, rotation = object_dims[i]
+                w *= scale_factor
+                object_dims[i] = (w, h, rotation)
+            left_total_width = sum([object_dims[i][0] for i in left_side_indices])
+
+        # Place the left-side objects without overlap
+        left_spacing = left_most - left_total_width
+        left_spacings_between_objects = divide_total_spacing(left_spacing, len(left_side_indices) + 1)
+        start_x = left_spacings_between_objects[0]
+
+        for i, idx in enumerate(left_side_indices):
+            w, h, rotation = object_dims[idx]
+            region = (start_x, 0, w, h, rotation)
+            regions.append((region, ["left-side"]))
+            start_x += w + left_spacings_between_objects[i + 1]
+
+        # Step 3.4: Place the right-side objects
+        right_total_width = sum([object_dims[i][0] for i in right_side_indices])
+
+        # Adjust widths if necessary
+        available_width_right = W - right_most
+        if right_total_width > available_width_right * 0.8:
+            scale_factor = available_width_right * 0.8 / right_total_width
+            for i in right_side_indices:
+                w, h, rotation = object_dims[i]
+                w *= scale_factor
+                object_dims[i] = (w, h, rotation)
+            right_total_width = sum([object_dims[i][0] for i in right_side_indices])
+
+        # Place the right-side objects without overlap
+
+        right_spacing = available_width_right - right_total_width
+        right_spacings_between_objects = divide_total_spacing(right_spacing, len(right_side_indices) + 1)
+        start_x = right_most + right_spacings_between_objects[0]
+       
+        for i, idx in enumerate(right_side_indices):
+            w, h, rotation = object_dims[idx]
+            region = (start_x, 0, w, h, rotation)
+            regions.append((region, ["right-side"]))
+            start_x += w + right_spacings_between_objects[i + 1]
+
+        return "wall-side", regions
+
+    def get_object_locations_side_of(object_num, shelf_dim):
+        # Generate object locations that satisfy the side-of relation
+        W, H = shelf_dim
+        assert object_num == 2  # This relation involves exactly two objects
+
+        # Step 1: Get object dimensions
+        object_dims = get_object_dim(object_num, shelf_dim)
+        (w_a, h_a, rotation_a) = object_dims[0]
+        (w_b, h_b, rotation_b) = object_dims[1]
+
+        # Decide spacing between objects
+        spacing = rn.uniform(max(0.2, min(w_a, w_b) * 0.2), min(min(w_a, w_b) * 0.5, 0.6))
+
+        width_sum = w_a + w_b + spacing
+        if width_sum > W * 0.8:
+            scale_factor = W * 0.8 / width_sum
+            w_a *= scale_factor
+            w_b *= scale_factor
+            spacing *= scale_factor
+        
+        x_a_max = W - w_a - w_b - spacing
+
+        x_a, z_a = rn.uniform(0, x_a_max), 0
+        x_b, z_b = x_a + w_a + spacing, 0
+
+        regions = []
+        regions.append(((x_a, z_a, w_a, h_a, rotation_a), []))
+        regions.append(((x_b, z_b, w_b, h_b, rotation_b), []))
+        return "side-of", regions
+
+    def get_object_locations_aligned(object_num, shelf_dim):
+        # Generate object locations that satisfy alignment relations
+        W, H = shelf_dim
+
+        # Step 1: Choose alignment relation
+        aligned_relation = rn.choice(["linearly-aligned", "contiguously-aligned"])
+
+        # Step 2: Get object dimensions
+        object_dims = get_object_dim(object_num, shelf_dim)
+
+        # Step 3: Calculate total width required including spacing
+        if aligned_relation == "linearly-aligned":
+            # Include equal spacing between objects
+            spacing = rn.uniform(0.03 * W, 0.1 * W)
+            total_spacing = spacing * (object_num - 1)
+        else:
+            # No spacing for contiguously-aligned
+            spacing = 0.025
+            total_spacing = 0.025 * (object_num - 1)
+        total_width = sum([w for w, h, r in object_dims]) + total_spacing
+
+        # Scale down if total width exceeds shelf width
+        if total_width > W * 0.9:
+            scale = W * 0.9 / total_width
+            object_dims = [(w * scale, h, r) for w, h, r in object_dims]
+            spacing *= scale
+            total_width = sum([w for w, h, r in object_dims]) + spacing * (object_num - 1)
+
+        # Step 4: Position objects
+        start_x = (W - total_width) / 2
+        x = start_x
+        regions = []
+        for w, h, rotation in object_dims:
+            regions.append(((x, 0, w, h, rotation), []))
+            x += w + spacing
+        return aligned_relation, regions
+
+    def get_object_locations_sorted(object_num, shelf_dim):
+        # Generate object locations that satisfy sorted relations
+        W, H = shelf_dim
+
+        # Step 1: Choose sorted relation
+        sorted_relation = rn.choice([
+            "height-sorted-ascending", "height-sorted-descending",
+            "width-sorted-ascending", "width-sorted-descending"
+        ])
+
+        # Step 2: Get object dimensions
+        object_dims = get_object_dim(object_num, shelf_dim)
+
+        # Step 3: Sort object dimensions based on the relation
+        if "height" in sorted_relation:
+            reverse = "descending" in sorted_relation
+            object_dims.sort(key=lambda x: x[1], reverse=reverse)
+        elif "width" in sorted_relation:
+            reverse = "descending" in sorted_relation
+            object_dims.sort(key=lambda x: x[0], reverse=reverse)
+
+        # Step 4: Position objects linearly
+
+        spacing = rn.uniform(0.03 * W, 0.1 * W)
+        total_spacing = spacing * (object_num - 1)
+        total_width = sum([w for w, h, r in object_dims]) + total_spacing
+
+        if total_width > W * 0.9:
+            # Scale down objects if they don't fit
+            scale = W * 0.9 / total_width
+            object_dims = [(w * scale, h, r) for w, h, r in object_dims]
+            spacing *= scale
+            total_width = sum([w for w, h, r in object_dims]) + spacing * (object_num - 1)
+
+        start_x = (W - total_width) / 2
+        x = start_x
+        regions = []
+        for w, h, rotation in object_dims:
+            regions.append(((x, 0, w, h, rotation), []))
+            x += w + spacing
+        return sorted_relation, regions
+
+    def get_test_case_object_locations(test_idx):
+
+        shelf_dim = (4, 2)
+        if test_idx == 1:
+
+            num_books = 13
+
+            book_widths = np.random.uniform(0.075, 0.15, 13)
+            book_heights = np.random.uniform(0.9, 1.2, 13)
+            
+            book_dims = list(zip(book_widths, book_heights))    
+
+            regions = []
+            start_x = 0
+            for i in range(num_books):
+                book_region = (start_x, 0, book_dims[i][0], book_dims[i][1], 0)
+                regions.append((book_region, []))
+                start_x += book_dims[i][0]
+
+            vase = (2.5, 0, 1.0, 1.8, 0)
+
+            regions.append((vase, []))
+
+            return "test-case", regions
+
+        elif test_idx == 2:
+
+            teacup = (0.5, 0, 0.3, 0.5, 0)
+            tea_bottle = (1.2, 0, 0.6, 1, 0)
+            box = (2.2, 0, 1.6, 1.5, 0)
+
+            regions = [(teacup, []), (tea_bottle, []), (box, [])]
+
+            return "test-case", regions
+
+    def gen(relation, shelf_dim, object_num=None):
+        count = num_samples
+        while count > 0:
+            if relation == "all-composed":
+                # Randomly choose a relation
+                relation_options = ["wall-contact", "wall-side", "side-of", "aligned", "sorted"]
+                probability = [0.2, 0.2, 0.1, 0.2, 0.25]
+                current_relation = rn.choices(relation_options, probability, k=1)[0]
+            else:
+                current_relation = relation
+
+            if current_relation == "wall-contact":
+                object_num = 2
+                relation, regions = get_object_locations_wall_contact(object_num, shelf_dim)
+           
+            elif current_relation == "wall-side":
+                if object_num is None:
+                    object_num = rn.randint(2, 8)
+                relation, regions = get_object_locations_wall_side(object_num, shelf_dim)
+
+            elif current_relation == "side-of":
+                object_num = 2
+                relation, regions = get_object_locations_side_of(object_num, shelf_dim)
+                        
+            elif current_relation == "aligned":
+                if object_num is None:
+                    object_num = rn.randint(3, 8)
+                relation, regions = get_object_locations_aligned(object_num, shelf_dim)
+                
+            elif current_relation == "sorted":
+                if object_num is None:
+                    object_num = rn.randint(3, 8)
+                relation, regions = get_object_locations_sorted(object_num, shelf_dim)
+
+            elif current_relation == "test-case":
+                print("which index")
+                x = input()
+                relation, regions = get_test_case_object_locations(int(x))
+            
+            count -= 1
+            print(len(regions), "added!")
+
+            yield relation, regions
+            if count == 0:
+                break
+        yield None
+    
+    return gen
+
+def get_tabletop_data_gen(num_samples, table_dim=(3, 2), object_num=None, relation="table-edge"):
+    # A table is a rectangle with width W and length L that represent the x-y plane of a table.
+    # W, L = table_dim.
+    # It has four table edges : front-edge, back-edge, left-edge, right-edge. front-edge is the side closest to the camera and back edge is the furthes from the camera.
+    # The objects can either face the front-edge or back-edge of the table.
+    # The front-left corner of the table is with coordinates (0, 0), the back-right corner is with coordinates (W, L)
+    # Object-region is a tuple of 5 floats: (x, y, w, l, rotation)
+    # (x, y) is the coordinate of the left-front corner of the object 2D bounding box in x-y plane, w is the width, h is the height, rotation is the angle of the object on the x-y plane, 0 means the object is facing the front, Pi means the object is facing the back.
+   
+    Object = Tuple[float, float, float, float, float]  
+
+    def get_object_dim(object_num, table_dim=(3, 2), facing="random", relation=None, same_size=False):
+        W, L = table_dim
+        object_dims = []
+        min_width = W * 0.05
+        max_width = W * 0.4
+        min_length = L * 0.05
+        max_length = L * 0.4
+
+        if same_size:
+            # All objects have the same size and are arranged in a regular grid, facing the same direction.
+            # Ensure total dimensions do not exceed 0.5W and 0.5L.
+            n_cols = int(math.ceil(math.sqrt(object_num)))
+            n_rows = int(math.ceil(object_num / n_cols))
+            obj_w = np.random.uniform(max((0.3 * W) / n_cols, min_width), min((0.6 * W) / n_cols, max_width))
+            obj_l = np.random.uniform(max((0.3 * L) / n_rows, min_length), min((0.6 * L) / n_rows, max_length))
+            rotation = 0  # All facing the front
+            object_dims = [(obj_w, obj_l, rotation)] * object_num
+
+        elif relation and ("horizontal" in relation or "row" in relation) and "symmetry" not in relation:
+            # Objects arranged horizontally
+            total_width = 0.8 * W
+            widths = np.random.uniform(min_width, max_width, size=object_num)
+            scale_factor = total_width / widths.sum()
+            widths *= scale_factor
+            if "row" in relation:
+                lengths = np.random.uniform(min_length, 0.3*L, size=object_num)
+            else:
+                lengths = np.random.uniform(min_length, max_length, size=object_num)
+            rotation = rn.choice([0, math.pi])
+            rotations = [rotation] * object_num
+            object_dims = list(zip(widths, lengths, rotations))
+
+        elif relation and ("vertical" in relation or "column" in relation) and "symmetry" not in relation:
+            # Objects arranged vertically
+            total_length = 0.8 * L
+            lengths = np.random.uniform(min_length, max_length, size=object_num)
+            scale_factor = total_length / lengths.sum()
+            lengths *= scale_factor
+            if "column" in relation:
+                widths = np.random.uniform(min_width, 0.3*W, size=object_num)
+            else:
+                widths = np.random.uniform(min_width, max_width, size=object_num)
+            rotation = rn.choice([0, math.pi])
+            rotations = [rotation] * object_num
+            object_dims = list(zip(widths, lengths, rotations))
+
+        elif relation and "edge" in relation:
+            # Objects near an edge
+            if "front-edge" in relation or "back-edge" in relation:
+                total_width = 0.8 * W
+                widths = np.random.uniform(min_width, max_width, size=object_num)
+                scale_factor = total_width / widths.sum()
+                widths *= scale_factor
+                lengths = np.random.uniform(min_length, max_length, size=object_num)
+            else:
+                total_length = 0.8 * L
+                lengths = np.random.uniform(min_length, max_length, size=object_num)
+                scale_factor = total_length / lengths.sum()
+                lengths *= scale_factor
+                widths = np.random.uniform(min_width, max_width, size=object_num)
+            rotations = rn.choices([0, math.pi], k=object_num)
+            object_dims = list(zip(widths, lengths, rotations))
+
+        elif relation and "symmetry" in relation:
+            # Symmetry cases
+            if "line-symmetry" in relation:
+                group_size = 3
+            else:
+                group_size = 2
+            num_groups = object_num // group_size
+            object_dims = []
+            for _ in range(num_groups):
+                # Generate dimensions for the first object
+                w = np.random.uniform(min_width, max_width)
+                l = np.random.uniform(min_length, max_length)
+                rotation = rn.choice([0, math.pi])
+                if group_size == 2:
+                    if "vertical" in relation:
+                        total_width = w * 2
+                        if total_width > 0.5 * W:
+                            scale_factor = 0.5 * W / total_width
+                            w *= scale_factor
+                    elif "horizontal" in relation:
+                        total_length = l * 2
+                        if total_length > 0.5 * L:
+                            scale_factor = 0.5 * L / total_length
+                            l *= scale_factor
+                    object_dims.extend([(w, l, rotation)] * 2)
+                else:
+                    axis_obj = (w, l, rotation)
+                    w_pair = np.random.uniform(min_width, max_width)
+                    l_pair = np.random.uniform(min_length, max_length)
+                    if "vertical" in relation:
+                        total_width = w + w_pair*2
+                        if total_width > 0.6 * W:
+                            scale_factor = 0.6 * W / total_width
+                            w *= scale_factor
+                            w_pair *= scale_factor
+                    elif "horizontal" in relation:
+                        total_length = l + l_pair*2
+                        if total_length > 0.6 * L:
+                            scale_factor = 0.6 * L / total_length
+                            l *= scale_factor
+                            l_pair *= scale_factor
+                    object_dims.extend([(w, l, rotation), (w_pair, l_pair, rotation), (w_pair, l_pair, rotation)])     
+
+        else:
+            # General case
+            if facing == "random":
+                rotations = rn.choices([0, math.pi], k=object_num)
+            else:
+                rotations = [0] * object_num
+        
+            widths = np.random.uniform(min_width, max_width, size=object_num)
+            lengths = np.random.uniform(min_length, max_length, size=object_num)
+            object_dims = list(zip(widths, lengths, rotations))
+
+        return object_dims
+
+    def rectangles_overlap(region1, region2):
+        x1, y1, w1, l1 = region1
+        x2, y2, w2, l2 = region2
+        if (x1 + w1 <= x2) or (x2 + w2 <= x1):
+            return False
+        if (y1 + l1 <= y2) or (y2 + l2 <= y1):
+            return False
+        return True
+    
+    def get_object_locations_table_edge(object_num, table_dim):
+        """
+        Generate object locations that are placed near a specific table edge,
+        with the closest distance to that edge being 0.25 units.
+        Objects face either the front or back edge.
+        There will be 3-8 objects against the table edge.
+        The objects should not exceed 0.8W or 0.8L.
+        """
+        W, L = table_dim
+
+        table_edge_margin = 0.1
+
+        # Step 1: Generate the object relation (pick an edge)
+        object_relation = rn.choice(["near-front-edge", "near-back-edge", "near-left-edge", "near-right-edge"])
+
+        # Step 2: Get object dimensions and adjust sizes if necessary
+        if object_relation in ["near-front-edge", "near-back-edge"]:
+            # Sum of widths should not exceed 0.8W
+            total_available_width = 0.8 * W
+            object_dims = get_object_dim(object_num, table_dim, facing="random", relation=object_relation)
+            widths = [dim[0] for dim in object_dims]
+            total_width = sum(widths)
+
+            if total_width > total_available_width:
+                # Scale down widths proportionally
+                scale_factor = total_available_width / total_width
+                object_dims = [(w * scale_factor, l, r) for (w, l, r), w in zip(object_dims, widths)]
+                widths = [w * scale_factor for w in widths]
+            else:
+                widths = widths
+
+            # Step 3: Assign object locations with random gaps and starting position
+            total_spacing = 0.9 * W - sum(widths)
+            num_gaps = object_num + 1  # Gaps between objects and at the ends
+
+            # Randomly divide the total spacing among the gaps
+            random_gaps = np.random.uniform(0.5, 1, size=num_gaps)
+            gaps_scaling_factor = total_spacing / random_gaps.sum()
+            gap_sizes = random_gaps * gaps_scaling_factor
+
+            # Randomize the starting x position within allowable range
+            min_start_x = 0
+            max_start_x = W - sum(widths) - sum(gap_sizes)
+            start_x = min_start_x + np.random.uniform() * (max_start_x - min_start_x)
+
+            current_x = start_x + gap_sizes[0]  # Initial position including start gap
+            regions = []
+            for i, (w, l, rotation) in enumerate(object_dims):
+                x = current_x
+                y = table_edge_margin  # Distance from the front or back edge
+                if object_relation == "near-back-edge":
+                    y = L - l - table_edge_margin  # Adjust y for back edge
+                regions.append((x, y, w, l, rotation))
+                current_x += w + gap_sizes[i + 1]  # Move to next position
+
+        else:
+            # Sum of lengths should not exceed 0.8L
+            total_available_length = 0.8 * L
+            object_dims = get_object_dim(object_num, table_dim, facing="random", relation=object_relation)
+            lengths = [dim[1] for dim in object_dims]
+            total_length = sum(lengths)
+
+            if total_length > total_available_length:
+                # Scale down lengths proportionally
+                scale_factor = total_available_length / total_length
+                object_dims = [(w, l * scale_factor, r) for (w, l, r), l in zip(object_dims, lengths)]
+                lengths = [l * scale_factor for l in lengths]
+            else:
+                lengths = lengths
+
+            # Step 3: Assign object locations with random gaps and starting position
+            total_spacing = 0.9 * L - sum(lengths)
+            num_gaps = object_num + 1  # Gaps between objects and at the ends
+
+            # Randomly divide the total spacing among the gaps
+            random_gaps = np.random.uniform(0.5, 1, size=num_gaps)
+            gaps_scaling_factor = total_spacing / random_gaps.sum()
+            gap_sizes = random_gaps * gaps_scaling_factor
+
+            # Randomize the starting y position within allowable range
+            min_start_y = 0
+            max_start_y = L - sum(lengths) - sum(gap_sizes)
+            start_y = min_start_y + np.random.uniform() * (max_start_y - min_start_y)
+
+            current_y = start_y + gap_sizes[0]  # Initial position including start gap
+            regions = []
+            for i, (w, l, rotation) in enumerate(object_dims):
+                y = current_y
+                x = table_edge_margin  # Distance from the left or right edge
+                if object_relation == "near-right-edge":
+                    x = W - w - table_edge_margin  # Adjust x for right edge
+                regions.append((x, y, w, l, rotation))
+                current_y += l + gap_sizes[i + 1]  # Move to next position
+            
+        for region in regions:
+            x, y, w, l, rotation = region
+            assert 0 <= x <= W - w, "Object exceeds table width"
+            assert 0 <= y <= L - l, "Object exceeds table length"
+
+        return "table-edge", regions
+
+    def get_object_locations_table_side(object_num, table_dim):
+        """
+        Generate object locations at specific relative positions on the table:
+        - left-side: objects are on the left half of the table.
+        - right-side: objects are on the right half of the table.
+        - front-side: objects are on the front half of the table.
+        - back-side: objects are on the back half of the table.
+        - central-column: objects' x-centroid follows a normal distribution centered at W/2.
+        - central-row: objects' y-centroid follows a normal distribution centered at L/2.
+        - centered-table: object's centroid is at the center of the table.
+        """
+        W, L = table_dim
+
+        object_relation = rn.choice([
+            "left-side",
+            "right-side",
+            "front-side",
+            "back-side",
+            "central-column",
+            "central-row",
+            "central-vertical-axis",
+            "central-horizontal-axis",
+            "centered-table"
+        ])
+
+        def partition(box, depth=3):
+
+            min_distance = [W * 0.1, L * 0.1]
+            max_distance = [W * 0.4, L * 0.4]
+
+            if rand() < 0.15 or depth == 0 or (box[2] < 2 * min_distance[0] and box[3] < 2 * min_distance[1]):
+                return [box]
+
+            else:
+                split_axis_prob = [0, 0]
+                if box[2] > 2 * max_distance[0]:
+                    split_axis_prob[0] = 2
+                elif box[2] <= 2 * max_distance[0] and box[2] > 2 * min_distance[0]:
+                    split_axis_prob[0] = 1
+                else: 
+                    split_axis_prob[0] = 0
+                
+                if box[3] > 2 * max_distance[1]:
+                    split_axis_prob[1] = 2
+                elif box[3] <= 2 * max_distance[1] and box[3] > 2 * min_distance[1]:
+                    split_axis_prob[1] = 1
+                else:
+                    split_axis_prob[1] = 0
+                
+                split_axis_prob = split_axis_prob / np.sum(split_axis_prob)
+                axis = np.random.choice([0, 1], p=split_axis_prob)
+
+               
+                split_point = rand() * (box[axis + 2] - 2 * min_distance[axis]) + min_distance[axis]
+
+                rotations = np.random.choice([0, math.pi], size=2)
+                if axis == 0:
+                    regions =  partition((box[0], box[1], split_point, box[3], rotations[0]), depth - 1)
+                    regions += partition((box[0] + split_point, box[1], box[2] - split_point, box[3], rotations[1]), depth - 1)
+                else:
+                    regions = partition((box[0], box[1], box[2], split_point, rotations[0]), depth - 1)
+                    regions += partition((box[0], box[1] + split_point, box[2], box[3] - split_point, rotations[1]), depth - 1)
+
+                return regions
+
+        def pad_regions(regions):
+
+            min_dims = [W * 0.09, L * 0.09]
+            num_regions = len(regions)
+            for i in range(num_regions):
+                
+                x, y, w, l, r = regions[i]
+                max_spacing_w = w - min_dims[0]
+                max_spacing_l = l - min_dims[1]
+                x_padding = np.random.uniform(0.3, 1)*max_spacing_w/2
+                y_padding = np.random.uniform(0.3, 1)*max_spacing_l/2
+                region = (x + x_padding, y + y_padding, w - 2*x_padding, l - 2*y_padding, r)
+                regions[i] = region
+
+            return regions
+        
+        regions = []
+            
+        if object_relation == "left-side":
+            regions = partition((0, 0, W/2, L, 0), 3)
+            regions = pad_regions(regions)
+
+        elif object_relation == "right-side":
+            regions = partition((W/2, 0, W/2, L, 0), 3)
+            regions = pad_regions(regions)
+
+        elif object_relation == "front-side":
+            regions = partition((0, 0, W, L/2, 0), 3)
+            regions = pad_regions(regions)
+
+        elif object_relation == "back-side":
+            regions = partition((0, L/2, W, L/2, 0), 3)
+            regions = pad_regions(regions)
+
+        elif object_relation == "central-column" or object_relation == "central-vertical-axis":
+            object_dims = get_object_dim(object_num, table_dim, facing="random", relation=object_relation)
+
+            total_y_spacing = L - sum([l for w, l, r in object_dims])
+            y_spacings = np.random.uniform(size=object_num+1)
+            y_spacings = total_y_spacing * y_spacings / y_spacings.sum()
+
+            start_y = y_spacings[0]
+            for i in range(object_num):
+                w, l, rotation = object_dims[i]
+                if object_relation == "central-column":
+                    min_x = W/3
+                    max_x = 2*W/3 - w
+                    x = np.random.uniform(min_x, max_x)
+                else:
+                    x = (W - w)/2
+                y = start_y
+                regions.append((x, y, w, l, rotation))
+                start_y += l + y_spacings[i+1]
+
+        elif object_relation == "central-row" or object_relation == "central-horizontal-axis":
+            object_dims = get_object_dim(object_num, table_dim, facing="random", relation=object_relation)
+
+            total_x_spacing = W - sum([w for w, l, r in object_dims])
+            x_spacings = np.random.uniform(size=object_num+1)
+            x_spacings = total_x_spacing * x_spacings / x_spacings.sum()
+
+            start_x = x_spacings[0]
+            for i in range(object_num):
+                w, l, rotation = object_dims[i]
+                if object_relation == "central-row":
+                    min_y = L/3
+                    max_y = 2*L/3 - l
+                    y = np.random.uniform(min_y, max_y)
+                else:
+                    y = (L - l)/2
+                x = start_x
+                regions.append((x, y, w, l, rotation))
+                start_x += w + x_spacings[i+1]
+
+        elif object_relation == "centered-table":
+
+            region_dim = (W, L)
+            object_dims = get_object_dim(1, region_dim, facing="random")
+            w, l, rotation = object_dims[0]
+            x = (W - w)/2
+            y = (L - l)/2
+            regions.append((x, y, w, l, rotation))
+        
+        return "table-side", regions
+
+    def get_object_locations_aligned(pair_num, table_dim):
+        """
+        Generate object locations for pairs of objects that are aligned according to specified relations:
+        - "horizontally-aligned-bottom"
+        - "horizontally-aligned-centroid"
+        - "vertically-aligned-centroid"
+        """
+        W, L = table_dim
+        object_relations = rn.choices(
+            ["horizontally-aligned-bottom", "horizontally-aligned-centroid", "vertically-aligned-centroid"],
+            k=pair_num
+        )
+        object_num = pair_num * 2  # Each pair consists of 2 objects
+        # Get dimensions and orientations for all objects
+        object_dims = get_object_dim(object_num, table_dim, facing="random")
+        regions = []
+
+        for i in range(pair_num):
+            # Extract dimensions and orientations for the pair
+            w1, l1, rotation1 = object_dims[2 * i]
+            w2, l2, rotation2 = object_dims[2 * i + 1]
+            relation = object_relations[i]
+
+            # Calculate total dimensions and random spacing
+            if relation.startswith("horizontally-aligned"):
+                # Total width includes widths of both objects and spacing
+                spacing = np.random.uniform(0.04 * W, max(0.05 * W, min(min(w1, w2) * 0.5, 0.1 * W)))
+                
+                total_width = w1 + w2 + spacing
+                max_height = max(l1, l2)
+                total_height = max_height
+            elif relation == "vertically-aligned-centroid":
+                # Total height includes heights of both objects and spacing
+                spacing = np.random.uniform(0.04 * L, max(0.05 * L, min(min(l1, l2) * 0.5, 0.1 * L)))
+                total_height = l1 + l2 + spacing
+                max_width = max(w1, w2)
+                total_width = max_width
+
+            # Sample an empty space for this region within the table
+            max_attempts = 1000
+            placed = False
+
+            for _ in range(max_attempts):
+                if relation.startswith("horizontally-aligned"):
+                    # Sample x and y within table bounds
+                    x_min = 0
+                    x_max = W - total_width
+                    y_min = 0
+                    y_max = L - total_height
+                    x_region = np.random.uniform(x_min, x_max)
+                    y_region = np.random.uniform(y_min, y_max)
+                elif relation == "vertically-aligned-centroid":
+                    x_min = 0
+                    x_max = W - total_width
+                    y_min = 0
+                    y_max = L - total_height
+                    x_region = np.random.uniform(x_min, x_max)
+                    y_region = np.random.uniform(y_min, y_max)
+
+                total_region = (x_region, y_region, total_width, total_height, rotation1)
+
+                # Check for overlaps with existing regions
+                overlap = False
+                for region in regions:
+                    if rectangles_overlap(region[:4], total_region[:4]):
+                        overlap = True
+                        break
+
+                # Ensure objects are within table bounds
+                if (0 <= x_region <= W - total_width and 0 <= y_region <= L - total_height and not overlap):
+
+                    # Determine placements for each object within the region
+                    if relation == "horizontally-aligned-bottom":
+                        # Place first object
+                        x1 = x_region
+                        x2 = x1 + w1 + spacing
+                        if rotation1 == 0:
+                            y1 = y_region  # Align bottom edge at y_region
+                            y2 = y_region  # Same y as first object
+                        else:
+                            y1 = y_region + total_height - l1  # Align top edge
+                            y2 = y_region + total_height - l2
+                            
+                    elif relation == "horizontally-aligned-centroid":
+                        # Align centroids along y-axis
+                        x1 = x_region
+                        y_center = y_region + total_height / 2
+                        y1 = y_center - l1 / 2
+                        x2 = x1 + w1 + spacing
+                        y2 = y_center - l2 / 2
+                    elif relation == "vertically-aligned-centroid":
+                        # Align centroids along x-axis
+                        y1 = y_region
+                        x_center = x_region + total_width / 2
+                        x1 = x_center - w1 / 2
+                        y2 = y1 + l1 + spacing
+                        x2 = x_center - w2 / 2
+
+                    # Create regions for both objects
+                    new_region1 = (x1, y1, w1, l1, rotation1)
+                    new_region2 = (x2, y2, w2, l2, rotation1)
+
+                    # Place objects
+                    regions.extend([new_region1, new_region2])
+                    placed = True
+                    break   
+
+            if not placed:
+                print(f"Could not place pair {i+1} ({relation}) after {max_attempts} attempts.")
+
+        return "aligned", regions
+
+    def get_object_locations_side_of(pair_num, table_dim):
+        """
+        Generate object locations that satisfy the following side-of relations:
+        - "right-of"
+        - "left-of"
+        - "front-of"
+        - "back-of"
+        """
+        W, L = table_dim
+
+        # Step 1: Generate the object relations
+        object_relations = rn.choices(["right-of", "left-of", "front-of", "back-of"], k=pair_num)
+
+        # Step 2: Get the object dimensions
+        object_num = pair_num * 2  # Each pair consists of 2 objects
+        object_dims = get_object_dim(object_num, table_dim, facing="random")
+
+        regions = []
+
+        for i in range(pair_num):
+            # Extract dimensions and orientations for the pair
+            wA, lA, rotationA = object_dims[2 * i]
+            wB, lB, rotationB = object_dims[2 * i + 1]
+            relation = object_relations[i]
+
+            # Adjust object orientation if necessary to ensure they are facing the same direction
+            # For simplicity, we'll assume both objects in a pair face the same direction
+            rotation = rn.choice([0, math.pi])
+            rotationA = rotationB = rotation
+
+            # Step 3: Compute total dimensions and random spacing
+            if relation in ["left-of", "right-of"]:
+                # Occupy along x-axis, overlap along y-axis
+                # Total width includes widths of both objects and spacing
+                spacing = np.random.uniform(0.05 * W, 0.1 * W)
+                total_width = wA + wB + spacing
+                # For substantial overlap in y-axis, we define an overlap percentage
+                min_overlap = 1.0  # At least 95% overlap
+                max_overlap = 1.0  # Up to 100% overlap
+                overlap_height = min(lA, lB) * np.random.uniform(min_overlap, max_overlap)
+                total_height = max(lA, lB)
+            elif relation in ["front-of", "back-of"]:
+                # Occupy along y-axis, overlap along x-axis
+                spacing = np.random.uniform(0.05 * L, 0.15 * L)
+                total_height = lA + lB + spacing
+                # For substantial overlap in x-axis, we define an overlap percentage
+                min_overlap = 1.0
+                max_overlap = 1.0
+                overlap_width = min(wA, wB) * np.random.uniform(min_overlap, max_overlap)
+                total_width = max(wA, wB)
+
+            # Step 4: Sample a non-overlapping region within the table
+            max_attempts = 1000
+            placed = False
+
+            for _ in range(max_attempts):
+                x_region = np.random.uniform(0, W - total_width)
+                y_region = np.random.uniform(0, L - total_height)
+
+                # Step 5: Place objects within this region according to the side-of relation
+                if relation == "left-of":
+                    # Object A is on the left of Object B
+                    # Place Object A
+                    xA = x_region
+                    yA = y_region + np.random.uniform(0, total_height - lA)
+                    # Place Object B to the right of A with spacing
+                    xB = xA + wA + spacing
+                    yB = yA + np.random.uniform(- (lB - overlap_height), lA - overlap_height)
+                elif relation == "right-of":
+                    # Object A is on the right of Object B
+                    # Place Object B
+                    xB = x_region
+                    yB = y_region + np.random.uniform(0, total_height - lB)
+                    # Place Object A to the right of B with spacing
+                    xA = xB + wB + spacing
+                    yA = yB + np.random.uniform(- (lA - overlap_height), lB - overlap_height)
+                elif relation == "front-of":
+                    # Object A is in front of Object B
+                    # Place Object A
+                    yA = y_region
+                    xA = x_region + np.random.uniform(0, total_width - wA)
+                    # Place Object B behind A with spacing
+                    yB = yA + lA + spacing
+                    xB = xA + np.random.uniform(- (wB - overlap_width), wA - overlap_width)
+                elif relation == "back-of":
+                    # Object A is behind Object B
+                    # Place Object B
+                    yB = y_region
+                    xB = x_region + np.random.uniform(0, total_width - wB)
+                    # Place Object A behind B with spacing
+                    yA = yB + lB + spacing
+                    xA = xB + np.random.uniform(- (wA - overlap_width), wB - overlap_width)
+                else:
+                    continue  # Invalid relation
+
+                # Adjust for substantial overlap
+                if relation in ["left-of", "right-of"]:
+                    # Ensure y-overlap
+                    y_overlap_min = max(yA, yB)
+                    y_overlap_max = min(yA + lA, yB + lB)
+                    actual_overlap = y_overlap_max - y_overlap_min
+                    required_overlap = overlap_height
+                    if actual_overlap < required_overlap:
+                        continue  # Overlap not sufficient, try again
+                elif relation in ["front-of", "back-of"]:
+                    # Ensure x-overlap
+                    x_overlap_min = max(xA, xB)
+                    x_overlap_max = min(xA + wA, xB + wB)
+                    actual_overlap = x_overlap_max - x_overlap_min
+                    required_overlap = overlap_width
+                    if actual_overlap < required_overlap:
+                        continue  # Overlap not sufficient, try again
+
+                # Create regions for both objects
+                new_regionA = (xA, yA, wA, lA, rotationA)
+                new_regionB = (xB, yB, wB, lB, rotationB)
+
+                # Check for overlaps with existing regions
+                overlap = False
+                for region in regions:
+                    if (rectangles_overlap(region[:4], new_regionA[:4]) or
+                        rectangles_overlap(region[:4], new_regionB[:4])):
+                        overlap = True
+                        break
+
+                # Ensure objects are within table bounds
+                if (0 <= xA <= W - wA and 0 <= yA <= L - lA and
+                    0 <= xB <= W - wB and 0 <= yB <= L - lB and
+                    not overlap):
+                    # Place objects
+                    regions.extend([new_regionA, new_regionB])
+                    placed = True
+                    break
+
+            if not placed:
+                print(f"Could not place pair {i+1} ({relation}) after {max_attempts} attempts.")
+
+        return "side-of", regions
+
+    def get_object_locations_on_top(pair_num, table_dim):
+        W, L = table_dim
+        object_num = pair_num * 2
+        object_dims = get_object_dim(object_num, table_dim, facing="random")
+        regions = []
+        occupied_regions = []
+
+        # Obj_A is the base
+
+        for i in range(pair_num):
+            # B is larger than A
+            wA, lA, rotationA = object_dims[2 * i]
+            wB, lB, rotationB = object_dims[2 * i + 1]
+            if wB > wA:
+                wB, wA = wA, wB
+            if lB > lA:
+                lB, lA = lA, lB
+            placed = False
+            max_attempts = 100
+
+            for _ in range(max_attempts):
+                xA = np.random.uniform(0, W - wA)
+                yA = np.random.uniform(0, L - lA)
+
+                # 50% probability to have centroids overlap
+                if rn.random() < 0.5:
+                    xB = xA + (wA - wB) / 2
+                    yB = yA + (lA - lB) / 2
+                else:
+                    xB = xA + np.random.uniform(0, wA - wB)
+                    yB = yA + np.random.uniform(0, lA - lB)
+
+                new_regionA = (xA, yA, wA, lA, rotationA)
+                new_regionB = (xB, yB, wB, lB, rotationA)
+
+                overlap = False
+                for base_region in occupied_regions:
+                    if rectangles_overlap(base_region[:4], new_regionA[:4]):
+                        overlap = True
+                        break
+
+                if not overlap:
+                    regions.extend([new_regionA, new_regionB])
+                    occupied_regions.append(new_regionA[:4])  # base object
+                    placed = True
+                    break
+
+            if not placed:
+                print("Could not place on-top objects without overlapping after max attempts")
+
+        return "on-top-of", regions
+
+    def get_object_locations_symmetry(pair_num, table_dim):
+        """
+        Generate object locations that satisfy symmetry relations:
+        - "vertical-symmetry-on-table": mirror images along a vertical line x = b
+        - "horizontal-symmetry-on-table": mirror images along a horizontal line y = b
+        - "vertical-line-symmetry": symmetry around an axis object along x = b
+        - "horizontal-line-symmetry": symmetry around an axis object along y = b
+        """
+        W, L = table_dim
+
+        # Step 1: Sample relation
+        object_relation = rn.choice([
+            "vertical-symmetry-on-table",
+            "horizontal-symmetry-on-table",
+            "vertical-line-symmetry",
+            "horizontal-line-symmetry"
+        ])
+        # Step 2: Get object dimensions
+        if "line-symmetry" in object_relation:
+            object_num = pair_num * 3  # Each group has 3 objects
+        else:
+            object_num = pair_num * 2  # Each group has 2 objects
+
+        object_dims = get_object_dim(object_num, table_dim, facing="random", relation=object_relation)
+        regions = []
+
+        for i in range(pair_num):
+            # Extract dimensions and orientations for the pair
+            if "line-symmetry" in object_relation:
+                axis_w, axis_l, r = object_dims[3 * i]
+                w_pair, l_pair, r = object_dims[3 * i + 1]
+                if "vertical" in object_relation:
+                    spacing = np.random.uniform(0.05 * W, 0.15 * W)
+                    total_width = axis_w + w_pair * 2 + spacing * 2
+                    max_height = max(axis_l, l_pair)
+                    total_height = max_height
+                else:
+                    spacing = np.random.uniform(0.05 * L, 0.15 * L)
+                    total_height = axis_l + l_pair * 2 + spacing * 2
+                    max_width = max(axis_w, w_pair)
+                    total_width = max_width
+            else:
+                w_pair, l_pair, r = object_dims[2 * i]
+                if "vertical" in object_relation:
+                    spacing = np.random.uniform(0.05 * W, 0.15 * W)
+                    total_width = w_pair * 2 + spacing
+                    total_height = l_pair
+                else:
+                    spacing = np.random.uniform(0.05 * L, 0.15 * L)
+                    total_height = l_pair * 2 + spacing
+                    total_width = w_pair
+            
+            assert total_width <= W, "Total width exceeds table width"
+            assert total_height <= L, "Total height exceeds table length"
+
+            # Sample an empty space for this region within the table
+            max_attempts = 1000
+            placed = False
+
+            for _ in range(max_attempts):
+
+                if "line-symmetry" in object_relation:
+                    x_min = 0
+                    x_max = W - total_width
+                    y_min = 0
+                    y_max = L - total_height
+                    x_region = np.random.uniform(x_min, x_max)
+                    y_region = np.random.uniform(y_min, y_max)
+                else:
+                    if "vertical" in object_relation:
+                        y_region = np.random.uniform(0, L - total_height)
+                        x_region = (W - total_width) / 2
+                    else:
+                        x_region = np.random.uniform(0, W - total_width)
+                        y_region = (L - total_height) / 2
+
+                total_region = (x_region, y_region, total_width, total_height, r)
+
+                # Check for overlaps with existing regions
+                overlap = False
+                for region in regions:
+                    if rectangles_overlap(region[:4], total_region[:4]):
+                        overlap = True
+                        break
+                if i == 0:
+                    assert 0 <= x_region <= W - total_width and 0 <= y_region <= L - total_height and not overlap
+    
+                # Ensure objects are within table bounds
+                if (0 <= x_region <= W - total_width and 0 <= y_region <= L - total_height and not overlap):
+
+                    if object_relation == "vertical-line-symmetry":
+                        # Place the axis object in the center of the region
+                        x_axis = x_region + (total_width - axis_w) / 2
+                        y_axis = y_region + (total_height - axis_l) / 2
+
+                        # Place the pair of objects symmetrically around the axis object
+                        x_pair_1 = x_axis - w_pair - spacing
+                        y_pair_1 = y_region + (total_height - l_pair) / 2
+                        x_pair_2 = x_axis + axis_w + spacing
+                        y_pair_2 = y_pair_1
+
+                        regions.extend([
+                            (x_axis, y_axis, axis_w, axis_l, r),
+                            (x_pair_1, y_pair_1, w_pair, l_pair, r),
+                            (x_pair_2, y_pair_2, w_pair, l_pair, r)
+                         ])
+
+                    elif object_relation == "horizontal-line-symmetry":
+                        # Place the axis object in the center of the region
+                        x_axis = x_region + (total_width - axis_w) / 2
+                        y_axis = y_region + (total_height - axis_l) / 2
+
+                        # Place the pair of objects symmetrically around the axis object
+                        y_pair_1 = y_axis - l_pair - spacing
+                        x_pair_1 = x_region + (total_width - w_pair) / 2
+                        y_pair_2 = y_axis + axis_l + spacing
+                        x_pair_2 = x_pair_1
+
+                        regions.extend([
+                            (x_axis, y_axis, axis_w, axis_l, r),
+                            (x_pair_1, y_pair_1, w_pair, l_pair, r),
+                            (x_pair_2, y_pair_2, w_pair, l_pair, r)
+                        ])
+
+                    elif object_relation == "vertical-symmetry-on-table":
+                        # place the pair of objects symmetrically along a vertical line
+                        x_pair_1 = x_region
+                        y_pair_1 = y_region
+                        x_pair_2 = x_region + w_pair + spacing  
+                        y_pair_2 = y_region
+
+                        regions.extend([
+                            (x_pair_1, y_pair_1, w_pair, l_pair, r),
+                            (x_pair_2, y_pair_2, w_pair, l_pair, r)
+                        ])
+                    
+                    elif object_relation == "horizontal-symmetry-on-table":
+                        # place the pair of objects symmetrically along a horizontal line
+                        x_pair_1 = x_region
+                        y_pair_1 = y_region
+                        x_pair_2 = x_region
+                        y_pair_2 = y_region + l_pair + spacing
+
+
+                        regions.extend([
+                            (x_pair_1, y_pair_1, w_pair, l_pair, r),
+                            (x_pair_2, y_pair_2, w_pair, l_pair, r)
+                        ])
+                    
+                    placed = True
+                    break   
+
+            if not placed:
+                print(f"Could not place pair {i+1} ({relation}) after {max_attempts} attempts.")
+
+        return "symmetry", regions
+
+    def get_object_locations_aligned_in_line(object_num, table_dim):
+        """
+        Generate object locations aligned in a line satisfying the following relations:
+        - "aligned-in-horizontal-line-bottom"
+        - "aligned-in-horizontal-line-centroid"
+        - "aligned-in-vertical-line-centroid"
+        """
+        W, L = table_dim
+        object_relation = rn.choice([
+            "aligned-in-horizontal-line-bottom",
+            "aligned-in-horizontal-line-centroid",
+            "aligned-in-vertical-line-centroid"
+        ])
+        object_dims = get_object_dim(object_num, table_dim, facing="random", relation=object_relation)
+        regions = []
+
+        # Step 1: Determine the total dimension required, including equal spacing
+        # Sample a reasonable spacing value
+
+        if "horizontal" in object_relation:
+            # Aligned along a horizontal line (objects placed side by side along x-axis)
+            widths = [w for w, l, r in object_dims]
+            heights = [l for w, l, r in object_dims]
+            total_obj_width = sum(widths)
+            num_spaces = object_num - 1
+            # Sample spacing from a reasonable range
+            spacing = np.random.uniform(0.03 * W, 0.07 * W)
+            total_spacing = num_spaces * spacing
+            total_width = total_obj_width + total_spacing
+            max_height = max(heights)
+
+            # Confirm that total_width fits within table width
+            if total_width > 0.8 * W:
+                # Scale down objects proportionally
+
+                scale_factor = 0.8 * W / total_width
+                object_dims = [(w * scale_factor, l, r) for (w, l, r) in object_dims]
+                widths = [w * scale_factor for w in widths]
+                heights = [l for w, l, r in object_dims]
+                total_obj_width = sum(widths)
+                spacing *= scale_factor
+                total_spacing = num_spaces * spacing
+                total_width = total_obj_width + total_spacing
+                max_height = max(heights)
+
+
+            # Now, sample a region where this total area fits within the table
+            max_attempts = 1000
+            placed = False
+
+            
+            x_min = 0
+            x_max = W - total_width
+            x_start = np.random.uniform(x_min, x_max)
+
+            y_front = np.random.uniform(0, L - max_height)
+            y_back = y_front + max_height
+
+            # Determine y position based on relation
+            if "bottom" in object_relation:
+                # Align bottom edges
+                x_current = x_start
+                for w, l, r in object_dims:
+                    x = x_current
+                    if r == 0:
+                    # Facing front, align bottom edge close to y=0
+                        y = y_front
+                    elif r == math.pi:
+                        # Facing back, align top edge at y = L
+                        y = y_back - l
+                        
+                    regions.append((x, y, w, l, r))
+                    x_current += w + spacing
+                    
+            elif "centroid" in object_relation:
+                # Align centroids along y-axis
+                y_center = np.random.uniform(max_height / 2, L - max_height / 2)
+                
+                x_current = x_start
+                for w, l, r in object_dims:
+                    x = x_current
+                    y = y_center - l / 2
+                    
+                    regions.append((x, y, w, l, r))
+                    x_current += w + spacing         
+            
+        elif "vertical" in object_relation:
+            # Aligned along a vertical line (objects placed atop one another along y-axis)
+            lengths = [l for w, l, r in object_dims]
+            widths = [w for w, l, r in object_dims]
+            total_obj_length = sum(lengths)
+            num_spaces = object_num - 1
+            spacing = np.random.uniform(0.05 * L, 0.1 * L)
+            total_spacing = num_spaces * spacing
+            total_length = total_obj_length + total_spacing
+            max_width = max(widths)
+
+            # Confirm that total_length fits within table length
+            if total_length > 0.8 * L:
+                scale_factor = 0.8 * L / total_length
+                object_dims = [(w, l * scale_factor, r) for (w, l, r) in object_dims]
+                lengths = [l * scale_factor for l in lengths]
+                widths = [w for w, l, r in object_dims]
+                total_obj_length = sum(lengths)
+                spacing *= scale_factor
+                total_spacing = num_spaces * spacing
+                total_length = total_obj_length + total_spacing
+                max_width = max(widths)
+            
+            y_min = 0
+            y_max = L - total_length
+            y_start = np.random.uniform(y_min, y_max)
+
+            # For centroid alignment along x-axis
+            x_center = np.random.uniform(max_width / 2, W - max_width / 2)
+            y_current = y_start
+            for w, l, r in object_dims:
+                x = x_center - w / 2
+                y = y_current
+                   
+                regions.append((x, y, w, l, r))
+                y_current += l + spacing
+
+        return "aligned-in-line", regions
+
+    def get_object_locations_regular_grid(object_num, table_dim):
+        """
+        Generate object locations arranged in a regular grid on the table,
+        with consistent spacing between the objects.
+        """
+        W, L = table_dim
+
+        assert object_num in [4, 6, 8, 9], "Number of objects must be 4, 6, 8, or 9 for a regular grid."
+
+        # Step 1: Get object dimensions (same size for all objects)
+        object_dims = get_object_dim(object_num, table_dim, facing="random", same_size=True)
+        obj_w, obj_l, rotation = object_dims[0]  # Dimensions and rotation of the objects
+
+        def find_smallest_divisor_above_sqrt(n):
+            sqrt_n = np.sqrt(n)
+            lower_bound = int(np.ceil(sqrt_n))  # Smallest integer greater than sqrt(n)
+            # Iterate from lower_bound up to n to find the smallest divisor
+            for b in range(lower_bound, n + 1):
+                if n % b == 0:
+                    return b
+            # If no divisor is found (n is prime), n itself is the smallest divisor above sqrt(n)
+            return n
+
+        # Step 2: Determine the number of rows and columns
+        n_cols = find_smallest_divisor_above_sqrt(object_num)
+        n_rows = int(math.ceil(object_num / n_cols))
+
+        # Step 3: Determine consistent spacing
+        x_spacing = np.random.uniform(0.1, 0.3)
+        y_spacing = np.random.uniform(0.1, 0.3)
+
+        total_width = n_cols * obj_w + (n_cols - 1) * x_spacing
+        total_height = n_rows * obj_l + (n_rows - 1) * y_spacing
+
+        if total_width > 0.7 * W or total_height > 0.7 * L:
+            # Need to scale down object dimensions to fit grid within table bounds
+            scale_factor_x = 0.7 * W / total_width
+            scale_factor_y = 0.7 * L / total_height
+            obj_w *= scale_factor_x
+            x_spacing *= scale_factor_x
+            obj_l *= scale_factor_y
+            y_spacing *= scale_factor_y
+            object_dims = [(obj_w, obj_l, rotation)] * object_num
+
+        # For consistent spacing, we'll use the minimum of max_spacing_x and max_spacing_y
+        # Or sample a spacing less than or equal to the maximum possible spacing
+        spacing_x = spacing_y = min(x_spacing, y_spacing)
+
+        # Alternatively, you can fix the spacing to a specific value or sample from a range
+        # For this implementation, we'll use the maximum possible spacing to center the grid
+
+        # Step 4: Calculate the starting positions to center the grid
+        total_width = n_cols * obj_w + (n_cols - 1) * spacing_x
+        total_height = n_rows * obj_l + (n_rows - 1) * spacing_y
+
+        start_x = (W - total_width) / 2
+        start_y = (L - total_height) / 2
+
+        # Step 5: Generate the grid positions
+        regions = []
+        idx = 0
+
+        for i in range(n_rows):
+            y = start_y + i * (obj_l + spacing_y)
+            for j in range(n_cols):
+                if idx >= object_num:
+                    break
+                x = start_x + j * (obj_w + spacing_x)
+                regions.append((x, y, obj_w, obj_l, rotation))
+                idx += 1
+
+        return "regular-grid", regions
+
+    def gen(relation, object_num=None):
+        count = num_samples
+        while count > 0:
+            if relation == "all-composed":
+                # Randomly choose a relation
+                relation_options = ["table-edge", "table-side", "aligned", "side-of", "on-top-of", "symmetry", "aligned-in-line", "regular-grid"]
+                probability = [0.125, 0.15, 0.125, 0.125, 0.05, 0.125, 0.175, 0.125]
+                current_relation = rn.choices(relation_options, probability, k=1)[0]
+            else:
+                current_relation = relation
+
+            if current_relation == "table-edge":
+                object_num = rn.randint(3, 8)
+                relation, regions = get_object_locations_table_edge(object_num, table_dim)
+
+            elif current_relation == "table-side":
+                object_num = rn.randint(3, 5)
+                relation, regions = get_object_locations_table_side(object_num, table_dim)
+
+            elif current_relation == "aligned":
+                pair_num = rn.randint(2, 4)
+                relation, regions = get_object_locations_aligned(pair_num, table_dim)
+
+            elif current_relation == "side-of":
+                pair_num = rn.randint(2, 4)
+                relation, regions = get_object_locations_side_of(pair_num, table_dim)
+
+            elif current_relation == "on-top-of":
+                pair_num = rn.randint(2, 4)
+                relation, regions = get_object_locations_on_top(pair_num, table_dim)
+
+            elif current_relation == "symmetry":
+                pair_num = rn.randint(2, 4)
+                relation, regions = get_object_locations_symmetry(pair_num, table_dim)
+
+            elif current_relation == "aligned-in-line":
+                object_num = rn.randint(3, 8)
+                relation, regions = get_object_locations_aligned_in_line(object_num, table_dim)
+
+            elif current_relation == "regular-grid":
+                object_num = rn.choice([4, 6, 8, 9])
+                relation, regions = get_object_locations_regular_grid(object_num, table_dim)
+
+            count -= 1
+            print(f"{len(regions)} added! Relation: {relation}")
+
+            for i in range(len(regions)):
+                regions[i] = (regions[i], [])
+    
+            yield relation, regions
+
+            if count == 0:
+                break
+        yield None
+    return gen
 
 
 def construct_objects(regions, w, l, h, z):

@@ -70,7 +70,7 @@ tidy_constraints_dict = {'horizontally_aligned': 2, 'vertically_aligned': 2, 'ce
                     "horizontal_symmetry_on_table": 2, "right_of_front": 2, "left_of_front": 2, "right_of_back": 2, "left_of_back": 2,
                     "horizontal_regular_grid": 10, "vertical_regular_grid": 10, "aligned_in_horizontal_line": 10, "aligned_in_vertical_line": 10}
 
-dataset_relation_mapping = {'horizontally_aligned': ['horizontally_aligned'], 'vertically_aligned': ['vertically_aligned'],
+tidy_dataset_relation_mapping = {'horizontally_aligned': ['horizontally_aligned'], 'vertically_aligned': ['vertically_aligned'],
                             'centered': ['centered', 'centered_table'], 
                             'on_top_of': ['on_top_of'], 'next_to_edge': ['near_back_edge', 'near_front_edge',
                             'near_left_edge', 'near_right_edge'], 
@@ -87,22 +87,12 @@ coffee_table_composing_weights = {'horizontally_aligned': 1, 'vertically_aligned
                          "horizontal_symmetry_on_table": 3, "right_of_front": 1, "left_of_front": 1, "right_of_back": 1, "left_of_back": 1,
                         "horizontal_regular_grid": 4, "vertical_regular_grid": 4, "aligned_in_horizontal_line": 1, "aligned_in_vertical_line": 1}
 
-
-# dining_table_composing_weights = {'horizontally_aligned': 1, 'vertically_aligned': 3, 'centered': 2, 'centered_table': 1, 
-#                          'on_top_of': 1, 'near_back_edge': 3, 'near_front_edge':3, 'near_left_edge':1, 'near_right_edge':1, 
-#                          'central_row': 1, 'central_column':1, 'left_half': 0.7, 'right_half': 0.7, 'back_half': 1, 'front_half': 1, 
-#                          "vertical_line_symmetry": 3, "horizontal_line_symmetry": 4, "vertical_symmetry_on_table": 3, 
-#                          "horizontal_symmetry_on_table": 4, "right_of_front": 4, "left_of_front": 4, "right_of_back": 4, "left_of_back": 4,
-#                         "horizontal_regular_grid": 5, "vertical_regular_grid": 5, "aligned_in_horizontal_line": 5, "aligned_in_vertical_line": 5}
-
-
 study_table_composing_weights = {'horizontally_aligned': 2, 'vertically_aligned': 2, 'centered': 1, 'centered_table': 1, 
                          'on_top_of': 1, 'near_back_edge': 1, 'near_front_edge':1, 'near_left_edge':1, 'near_right_edge':1, 
                          'central_row': 1.3, 'central_column':1.3, 'left_half': 1, 'right_half': 1, 'back_half': 1, 'front_half': 1, 
                          "vertical_line_symmetry": 1, "horizontal_line_symmetry": 1, "vertical_symmetry_on_table":1, 
                          "horizontal_symmetry_on_table": 1, "right_of_front": 2, "left_of_front": 2, "right_of_back": 2, "left_of_back": 2,
                         "horizontal_regular_grid": 1, "vertical_regular_grid": 1, "aligned_in_horizontal_line": 3, "aligned_in_vertical_line": 3}
-
 
 dining_table_composing_weights = {'horizontally_aligned': 1, 'vertically_aligned': 1, 'centered': 1, 'centered_table': 1, 
                          'on_top_of': 1, 'near_back_edge': 1, 'near_front_edge':1, 'near_left_edge':1, 'near_right_edge':1, 
@@ -111,7 +101,7 @@ dining_table_composing_weights = {'horizontally_aligned': 1, 'vertically_aligned
                          "horizontal_symmetry_on_table": 1, "right_of_front": 3, "left_of_front": 3, "right_of_back": 3, "left_of_back": 3,
                         "horizontal_regular_grid": 1, "vertical_regular_grid": 1, "aligned_in_horizontal_line": 3, "aligned_in_vertical_line": 3}
 
-composing_weights = {'horizontally_aligned': 1, 'vertically_aligned': 1, 'centered': 1, 'centered_table': 1, 
+tidy_composing_weights = {'horizontally_aligned': 1, 'vertically_aligned': 1, 'centered': 1, 'centered_table': 1, 
                          'on_top_of': 1, 'near_back_edge': 1, 'near_front_edge':1, 'near_left_edge':1, 'near_right_edge':1, 
                          'central_row': 1, 'central_column':1, 'left_half': 1, 'right_half': 1, 'back_half': 1, 'front_half': 1, 
                          "vertical_line_symmetry": 1, "horizontal_line_symmetry": 2, "vertical_symmetry_on_table":2, 
@@ -122,7 +112,49 @@ clustered_types = ["2D_regular", "2D_irregular", "3D_stacking", "3D_stacking_2D_
 
 bedroom_constraints = ["against-right-wall", "against-left-wall", "against-front-wall", "against-back-wall", "right-of-wall", "left-of-wall", "center-of-wall", "left-touching", "left-of", "in-front-of", "under-window", "at-center",
                         "at-front-left-corner", "at-front-right-corner", "at-back-left-corner", "at-back-right-corner"]
-                        
+
+bedroom_dataset_relation_mapping = {'against-wall': ['against-right-wall', 'against-left-wall', 'against-front-wall', 'against-back-wall', 'right-of-wall', 'left-of-wall', 'center-of-wall'],
+                                    'at-center': ['at-center'], 'side-touching': ['left-touching'], 'on-left-side': ['left-of'], 'in-front-of': ['in-front-of'], 'under-window': ['under-window'],
+                                    'at-corners': ['at-front-left-corner', 'at-front-right-corner', 'at-back-left-corner', 'at-back-right-corner']}
+
+bedroom_constraints_dict = {'against-right-wall': 1, 'against-left-wall': 1, 'against-front-wall': 1, 'against-back-wall': 1, 'right-of-wall': 1, 'left-of-wall': 1, 'center-of-wall': 1, 'left-touching': 2, 'left-of': 2, 'in-front-of': 2, 'under-window': 2, 'at-center': 1,
+                            'at-front-left-corner': 1, 'at-front-right-corner': 1, 'at-back-left-corner': 1, 'at-back-right-corner': 1}
+
+bedroom_composing_weights = {'against-right-wall': 1, 'against-left-wall': 1, 'against-front-wall': 1, 'against-back-wall': 1, 'right-of-wall': 1, 'left-of-wall': 1, 'center-of-wall': 1, 'left-touching': 1, 'left-of': 1, 'in-front-of': 1, 'under-window': 1, 'at-center': 1,
+                            'at-front-left-corner': 1, 'at-front-right-corner': 1, 'at-back-left-corner': 1, 'at-back-right-corner': 1}
+
+bookshelf_constraints = ["left-wall-contact", "right-wall-contact", "left-side", "right-side", "at-center", "left-of", "right-of", "linearly-aligned", "contiguously-aligned", "height-sorted-ascending", "height-sorted-descending", "width-sorted-ascending", "width-sorted-descending"]
+
+bookshelf_dataset_relation_mapping = {"wall-contact": ["left-wall-contact", "right-wall-contact"], "wall-side": ["left-side", "right-side", "at-center"], "side-of": ["left-of", "right-of"], "aligned": ["linearly-aligned", "contiguously-aligned"], "sorted": ["height-sorted-ascending", "height-sorted-descending", "width-sorted-ascending", "width-sorted-descending"]}
+
+bookshelf_constraints_dict = {"left-wall-contact": 1, "right-wall-contact": 1, "right-side": 1, "left-side": 1, "at-center": 1, "left-of": 2, "right-of": 2, "linearly-aligned": 10, "contiguously-aligned": 10, "height-sorted-ascending": 10, "width-sorted-ascending": 10, "height-sorted-descending": 10, "width-sorted-descending": 10}
+
+bookshelf_composing_weights = {"left-wall-contact": 1, "right-wall-contact": 1, "right-side": 1, "left-side": 1, "at-center": 1, "left-of": 1, "right-of": 1, "linearly-aligned": 1, "contiguously-aligned": 1, "height-sorted-ascending": 1, "width-sorted-ascending": 1, "height-sorted-descending": 1, "width-sorted-descending": 1}
+
+tabletop_constraints = ["near-front-edge", "near-back-edge", "near-left-edge", "near-right-edge", "facing-front", "facing-back", "front-half", "back-half", "right-half", "left-half", "central-column", "central-row", "central-vertical-axis", "central-horizontal-axis", "centered-table", "horizontally-aligned-bottom", \
+    "horizontally-aligned-centroid", "vertically-aligned-centroid", "left-of", "right-of", "front-of", "back-of", "on-top-of", "centered", "vertical-symmetry-on-table", "horizontal-symmetry-on-table", \
+    "vertical-line-symmetry", "horizontal-line-symmetry", "aligned-in-horizontal-line-bottom", "aligned-in-horizontal-line-centroid", "aligned-in-vertical-line-centroid", "regular-grid"]
+
+tabletop_dataset_relation_mapping = {"table-edge": ["near-front-edge", "near-back-edge", "facing-front", "facing-back"], 
+                                    "table-side": ["front-half", "back-half", "right-half", "left-half", "central-column", "central-row", "central-vertical-axis", "central-horizontal-axis", "centered-table", "facing-front", "facing-back"],
+                                    "aligned": ["horizontally-aligned-bottom", "horizontally-aligned-centroid", "vertically-aligned-centroid", "facing-front", "facing-back"], 
+                                    "side-of": ["left-of", "right-of", "front-of", "back-of", "facing-front", "facing-back"],
+                                    "on-top-of": ["on-top-of", "centered"], 
+                                    "symmetry": ["vertical-symmetry-on-table", "horizontal-symmetry-on-table", "vertical-line-symmetry", "horizontal-line-symmetry"],
+                                    "aligned-in-line": ["aligned-in-horizontal-line-bottom", "aligned-in-horizontal-line-centroid", "aligned-in-vertical-line-centroid", "facing-front", "facing-back"], 
+                                    "regular-grid": ["regular-grid"]}
+
+tabletop_constraints_dict = {"near-front-edge": 1, "near-back-edge": 1, "near-left-edge": 1, "near-right-edge": 1, "facing-front": 1, "facing-back": 1, "front-half": 1, "back-half": 1, "right-half": 1, "left-half": 1, "central-column": 1,\
+     "central-row": 1,  "central-vertical-axis": 1, "central-horizontal-axis": 1, "centered-table": 1, "horizontally-aligned-bottom": 2, \
+    "horizontally-aligned-centroid": 2, "vertically-aligned-centroid": 2, "left-of": 2, "right-of": 2, "front-of": 2, "back-of": 2, "on-top-of": 2, "centered": 2, "vertical-symmetry-on-table": 2, "horizontal-symmetry-on-table": 2, \
+    "vertical-line-symmetry": 3, "horizontal-line-symmetry": 3, "aligned-in-horizontal-line-bottom": 10, "aligned-in-horizontal-line-centroid": 10, "aligned-in-vertical-line-centroid": 10, "regular-grid": 10}
+
+tabletop_composing_weights = {"near-front-edge": 1, "near-back-edge": 1, "near-left-edge": 1, "near-right-edge": 1, "facing-front": 1, "facing-back": 1, "front-half": 1, "back-half": 1, "right-half": 1, "left-half": 1, "central-column": 1,\
+     "central-row": 1, "central-vertical-axis": 1, "central-horizontal-axis": 1, "centered-table": 1, "horizontally-aligned-bottom": 1, \
+    "horizontally-aligned-centroid": 1, "vertically-aligned-centroid": 1, "left-of": 1, "right-of": 1, "front-of": 1, "back-of": 1, "on-top-of": 1, "centered": 1, "vertical-symmetry-on-table": 1, "horizontal-symmetry-on-table": 1, \
+    "vertical-line-symmetry": 1, "horizontal-line-symmetry": 1, "aligned-in-horizontal-line-bottom": 1, "aligned-in-horizontal-line-centroid": 1, "aligned-in-vertical-line-centroid": 1, "regular-grid": 1}
+
+
 def has_single_arity(edge_attr):
     for edge in edge_attr:
         if int(edge) in [3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]:
@@ -161,7 +193,7 @@ class SinusoidalPosEmb(nn.Module):
 class ComposedEBMDenoiseFn(nn.Module):
     """ wrapper around ConstraintDiffuser as a composition of diffusion models """
 
-    def __init__(self, model_name="Diffusion-CCSP", input_mode="tidy", dims=((2, 0, 2), (2, 2, 4)), hidden_dim=256, device='cuda', relation_sets=None, 
+    def __init__(self, model_name="Diffusion-CCSP", input_mode="tidy", dims=((2, 0, 2), (4, 2, 6)), hidden_dim=256, device='cuda', relation_sets=None, 
                  EBM="MALA", pretrained=False, normalize=True, energy_wrapper=True, verbose=True, ebm_per_steps=1, eval_only=False, evaluate_relation=None):
         super().__init__()
         self.model_name = model_name
@@ -191,7 +223,7 @@ class ComposedEBMDenoiseFn(nn.Module):
         
         if self.verbose: print_network(self.geom_encoder[0], 'geom_encoder')
         
-        ## for encoding object pose, e.g. (x, y)
+        ## for encoding object pose, e.g. (x, y, sn, cs)
         self.pose_encoder = nn.Sequential(
             nn.Linear(dims[-1][0], hidden_dim//2),
             nn.SiLU(),
@@ -218,16 +250,24 @@ class ComposedEBMDenoiseFn(nn.Module):
             self.models = self.initiate_structformer()
 
         print(evaluate_relation)
-        pdb.set_trace()
-        if evaluate_relation is not None and "table" in evaluate_relation:
-            if "study" in evaluate_relation:
-                self.composing_weights = study_table_composing_weights
-            elif "dining" in evaluate_relation:
-                self.composing_weights = dining_table_composing_weights
-            elif "coffee" in evaluate_relation:
-                self.composing_weights = coffee_table_composing_weights
-        else:
-            self.composing_weights = composing_weights
+
+        if 'tidy' in input_mode:
+            if evaluate_relation is not None and "table" in evaluate_relation:
+                if "study" in evaluate_relation:
+                    self.composing_weights = study_table_composing_weights
+                elif "dining" in evaluate_relation:
+                    self.composing_weights = dining_table_composing_weights
+                elif "coffee" in evaluate_relation:
+                    self.composing_weights = coffee_table_composing_weights
+            else:
+                self.composing_weights = tidy_composing_weights
+        elif 'bedroom' in input_mode:
+            self.composing_weights = bedroom_composing_weights
+        elif 'bookshelf' in input_mode:
+            self.composing_weights = bookshelf_composing_weights
+        elif 'table' in input_mode:
+            self.composing_weights = tabletop_composing_weights
+
 
     def neg_logp_unnorm(self, poses_in, batch, t, **kwargs):
         # poses_in.requires_grad_(True)
@@ -251,7 +291,6 @@ class ComposedEBMDenoiseFn(nn.Module):
 
     def initiate_denoise_fn(self):
 
-        # if self.verbose: print(f'denoise_fns({len(self.constraint_sets)})', self.constraint_sets)
         if self.verbose: print(f'denoise_fns({len(self.relation_sets)})', self.relation_sets)
 
         models = []
@@ -261,8 +300,7 @@ class ComposedEBMDenoiseFn(nn.Module):
             """ o, o, p, p, t """
             model = ConstraintDiffuser(dims=self.dims, pretrained=self.pretrained, device=self.device, 
                                        hidden_dim=self.hidden_dim, verbose=self.verbose, 
-                                       relation=relation, pose_decoder=self.pose_decoder
-                                       )
+                                       relation=relation, pose_decoder=self.pose_decoder, input_mode=self.input_mode)
             if self.energy_wrapper:
                 model = EBMDiffusionModel(model, self.ebm_per_steps)
             models.append(model) # list of ebms
@@ -290,7 +328,15 @@ class ComposedEBMDenoiseFn(nn.Module):
         
         ## find the nodes used by all constraints of this type
         ### edge_attr encodes the constraint type
-        idx = tidy_constraints.index(relation)
+        if self.input_mode == "tidy":
+            idx = tidy_constraints.index(relation)
+        elif self.input_mode == "bedroom":
+            idx = bedroom_constraints.index(relation)
+        elif self.input_mode == "bookshelf":
+            idx = bookshelf_constraints.index(relation)
+        elif "table" in self.input_mode:
+            idx = tabletop_constraints.index(relation)
+            
         edges = torch.where(batch.edge_attr == idx)[0]
         edges = edges.detach().cpu().numpy()
 
@@ -319,10 +365,11 @@ class ComposedEBMDenoiseFn(nn.Module):
             edge_lens = []
             for edge in edges:
                 curr_edge_index = edge_index[edge]
-                if curr_edge_index[0] > curr_edge_index[-1]:
-                    edge_len = len(torch.unique(curr_edge_index)) - 1
-                else:
-                    edge_len = 16
+                edge_len = len(torch.unique(curr_edge_index)) - 1 # removing the bottom container
+                # if curr_edge_index[0] > curr_edge_index[-1]:
+                #     edge_len = len(torch.unique(curr_edge_index)) - 1
+                # else:
+                #     edge_len = 16
                 args.extend(edge_index[edge][:edge_len])
                 edge_lens.append(edge_len)
 
@@ -804,8 +851,8 @@ class NegationEBMDiffusionModel(torch.nn.Module):
 Diffusion model that encodes a single type of relations
 '''
 class ConstraintDiffuser(torch.nn.Module):
-    def __init__(self, dims=((2, 0, 2), (2, 2, 4)), hidden_dim=256, max_num_obj=12, pretrained=False,
-                device='cuda', verbose=True, pose_decoder=None, relation=None):
+    def __init__(self, dims=((2, 0, 2), (4, 2, 6)), hidden_dim=256, max_num_obj=12, pretrained=False,
+                device='cuda', verbose=True, pose_decoder=None, relation=None, input_mode='tidy'):
         """ in_features: list of input feature dimensions for each variable type (geometry, pose)
             e.g. for puzzle constraints ((6, 0, 6), (4, 6, 10)) = {(length, begin, end)}
                 means 6 geometry features for pose, 4 for pose features
@@ -821,14 +868,17 @@ class ConstraintDiffuser(torch.nn.Module):
         self.verbose = verbose
         self.relation = relation
         self.pose_decoder = pose_decoder
-
-        # register the active tidy constraint
-        self.active_constraint_idx = tidy_constraints.index(relation)
-
-        self.arity = tidy_constraints_dict[relation]
-       
+        self.input_mode = input_mode
+        if self.input_mode == "bedroom":
+            self.arity = bedroom_constraints_dict[relation]
+        elif self.input_mode == "bookshelf":
+            self.arity = bookshelf_constraints_dict[relation]
+        elif self.input_mode == "tidy":
+            self.arity = tidy_constraints_dict[relation]
+        elif "table" in self.input_mode:
+            self.arity = tabletop_constraints_dict[relation]
+        
         ## for each type of constraints
-       
         self.mlp = self.initiate_denoise_fn()
 
         self.ebm_per_steps = 1
@@ -855,7 +905,7 @@ class ConstraintDiffuser(torch.nn.Module):
             return mlp
         else:
             from networks.transformer import Transformer, PositionalEncoding
-            self.max_seq_len = 16
+            self.max_seq_len = 12
             self.num_heads = 2
             self.num_layers = 4
 
@@ -936,19 +986,19 @@ class ConstraintDiffuser(torch.nn.Module):
             x = F.pad(x, (0, 0, 0, padding_len), "constant", 0)
             sequences.append(x)
 
-            attn_mask = torch.zeros(self.max_seq_len, self.max_seq_len, device=self.device)  ## [16, 16]
+            attn_mask = torch.zeros(self.max_seq_len, self.max_seq_len, device=self.device)  ## [12, 12]
             attn_mask[:, -padding_len:] = True
             attn_mask[-padding_len:, :] = True
             attn_masks.append(attn_mask)
 
         ## get output
-        sequences = torch.stack(sequences, dim=1)  ## [16, b, 512]
-        attn_masks = torch.stack(attn_masks)  ## [b, 8, 8] when batch size is 2
+        sequences = torch.stack(sequences, dim=1)  ## [12, b, 512]
+        attn_masks = torch.stack(attn_masks)  ## [b, 12, 12] when batch size is 2
         attn_masks = repeat(attn_masks, 'b l1 l2 -> (repeat b) l1 l2',
-                            repeat=self.num_heads)  ## [2*b, 8, 8] for 2 heads
+                            repeat=self.num_heads)  ## [2*b, 12, 12] for 2 heads
         x, weights, attn_masks = self.transformer((sequences, None, attn_masks))  ## x : [128, 4, 256]
-        x = self.ln_post(x)  ## [16, b, 512]
-        x = x[:, :, -self.hidden_dim:]  ## [16, b, 256]
+        x = self.ln_post(x)  ## [12, b, 512]
+        x = x[:, :, -self.hidden_dim:]  ## [12, b, 256]
 
         ## return poses out
         poses_out = []

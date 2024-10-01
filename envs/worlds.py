@@ -22,9 +22,11 @@ from envs.mesh_utils import CLOUD, create_tray, create_grid_meshes, Rotation2D, 
     reorganize_points_2, RAINBOW_COLOR_NAMES
 from envs.data_utils import get_grid_index, get_grid_offset, save_graph_data, get_grids_offsets, \
     print_line, compute_pairwise_collisions, apply_grid_mask, print_tensor, grid_offset_to_pose, r, \
-    compute_world_constraints, expand_unordered_constraints, compute_tidy_constraints, get_ordered_constraints, compute_clustered_constraints, compute_bedroom_constraints
+    compute_world_constraints, expand_unordered_constraints, compute_tidy_constraints, get_ordered_constraints, \
+    compute_clustered_constraints, compute_bedroom_constraints, yaw_from_sn_cs, compute_bookshelf_constraints, compute_tabletop_constraints
 from envs.render_utils import export_gif
-from envs.builders import get_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen, get_tidy_data_gen, get_cluster_data_gen, get_bedroom_data_gen
+from envs.builders import get_tray_splitting_gen, get_triangles_splitting_gen, get_3d_box_splitting_gen, get_tidy_data_gen, get_cluster_data_gen,\
+     get_bedroom_data_gen, get_shelf_data_gen, get_tabletop_data_gen
 
 
 def get_world_class(world_name):
@@ -125,7 +127,7 @@ class CSPWorld(object):
                 in a lisdf file for later planning in Pybullet
         """
         pass
-
+    
     def generate_constraints(self, objects, sequential_sampling=False, same_order=True):
         """ generate constraints for the scene """
         objects = [mesh['label'] for mesh in objects.values() if mesh['label'] not in self.ignore_nodes]
@@ -310,7 +312,7 @@ class CSPWorld(object):
 
         if len(world['constraints']) == 0:
             world['constraints'] = []
-            if input_mode == "tidy" or input_mode == "bedroom":
+            if input_mode == "tidy" or input_mode == "bedroom" or input_mode == "bookshelf" or 'table' in input_mode:
                 if generating_data:
                     world['collisions'] = self.check_collisions_in_scene(world['objects'], verbose=False)
                     collisions = world['collisions']
@@ -322,10 +324,18 @@ class CSPWorld(object):
 
         if 'bedroom' in input_mode:
             scale = min([self.w / 3, self.l / 4])
-
             world = compute_bedroom_constraints(world, rotations=self.rotations, same_order=same_order, scale=scale, test_only=test_only,
                                                 model_relation=model_relation, composed_relation=composed_relation, generating_data=generating_data)
-            
+
+        if 'bookshelf' in input_mode:
+            scale = 1
+            world = compute_bookshelf_constraints(world, rotations=self.rotations, same_order=same_order, scale=scale, test_only=test_only,
+                                                model_relation=model_relation, composed_relation=composed_relation, generating_data=generating_data)   
+
+        if 'table' in input_mode:
+            scale = min([self.w / 3, self.l / 2])
+            world = compute_tabletop_constraints(world, rotations=self.rotations, same_order=same_order, scale=scale, test_only=test_only,
+                                                model_relation=model_relation, composed_relation=composed_relation, generating_data=generating_data)
     
         if 'tidy' in input_mode:
             scale = min([self.w / 3, self.l / 2])
@@ -388,7 +398,10 @@ class CSPWorld(object):
 
             ## basic type, shape, and pose encoding
             # obj_type = 1 if name.startswith('tile_') else 0
-            obj_type = 0 if name == 'tile_0' or name == 'bottom' else 1
+            if input_mode == 'bedroom':
+                obj_type = 0 if name == 'tile_0' or name == 'bottom' else 1
+            else:
+                obj_type = 0 if name == 'bottom' else 1
             shape_features = list(mesh['extents'])
             pose_feature = list(mesh['center'])
             rotation_feature = [np.sin(mesh['rotation_angle']), np.cos(mesh['rotation_angle'])]
@@ -419,7 +432,14 @@ class CSPWorld(object):
                 pose_feature = pose_feature[:2] + [np.sin(yaw), np.cos(yaw)]
 
             elif isinstance(self, RandomBedroomWorld):
+                shape_features = shape_features[:2]
+                pose_feature = pose_feature[:2] + rotation_feature
 
+            elif isinstance(self, RandomShelfWorld):
+                shape_features = shape_features[:2]
+                pose_feature = pose_feature[:2] + rotation_feature
+
+            elif isinstance(self, RandomTabletopWorld):
                 shape_features = shape_features[:2]
                 pose_feature = pose_feature[:2] + rotation_feature
 
@@ -470,9 +490,9 @@ class CSPWorld(object):
             return np.array(nodes)
 
         ## add edge_index
-        from networks.denoise_fns import tidy_constraints, bedroom_constraints
+        from networks.denoise_fns import tidy_constraints, bedroom_constraints, bookshelf_constraints
 
-        if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints or input_mode == "bedroom":
+        if 'diffuse_pairwise' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode == "bedroom" or input_mode == "bookshelf" or 'table' in input_mode:
             edge_index = data['constraints']
             class_counts[len(nodes)-1] = 1
         else:
@@ -529,7 +549,6 @@ class CSPWorld(object):
         if verbose: print('collisions', collisions)
         return collisions
 
-
 class TrayWorld(CSPWorld):
     """ objects are in a tray """
     def __init__(self, t=0.1, color=CLOUD, **kwargs):
@@ -539,6 +558,15 @@ class TrayWorld(CSPWorld):
         self.tiles = []
         self.cfree = [('north', 'east'), ('south', 'east'), ('north', 'west'), ('south', 'west')]
 
+    def update_dimensions(self, new_dim):
+
+        if len(new_dim) == 2:
+            self.w, self.l = new_dim
+        else:
+            self.w, self.l, self.h = new_dim
+        self.tray, names = create_tray(self.w, self.l, self.h, self.t, color=CLOUD)
+        self.tiles = []
+       
     def get_meshes(self):
         return self.tray + self.tiles
 
@@ -574,7 +602,6 @@ class TrayWorld(CSPWorld):
 
     # def get_node_features(self, mode='discretize', **kwargs):
 
-
 class ShapeSettingWorld(TrayWorld):
     """ objects are simples shapes, e.g. box, circle, triangle, etc.
             collision-free is not enforced
@@ -584,6 +611,9 @@ class ShapeSettingWorld(TrayWorld):
         self.used_colors = []
         self.constraints = {}
         self.randomization_count = 0
+
+    def update_dimensions(self, shelf_dim):
+        super(ShapeSettingWorld, self).update_dimensions(shelf_dim)
 
     def get_shape_name(self, shape, label=None):
         if label is None:
@@ -598,7 +628,7 @@ class ShapeSettingWorld(TrayWorld):
             del self.constraints[label]
         return label, index
 
-    def add_shape(self, shape, height=None, size=0.2, x=0, y=0, z=None, R=None, random_color=True,
+    def add_shape(self, shape, size, height=None, x=0, y=0, z=None, R=None, random_color=True,
                   color=None, alpha=1.0, constraints=[], label=None):
         if color is None:
             color = get_color(alpha, used=self.used_colors, random_color=random_color)
@@ -613,13 +643,48 @@ class ShapeSettingWorld(TrayWorld):
             x, y = transform_by_constraints(mesh, self.base, constraints)
         if z is None:
             z = height / 2
-        mesh.apply_transform(T([x, y, z]))
+
+        translation_vector = np.array([x, y, z])
+        translation_matrix = np.eye(4)
+        translation_matrix[:3, 3] = translation_vector
+
+        def extract_rotation_angle(rotation_matrix):
+            # The trace of the rotation matrix (sum of the diagonal elements)
+            trace = np.trace(rotation_matrix[:3, :3])
+        
+            angle_cos = (trace - 1) / 2
+            angle_sin = (rotation_matrix[1, 0] - rotation_matrix[0, 1]) / 2
+            
+            rotation_angle = np.arctan2(angle_sin, angle_cos)
+            return rotation_angle
+
+        mesh.apply_transform(translation_matrix)
+
         if R is not None:
-            mesh.apply_transform(R)
+            if R.ndim != 2: # R is the rotation angle
+                rotation_angle = R
+                rotation_matrix = trimesh.transformations.rotation_matrix(
+                    rotation_angle, 
+                    direction=[0, 0, 1], 
+                    point=mesh.centroid
+                )
+            else:
+                rotation_matrix = R
+                rotation_angle = extract_rotation_angle(rotation_matrix)
+
+            mesh.apply_transform(rotation_matrix)
+    
+        else: 
+            rotation_angle = 0
+    
         self.tiles.append(mesh)
 
         label = self.get_shape_name(shape, label)
         mesh.metadata['label'] = label
+        if shape == 'box':
+            mesh.metadata['w'] = size[0]
+            mesh.metadata['l'] = size[1]
+            mesh.metadata['rotation_angle'] = rotation_angle
         self.constraints[label] = constraints
         self.labels[len(self.labels)] = label
         return mesh
@@ -720,7 +785,6 @@ class ShapeSettingWorld(TrayWorld):
         if visualize:
             self.export_gif(gif_file='RS_shake_scenes.gif', save_pngs=True)
 
-
 class QiQiaoWorld(ShapeSettingWorld):
     """ objects are simples shapes, e.g. box, circle, triangle, etc.
             collision-free is not enforced
@@ -772,7 +836,6 @@ class QiQiaoWorld(ShapeSettingWorld):
             transform(pg, -1.5, 0.85, -(90-30-45), dh=self.h, resize=5)
             transform(sq, 0, 3.25, 45, resize=5)
 
-
 class RandomSplitWorld(ShapeSettingWorld):
     """ boxes are arranged by random splitting the tray into sections
             and putting shapes in each section,
@@ -780,6 +843,9 @@ class RandomSplitWorld(ShapeSettingWorld):
     """
     def __init__(self, **kwargs):
         super(RandomSplitWorld, self).__init__(**kwargs)
+
+    def update_dimensions(self, shelf_dim):
+        super(RandomSplitWorld, self).update_dimensions(shelf_dim)
 
     def sample_scene(self, min_num_objects=2, max_num_objects=6, min_offset_perc=0.15, **kwargs):
         """ first get region boxes from `get_tray_spliting_gen` """
@@ -799,10 +865,17 @@ class RandomSplitWorld(ShapeSettingWorld):
             size = obj['extents'][:2]
             # size = [n * 2 for n in size]
             x, y, _ = obj['center']
-            self.add_shape('box', size=size, x=x, y=y, color=obj['color'])
+            rotation_angle = obj.get(['rotation_angle'], 0)
+            self.add_shape('box', size=size, x=x, y=y, color=obj['color'], R=rotation_angle)
             if isinstance(self, RandomSplitQualitativeWorld):
                 self.rotations[f"tile_box_{i}"] = rotations[i]
             if isinstance(self, RandomSplitSparseWorld):
+                self.rotations[f"tile_box_{i}"] = rotations[i]
+            if isinstance(self, RandomBedroomWorld):
+                self.rotations[f"tile_box_{i}"] = rotations[i]
+            if isinstance(self, RandomShelfWorld):
+                self.rotations[f"tile_box_{i}"] = rotations[i]
+            if isinstance(self, RandomTabletopWorld):
                 self.rotations[f"tile_box_{i}"] = rotations[i]
 
     def construct_scene_from_graph_data(self, nodes, labels=None, predictions=None, verbose=False, phase='truth'):
@@ -818,7 +891,6 @@ class RandomSplitWorld(ShapeSettingWorld):
             print_tensor('predictions', predictions)
 
         for i in range(1, nodes.shape[0]):
-
             yaw = None
             g = None
             if nodes[i].shape[0] == 5:
@@ -829,9 +901,29 @@ class RandomSplitWorld(ShapeSettingWorld):
                 t, bw, bl, x, y, yaw = nodes[i]
                 if isinstance(self, RandomSplitQualitativeWorld):
                     self.rotations[f"tile_box_{i-1}"] = yaw
+                elif isinstance(self, RandomBedroomWorld):
+                    self.rotations[f"tile_box_{i-1}"] = yaw
+                elif isinstance(self, RandomShelfWorld):
+                    self.rotations[f"tile_box_{i-1}"] = yaw
+                elif isinstance(self, RandomTabletopWorld):
+                    self.rotations[f"tile_box_{i-1}"] = yaw
                 if isinstance(self, RandomSplitSparseWorld):
                     # print(f"node (t, bw, bl, x, y, yaw): {nodes[i]}")
                     yaw = yaw % np.pi
+                    self.rotations[f"tile_box_{i-1}"] = yaw
+                
+            elif nodes[i].shape[0] == 7:
+                t, bw, bl, x, y, sn, cs = nodes[i]
+                yaw = yaw_from_sn_cs(sn, cs)
+                if isinstance(self, RandomSplitQualitativeWorld):
+                    self.rotations[f"tile_box_{i-1}"] = yaw
+                if isinstance(self, RandomSplitSparseWorld):
+                    self.rotations[f"tile_box_{i-1}"] = yaw
+                if isinstance(self, RandomBedroomWorld):
+                    self.rotations[f"tile_box_{i-1}"] = yaw
+                if isinstance(self, RandomShelfWorld):
+                    self.rotations[f"tile_box_{i-1}"] = yaw
+                if isinstance(self, RandomTabletopWorld):
                     self.rotations[f"tile_box_{i-1}"] = yaw
                 
             elif nodes[i].shape[0] == 8:
@@ -856,10 +948,15 @@ class RandomSplitWorld(ShapeSettingWorld):
                 print(f"{i}\t nodes: {r(nodes[i])}\t -> (predictions = {r(prediction)})\t | labels: {r(labels[i])}")
 
             if yaw is not None:
-                import transformations
-                direction = [0, 0, 1]
-                center = [x, y, self.h/2]
-                rot_matrix = transformations.rotation_matrix(-yaw, direction, center)
+                rot_matrix = trimesh.transformations.rotation_matrix(
+                    yaw, 
+                    direction=[0, 0, 1], 
+                    point=[x, y, self.h/2]
+                )
+                # import transformations
+                # direction = [0, 0, 1]
+                # center = [x, y, self.h/2]
+                # rot_matrix = transformations.rotation_matrix(-yaw, direction, center)
             else:
                 rot_matrix = None
 
@@ -1543,40 +1640,17 @@ class RandomBedroomWorld(RandomSplitWorld):
     def get_current_constraints(self):
         
         data = self.generate_json(input_mode="bedroom")
-        return data
-
+        return [tuple(d) for d in data['constraints']], data
+        
     def check_constraints_satisfied(self, **kwargs):
            
-        data = self.get_current_constraints() # current constraints satisfied
-        collisions = data['collisions']
-        regions = data['regions']
-        areas = data['areas']
+        current_constraints, data = self.get_current_constraints() # current constraints satisfied
 
-        clustered_flag = True
-
-        if len(collisions) == 0:
-           
-            for i in range(len(regions)):
-                X_0, X_1, Y_0, Y_1, rotation_angle = regions[i]
-                area = areas[i]
-                if (X_1 - X_0) * (Y_1 - Y_0) < area*1.3:
-                    clustered_flag *= True
-                else:
-                    clustered_flag *= False      
-        else:
-            clustered_flag = False  
+        given_constraints = [tuple(d) for d in self.bedroom_constraints]
+        missing = [ct for ct in given_constraints if ct not in current_constraints]
 
         if self.img_name is not None:
             json_name = self.img_name.replace('.png', '.json')
-            # world = {
-            #     'regions': regions,
-            #     'areas': areas,
-            #     'collisions': collisions,
-            # }
-            # print('\n', self.img_name, missing)
-            # print('\t', current_constraints)
-            # print('\t', given_constraints)
-            # self.generate_json(input_mode="clustered", json_name=json_name, world=world)
             world  = data
             
             with open(json_name, 'w') as f:
@@ -1589,9 +1663,198 @@ class RandomBedroomWorld(RandomSplitWorld):
                         world['objects'][k]['name'] = data['name']
                 json.dump(world, fp=f, indent=3)
 
-        return collisions, [clustered_flag]
+        return missing
 
     def construct_scene_from_graph_data(self, nodes, constraints=[], **kwargs):
         """ give ground truth constraints to check if they are satisfied """
         self.bedroom_constraints = constraints
         super().construct_scene_from_graph_data(nodes, **kwargs)
+
+class RandomShelfWorld(RandomSplitWorld):
+    """ 
+    Generate a single shelf instance with the following constraints:
+
+    1. left-wall-contact(obj_A): obj_A is positioned such that it is directly in contact with the left wall of the given compartment of the bookshelf.
+    2. right-wall-contact(obj_A): obj_A is positioned such that it is directly in contact with the right wall of the given compartment of the bookshelf.
+    3. at-center(obj_A): obj_A is in the center of the given compartment of the bookshelf.
+    4. left-side(obj_A): obj_A is on the left side of the given compartment of the bookshelf. Its very right side is on the left of the center of the compartment.
+    5. right-side(obj_A): obj_A is on the right side of the given compartment of the bookshelf. Its very left side is on the right of the center of the compartment.
+    6. left-of(obj_A, obj_B): obj_A is on the left of obj_B.
+    7. right-of(obj_A, obj_B): obj_A is on the right of obj_B.
+    8. linearly-aligned(obj_1, ..., obj_N): obj_1 to obj_N are arranged in a straight line with equal spacing between each adjacent pair.
+    9. contiguously-aligned(obj_1, ..., obj_N): objects obj_1 through obj_N are arranged in a straight line with each object directly in contact with its neighboring objects.
+    10. height-sorted-ascending(obj_1, ..., obj_N): obj_1 through obj_N are arranged in ascending order of their heights from left to right.
+    11. height-sorted-descending(obj_1, ..., obj_N): obj_1 through obj_N are arranged in descending order of their heights from left to right.
+    12. width-sorted-ascending(obj_1, ..., obj_N): obj_1 through obj_N are arranged in ascending order of their widths from left to right.
+    13. width-sorted-descending(obj_1, ..., obj_N): obj_1 through obj_N are arranged in descending order of their widths from left to right.
+
+    # 13 relationships: 
+    "left-wall-contact", "right-wall-contact", "at-center", "left-side", "right-side", "left-of", "right-of", "linearly-aligned", "contiguously-aligned", "height-sorted-ascending", "height-sorted-descending", "width-sorted-ascending", "width-sorted-descending"
+    
+    wall-contact: left-wall-contact, right-wall-contact
+    wall-side: left-side, right-side, at-center
+    side-of: left-of, right-of
+    aligned: linearly-aligned, contiguously-aligned
+    sorted: height-sorted-ascending, height-sorted-descending, width-sorted-ascending, width-sorted-descending
+    """
+    def __init__(self, **kwargs):
+        super(RandomShelfWorld, self).__init__(**kwargs)
+        self.regions = []
+        self.areas = []
+        self.rotations = {}
+
+    def update_dimensions(self, shelf_dim):
+        super(RandomShelfWorld, self).update_dimensions(shelf_dim)
+
+    def sample_scene(self, relation="wall-contact", **kwargs):
+
+        gen = get_shelf_data_gen(num_samples=200)
+
+        possible_shelf_dims = [(4, 3), (4, 2), (5, 2), (6, 2), (6, 3)]
+        # possible_shelf_dims = [(4, 2)]
+        self.shelf_dim = random.choice(possible_shelf_dims)
+        self.w = self.shelf_dim[0]
+        self.l = self.shelf_dim[1]
+        self.update_dimensions(self.shelf_dim)
+        relation, regions = next(gen(relation, self.shelf_dim))
+        meshes = convert_regions_to_meshes(regions, self.w, self.l, self.h, relation=relation)
+    
+        self.tiles.extend(meshes)
+        return relation
+            
+    def get_current_constraints(self):
+        
+        data = self.generate_json(input_mode="shelf")
+        return [tuple(d) for d in data['constraints']], data
+        
+    def check_constraints_satisfied(self, **kwargs):
+           
+        current_constraints, data = self.get_current_constraints() # current constraints satisfied
+
+        given_constraints = [tuple(d) for d in self.shelf_constraints]
+        missing = [ct for ct in given_constraints if ct not in current_constraints]
+
+        if self.img_name is not None:
+            json_name = self.img_name.replace('.png', '.json')
+            world  = data
+            
+            with open(json_name, 'w') as f:
+                for k, data in world['objects'].items():
+                    world['objects'][k]['extents'] = list(data['extents'])
+                    world['objects'][k]['center'] = list(data['center'])
+                    world['objects'][k]['centroid'] = list(data['centroid'])
+                    world['objects'][k]['rotation_angle'] = data['rotation_angle']
+                    if 'name' in data:
+                        world['objects'][k]['name'] = data['name']
+                json.dump(world, fp=f, indent=3)
+
+        return missing
+
+    def construct_scene_from_graph_data(self, nodes, constraints=[], **kwargs):
+        """ give ground truth constraints to check if they are satisfied """
+        self.shelf_constraints = constraints
+        super().construct_scene_from_graph_data(nodes, **kwargs)
+
+class RandomTabletopWorld(RandomSplitWorld):
+    """ 
+    Generate a tabletop with the following constraints:
+    
+    1. near-front-edge(obj_A):  Obj_A is positioned near the table’s front edge, appearing at the bottom in the top-down camera view and closest in the front view. 
+    2. near-back-edge(obj_A): Obj_A is near the table’s back edge (the edge opposite the front).
+    3. near-left-edge(obj_A): Obj_A is near the table’s left edge.
+    4. near-right-edge(obj_A): Obj_A is near the table’s right edge.
+    3. facing-front(obj_A): Obj_A is facing the front edge of the table.
+    4. facing-back(obj_A): Obj_A is facing the back edge of the table.
+    5. front-half(Obj_A): Obj_A entirely resides within the front half of the table, occupying the front portion as divided horizontally along the table's center axis.
+    6. back-half(Obj_A): Obj_A entirely resides within the back half of the table, occupying the back portion as divided horizontally along the table's center axis.
+    7. left-half(Obj_A): Obj_A entirely resides within the left half of the table, occupying the left portion as divided vertically along the table's center axis.
+    8. right-half(Obj_A): Obj_A entirely resides within the left half of the table, occupying the right portion as divided vertically along the table's center axis. 
+    9. central-column(Obj_A): The centroid of obj_A is positioned within the central column of the table, which runs vertically through the table's midpoint, spanning half the table's width. 
+    10. central-row(Obj_A): The centroid of obj_A is positioned within the central row of the table, which runs horizontally through the table's midpoint, spanning half the table's length.
+    11. central-vertical-axis(Obj_A): The centroid of obj_A is positioned along the central vertical axis of the table, which runs vertically through the table's midpoint, spanning half the table's width.
+    12. central-horizontal-axis(Obj_A): The centroid of obj_A is positioned along the central horizontal axis of the table, which runs horizontally through the table's midpoint, spanning half the table's length.
+    11. centered-table(Obj_A): The centroid of Obj_A coincides with center of the table. 
+    12. horizontally-aligned-bottom(Obj_A, Obj_B): Obj_A and Obj_B are aligned horizontally at their sides facing the table edges, either front or back. 
+    13. horizontally-aligned-centroid(Obj_A, Obj_B): Obj_A and Obj_B are aligned horizontally at their centroids.
+    14. vertically-aligned-centroid(Obj_A, Obj_B): Obj_A and Obj_B are aligned vertically at their centroids. 
+    15. left-of(Obj_A, Obj_B): Obj_A is immediately to the left side of Obj_B viewed facing the side both of the objects are facing.
+    16. right-of(Obj_A, Obj_B): Obj_A is immediately to the right side of Obj_B viewed facing the side both of the objects are facing.
+    17. on-top-of(Obj_A, Obj_B): Obj_B is placed on top of Obj_A.
+    18. centered(Obj_A, Obj_B): Center of Obj_A coincides with center of Obj_B. Obj_A is the base.
+    19. vertical-symmetry-on-table(Obj_A, Obj_B): Obj_A and Obj_B are placed on a table mirroring each other across the vertical axis. 
+    20. horizontal-symmetry-on-table(Obj_A, Obj_B): Obj_A and Obj_B are placed on a table mirroring each other across the horizontal axis. 
+    21. vertical-line-symmetry(Axis_obj, Obj_A, Obj_B): Obj_A and Obj_B are symmetrical to each other with respect to a vertical axis of the Axis_obj, meaning they are mirror images along that axis. 
+    22. horizontal-line-symmetry(Axis_obj, Obj_A, Obj_B): Obj_A and Obj_B are symmetrical to each other with respect to the horizontal axis of the Axis_obj, meaning they are mirror images along that axis.
+    23. aligned-in-horizontal-line-bottom(Obj_1, ..., Obj_N): Objects aligned horizontally with equal spacing at their sides facing the table edges, either front or back.
+    24. aligned-in-horizontal-line-centroid(Obj_1, ..., Obj_N): Objects aligned horizontally with equal spacing at their centroids.
+    25. aligned-in-vertical-line-centroid(Obj_1, ..., Obj_N): Objects aligned vertically with equal spacing.
+    26. regular-grid(Obj_1, ..., Obj_N): Arranged in a grid or matrix pattern at the table center.
+
+   
+    # 28 relationships: 
+    "near-front-edge", "near-back-edge", "facing-front", "facing-back", "front-half", "back-half", "right-half", "left-half", "central-column", "central-row", "centered-table", "horizontally-aligned-bottom", \
+    "horizontally-aligned-centroid", "vertically-aligned-centroid", "left-of", "right-of", "front-of", "back-of", "on-top-of", "centered", "vertical-symmetry-on-table", "horizontal-symmetry-on-table", \
+    "vertical-line-symmetry", "horizontal-line-symmetry", "aligned-in-horizontal-line-bottom", "aligned-in-horizontal-line-centroid", "aligned-in-vertical-line-centroid", "regular-grid"
+    
+    
+    "near-edge": ["near-front-edge", "near-back-edge", "facing-front", "facing-back"]
+    "table-side": ["front-half", "back-half", "right-half", "left-half", "central-column", "central-row", "centered-table", "facing-front", "facing-back"]
+    "aligned": ["horizontally-aligned-bottom", "horizontally-aligned-centroid", "vertically-aligned-centroid", "facing-front", "facing-back"]
+    "side-of": ["left-of", "right-of", "front-of", "back-of", "facing-front", "facing-back"]
+    "on-top": ["on-top-of", "centered", "facing-front", "facing-back"]
+    "symmetry": ["vertical-symmetry-on-table", "horizontal-symmetry-on-table", "vertical-line-symmetry", "horizontal-line-symmetry",]
+    "aligned-in-line": ["aligned-in-horizontal-line-bottom", "aligned-in-horizontal-line-centroid", "aligned-in-vertical-line-centroid", "facing-front", "facing-back"]
+    "grid": ["regular-grid"]
+    """
+    def __init__(self, **kwargs):
+        super(RandomTabletopWorld, self).__init__(**kwargs)
+        self.regions = []
+        self.areas = []
+        self.rotations = {}
+        self.table_dim = (self.w, self.l)
+
+    def sample_scene(self, relation="near-edge", **kwargs):
+
+        gen = get_tabletop_data_gen(num_samples=200)
+        relation, regions = next(gen(relation))
+        meshes = convert_regions_to_meshes(regions, self.w, self.l, self.h, relation=relation)
+    
+        self.tiles.extend(meshes)
+        return relation
+            
+    def get_current_constraints(self):
+        
+        data = self.generate_json(input_mode="dining_table")
+        return [tuple(d) for d in data['constraints']], data
+        
+    def check_constraints_satisfied(self, **kwargs):
+           
+        current_constraints, data = self.get_current_constraints() # current constraints satisfied
+
+        current_constraints = expand_unordered_constraints(current_constraints)
+
+        given_constraints = [tuple(d) for d in self.tabletop_constraints]
+        
+        missing = [ct for ct in given_constraints if ct not in current_constraints]
+
+        if self.img_name is not None:
+            json_name = self.img_name.replace('.png', '.json')
+            world  = data
+            
+            with open(json_name, 'w') as f:
+                for k, data in world['objects'].items():
+                    world['objects'][k]['extents'] = list(data['extents'])
+                    world['objects'][k]['center'] = list(data['center'])
+                    world['objects'][k]['centroid'] = list(data['centroid'])
+                    world['objects'][k]['rotation_angle'] = data['rotation_angle']
+                    if 'name' in data:
+                        world['objects'][k]['name'] = data['name']
+                json.dump(world, fp=f, indent=3)
+
+        return missing
+
+    def construct_scene_from_graph_data(self, nodes, constraints=[], **kwargs):
+        """ give ground truth constraints to check if they are satisfied """
+        self.tabletop_constraints = constraints
+        super().construct_scene_from_graph_data(nodes, **kwargs)
+

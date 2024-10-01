@@ -115,7 +115,7 @@ class DataCollector(object):
 
         n = n // shake_per_world
         counts = defaultdict(int)
-        if self.world_class.__name__ != "RandomBedroomWorld":
+        if self.world_class.__name__ != "RandomBedroomWorld" and self.world_class.__name__ != "RandomShelfWorld" and self.world_class.__name__ != "RandomTabletopWorld":
             min_n = self.scene_sampler_args['min_num_objects']
             max_n = self.scene_sampler_args['max_num_objects']
             count_threshold = math.ceil(n / (max_n - min_n + 1))
@@ -140,7 +140,7 @@ class DataCollector(object):
             else:
                 count_threshold = math.ceil(n / (max_n - min_n + 1))
     
-        if input_mode == "tidy" and "regular_grid" not in relation:
+        if input_mode == "tidy":
             current_n = min_n
             scene_sampler_args['max_num_objects'] = current_n 
 
@@ -173,9 +173,8 @@ class DataCollector(object):
                     if newly_generated is not False:
                         break
                 ## balancing the dataset for the boxes dataset
-                if input_mode == "tidy" and balance_data and "regular_grid" not in relation and t >= 15:
+                if input_mode == "tidy" and balance_data and t >= 15:
                     n_objects = len(world.tiles)
-                    
                     counts[n_objects] += 1
                     if n_objects <= 10:
                         active_count_threshold = count_threshold
@@ -203,8 +202,7 @@ class DataCollector(object):
                         
                         if scene_sampler_args['min_num_objects'] > scene_sampler_args['max_num_objects']:
                             scene_sampler_args['max_num_objects'] = scene_sampler_args['min_num_objects']
-
-
+                            
                 s = t
                 shake_scenes_gen = world.shake_scenes_gen(num=shake_per_world-1, is_generator=True)
                 for new_world in shake_scenes_gen:
@@ -303,7 +301,7 @@ def generate_train_dataset(args=None, debug=False, save_meshes=False, same_order
         args = get_data_collection_args(**kwargs)
     # scene_sampler_args = dict(min_num_objects=2, max_num_objects=2)
 
-    if args.world_name == "RandomBedroomWorld":
+    if args.world_name == "RandomBedroomWorld" or args.world_name == "RandomShelfWorld" or args.world_name == "RandomTabletopWorld":
         scene_sampler_args = dict(relation=args.relation, input_mode=args.input_mode)
     else:
         scene_sampler_args = dict(min_num_objects=args.min_num_objects, max_num_objects=args.max_num_objects, relation=args.relation)
@@ -317,7 +315,6 @@ def generate_train_dataset(args=None, debug=False, save_meshes=False, same_order
                       save_meshes=save_meshes, same_order=same_order, input_mode=args.input_mode, 
                       relation=args.relation, composed_relation=args.composed_relation)
     # collector.collect(int(args.num_worlds/10), label='test', **kwargs)
-
 
 def generate_test_dataset(args=None, pngs=True, jsons=True,
                           save_meshes=False, same_order=False, **kwargs):
@@ -335,7 +332,7 @@ def generate_test_dataset(args=None, pngs=True, jsons=True,
     kwargs.update(dict(input_mode=args.input_mode, shake_per_world=1,
                        pngs=args.pngs, jsons=args.jsons, verbose=False))
 
-    if args.world_name == "RandomBedroomWorld":
+    if args.world_name == "RandomBedroomWorld" or args.world_name == "RandomShelfWorld" or args.world_name == "RandomTabletopWorld":
         scene_sampler_args = dict(relation=args.relation, input_mode=args.input_mode)
         collector = DataCollector(world_class, world_args=args.world_args, scene_sampler_args=scene_sampler_args)
         collector.collect(args.num_worlds, label=f'{args.input_mode}_test', pngs=args.pngs, jsons=args.jsons,

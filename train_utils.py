@@ -12,7 +12,7 @@ from torch_geometric.loader import DataLoader
 from datasets import GraphDataset, RENDER_PATH
 from networks.ddpm import Trainer, GaussianDiffusion
 # from  networks.denoise_fnimport ConstraintDiffuser, ComposedEBMDenoiseFn, tidy_constraints
-from networks.denoise_fns import ComposedEBMDenoiseFn, tidy_constraints
+from networks.denoise_fns import ComposedEBMDenoiseFn, tidy_constraints, bedroom_constraints, bookshelf_constraints, tabletop_constraints
 from networks.data_transforms import pre_transform
 from envs.data_utils import print_tensor
 
@@ -88,7 +88,7 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
              train_num_steps=300000, input_mode=None,
              hidden_dim=256, ebm_per_steps=1, ev='ff', use_wandb=True, pretrained=False, normalize=True,
              run_id=None, train_proj='correct_norm', samples_per_step=10, step_sizes='2*self.betas',
-             energy_wrapper=False, model_relation="all_composed_False", evaluate_relation="all_composed_False", eval_only=False, wandb_name=None):
+             energy_wrapper=False, model_relation="all-composed", evaluate_relation="all-composed", eval_only=False, wandb_name=None):
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-timesteps', type=int, default=timesteps)
@@ -117,6 +117,9 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
     parser.add_argument('-evaluate_relation', type=str, default=evaluate_relation)
     parser.add_argument('-extra_denoising_steps', type=bool, default=False)
     args = parser.parse_args()
+
+    if run_id is not None:
+        args.run_id = run_id
     if args.EBM == 'False':
         args.EBM = False
     if args.EBM in ['HMC', 'MALA']:
@@ -124,43 +127,14 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
    
     args.test_tasks = test_tasks
 
-    if args.input_mode in ['diffuse_pairwise', 'diffuse_pairwise_image']:
-        if args.input_mode == 'diffuse_pairwise_image':
-            args.pretrained = True
-        args.train_proj = 'triangular_3'
-
-        args.train_task = "RandomSplitWorld(100)_train"  ## {3: 5001, 4: 5001, 5: 5001, 6: 4997}
-        args.test_tasks = {i: f"RandomSplitWorld(10)_test_{i}_split" for i in range(2, 6)}
-
-    elif args.input_mode == 'qualitative':
-        args.train_proj = 'correct_norm'
-        args.train_proj = 'qualitative_new'
-        args.train_proj = 'qualitative_correct'
-
-        # --- for testing
-        train_task = "RandomSplitQualitativeWorld(10000)_qualitative_train_2_object"
-        test_tasks = {i: f'RandomSplitQualitativeWorld(10)_qualitative_test_{i}_split' for i in range(2, 4)}
-
-        if 'World' not in args.train_task:
-            # args.train_task = "RandomSplitQualitativeWorld(20)_qualitative_train"
-            # args.train_task = "RandomSplitQualitativeWorld(30000)_qualitative_train"  ## 60000
-            args.train_task = "RandomSplitQualitativeWorld(100)_qualitative_train"
-
-        args.test_tasks = {i: f'RandomSplitQualitativeWorld(10)_qualitative_test_{i}_split' for i in range(2, 5)}
-    elif args.input_mode == 'tidy':
+    if args.input_mode == 'tidy':
 
         if args.model == 'Diffusion-CCSP':
-            if args.model_relation == "all_composed_partial":
+            if args.model_relation == "all_composed_partial" or args.model_relation == "all_composed_None": 
                 n_train = 50000
                 n_test = 5
-            elif args.model_relation == "all_composed_None":
-                n_train = 40000
-                n_test = 5
             else:
-                if args.model_relation == "regular_grid":
-                    n_train = 10000
-                else:
-                    n_train = 10000
+                n_train = 10000
                 n_test = 10
 
             if args.model_relation == "regular_grid":
@@ -172,14 +146,12 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
             args.train_proj = f'tidy_{args.model_relation}'
             # --- for testing
             train_task = f"RandomSplitSparseWorld({n_train})_tidy_train/{args.model_relation}"
-
             test_tasks = {i: f'RandomSplitSparseWorld({n_test})_tidy_test_{i}_split/{args.model_relation}' for i in test_idxs}
 
             if 'World' not in args.train_task:
                 args.train_task = train_task
             args.test_tasks = test_tasks
         elif args.model == 'StructDiffusion':
-        
             args.train_proj = 'struct_tidy'
             train_task = "RandomSplitSparseWorld(30000)_tidy_train/all_composed_None"
             test_tasks = {i: f"RandomSplitSparseWorld(2)_tidy_test_{i}_split/all_composed_None" for i in range(4, 5)}
@@ -187,18 +159,88 @@ def get_args(train_task='None', test_tasks=None, timesteps=1000, model='Diffusio
                 args.train_task = train_task
             args.test_tasks = test_tasks
     
-    elif args.input_mode == 'stability_flat':
-        args.train_proj = 'stability'
-        # train_task = "RandomSplitWorld(20)_train"
-        args.train_task = "RandomSplitWorld(24000)_stability_flat_train"
-        args.test_tasks = {i: f'RandomSplitWorld(10)_stability_flat_test_{i}_object' for i in range(4, 7)}
+    elif args.input_mode == 'bedroom':
 
-    elif args.input_mode == 'robot_box':
-        args.train_proj = 'robot_box'
-        # train_task = "TableToBoxWorld(10)_train"
-        args.train_task = "TableToBoxWorld(10000)_train"  ## {3: 1000, 4: 1000, 5: 1000}
-        args.test_tasks = {i: f"TableToBoxWorld(10)_test_{i}_object" for i in range(2, 7)}
+        if args.model == 'Diffusion-CCSP':
 
+            if args.model_relation == "all-composed":
+                n_train = 50000
+            else:
+                n_train = 10000
+            n_test = 20
+           
+            args.train_proj = f'bedroom_{args.model_relation}'
+
+            # --- for testing
+            train_task = f"RandomBedroomWorld({n_train})_bedroom_train/{args.model_relation}"
+            test_tasks = {0: f'RandomBedroomWorld({n_test})_bedroom_test/{args.model_relation}'}
+            if 'World' not in args.train_task:
+                args.train_task = train_task
+            args.test_tasks = test_tasks
+
+        elif args.model == 'StructDiffusion':
+            args.train_proj = 'struct_bedroom'
+            train_task = "RandomBedroomWorld(50000)_bedroom_train/all-composed"
+            test_tasks = {0: f"RandomBedroomWorld(20)_bedroom_test/all-composed"}
+            if 'World' not in args.train_task:
+                args.train_task = train_task
+            args.test_tasks = test_tasks
+
+    elif args.input_mode == 'bookshelf':
+
+        if args.model == 'Diffusion-CCSP':
+
+            if args.model_relation == "all-composed":
+                n_train = 50000
+            else:
+                n_train = 10000
+            n_test = 20
+           
+            args.train_proj = f'bookshelf_{args.model_relation}'
+
+            # --- for testing
+            train_task = f"RandomShelfWorld({n_train})_bookshelf_train/{args.model_relation}"
+            test_tasks = {0: f'RandomShelfWorld({n_test})_bookshelf_test/{args.model_relation}'}
+            if 'World' not in args.train_task:
+                args.train_task = train_task
+            args.test_tasks = test_tasks
+
+        elif args.model == 'StructDiffusion':
+            args.train_proj = 'struct_bedroom'
+            train_task = "RandomShelfWorld(50000)_bookshelf_train/all-composed"
+            test_tasks = {0: f"RandomShelfWorld(20)_bookshelf_test/all-composed"}
+            if 'World' not in args.train_task:
+                args.train_task = train_task
+            args.test_tasks = test_tasks
+
+    elif 'table' in args.input_mode:
+
+        if args.model == 'Diffusion-CCSP':
+
+            if args.model_relation == "all-composed":
+                n_train = 50000
+            else:
+                n_train = 10000
+            n_test = 10
+           
+            args.train_proj = f'{args.input_mode}_{args.model_relation}'
+
+            # --- for testing
+            train_task = f"RandomTabletopWorld({n_train})_{args.input_mode}_train/{args.model_relation}"
+            test_tasks = {0: f'RandomTabletopWorld({n_test})_{args.input_mode}_test/{args.model_relation}'}
+            if 'World' not in args.train_task:
+                args.train_task = train_task
+            args.test_tasks = test_tasks
+
+        elif args.model == 'StructDiffusion':
+            args.train_proj = f'struct_{args.input_mode}'
+            train_task = f"RandomTabletopWorld({n_train})_{args.input_mode}_train/all-composed"
+            test_tasks = {0: f"RandomTabletopWorld({n_test})_{args.input_mode}_test/all-composed"}
+            if 'World' not in args.train_task:
+                args.train_task = train_task
+            args.test_tasks = test_tasks
+
+    
     elif args.input_mode is None:
         args.test_tasks = {}
 
@@ -252,6 +294,7 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
             train_name = f'eval_m={EBM}_wrapper_{energy_wrapper}_{evaluate_relation}_extra_{extra_denoising_steps}_{step_sizes}'
         else:
             train_name = f'm={EBM}_wrapper_{energy_wrapper}_model_relation={model_relation}'
+
     # if train_name_extra != '' and train_name_extra != train_name:
     #     print(train_name_extra)
     #     pdb.set_trace()
@@ -301,7 +344,7 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         log_name = train_task
   
     dataset_kwargs = dict(input_mode=input_mode, pre_transform=pre_transform, visualize=False)
-   
+    
     test_datasets = {k: GraphDataset(task, model_relation=model_relation, **dataset_kwargs) for k, task in test_tasks.items()}
     if eval_only:
         train_dataset = test_datasets[0]
@@ -315,7 +358,7 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
         """ e.g., 8 numbers given in each group, but only the first 6 is used by the network, 
             the last 2 for reconstruction """
         dims = ((8, 0, 8), (5, 10, 15), (5, 16, 21))
-    elif 'stability' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode or input_mode in tidy_constraints:
+    elif 'stability' in input_mode or 'qualitative' in input_mode or 'tidy' in input_mode or 'bedroom' in input_mode or 'bookshelf' in input_mode or 'table' in input_mode:
         dims = (2, 0, 2), (4, 2, 6)
     else:
         dims = ((3, 0, 3), (4, 3, 7)) if 'Triangular' in train_task else ((2, 0, 2), (2, 2, 4))  ## P1
@@ -326,19 +369,38 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
             dims = tuple([dims[0], (image_dim, dims[0][2], begin), (dims[1][0], begin, begin + dims[1][0])])
     
     if 'all' in model_relation:
-        relation_sets = tidy_constraints
+        if 'tidy' in input_mode:
+            relation_sets = tidy_constraints
+        elif 'bedroom' in input_mode:
+            relation_sets = bedroom_constraints
+        elif 'bookshelf' in input_mode:
+            relation_sets = bookshelf_constraints
+        elif 'table' in input_mode:
+            relation_sets = tabletop_constraints
     else:
-        from networks.denoise_fns import dataset_relation_mapping
+        from networks.denoise_fns import tidy_dataset_relation_mapping, bedroom_dataset_relation_mapping, bookshelf_dataset_relation_mapping, tabletop_dataset_relation_mapping
+        if 'tidy' in input_mode:
+            dataset_relation_mapping = tidy_dataset_relation_mapping
+        elif 'bedroom' in input_mode:
+            dataset_relation_mapping = bedroom_dataset_relation_mapping
+        elif 'bookshelf' in input_mode:
+            dataset_relation_mapping = bookshelf_dataset_relation_mapping
+        elif 'table' in input_mode:
+            dataset_relation_mapping = tabletop_dataset_relation_mapping
+
         relation_sets = dataset_relation_mapping[model_relation]
-    # denoise_fn = ComposedEBMDenoiseFn(model_name=model, input_mode=input_mode, dims=dims, hidden_dim=hidden_dim, device='cuda', 
-    #                                   relation_sets=relation_sets, EBM=EBM, pretrained=pretrained, normalize=normalize, 
-    #                                   energy_wrapper=energy_wrapper, verbose=verbose, ebm_per_steps=ebm_per_steps, 
-    #                                   eval_only=eval_only, evaluate_relation=evaluate_relation).cuda()
-    
+
+    if 'bedroom' in input_mode:
+        relation_sets = bedroom_constraints
+    elif 'bookshelf' in input_mode:
+        relation_sets = bookshelf_constraints
+    elif 'table' in input_mode:
+        relation_sets = tabletop_constraints
+
     denoise_fn = ComposedEBMDenoiseFn(model_name=model, input_mode=input_mode, dims=dims, hidden_dim=hidden_dim, device='cuda', 
                                       relation_sets=relation_sets, EBM=EBM, pretrained=pretrained, normalize=normalize, 
                                       energy_wrapper=energy_wrapper, verbose=verbose, ebm_per_steps=ebm_per_steps, 
-                                      eval_only=eval_only, evaluate_relation=evaluate_relation)
+                                      eval_only=eval_only, evaluate_relation=evaluate_relation).cuda()
 
     diffusion = GaussianDiffusion(denoise_fn, timesteps=timesteps, EBM=EBM,
                                   samples_per_step=samples_per_step, step_sizes=step_sizes, extra_denoising_steps=extra_denoising_steps).cuda()
@@ -376,6 +438,7 @@ def create_trainer(args, debug=False, data_only=False, test_model=True,
 
 
 def get_args_from_run_id(run_id):
+
     args = get_args(use_wandb=False, run_id=run_id)
     wandb_dir = [join('wandb', f) for f in listdir('wandb') if run_id in f]
     if len(wandb_dir) == 0:
@@ -389,18 +452,11 @@ def get_args_from_run_id(run_id):
             continue
         if type(v) is dict:
             setattr(args, k, v['value'])
-    if run_id == 'j8lenp74':
-        args.pretrained = True
-    if run_id in ['bo02mwbw', '4xt8u4n7', 'qi3dqq2l']:
-        args.normalize = False
-    if run_id in ['9xhbwmi9', 'ta4tsbz6']:
-        args.energy_wrapper = True
-    if run_id in ['ql30000e', 'jn49b39m', 'g38uz4uk', 'uyq4fd3u', 'oamtpoae', '6jrpn5vf']:
-        args.model = 'StructDiffusion'
     return args
 
 
 def load_trainer(run_id, milestone, visualize=False, rejection_sampling=False, verbose=True, **kwargs):
+
     args = get_args_from_run_id(run_id)
 
     # args.test_tasks = kwargs.get('test_tasks', args.test_tasks)
@@ -415,6 +471,8 @@ def load_trainer(run_id, milestone, visualize=False, rejection_sampling=False, v
 
     trainer = create_trainer(args, visualize=visualize, rejection_sampling=rejection_sampling,
                              verbose=verbose, **kwargs)
+
+    pdb.set_trace()
     
     trainer.load(milestone)
     return trainer

@@ -332,7 +332,12 @@ def convert_regions_to_meshes(meta_regions, W, L, H, relation):
 
     for idx, meta_region in enumerate(meta_regions):
 
-        region, relation = meta_region
+        try:
+            region, relation = meta_region
+        except:
+            region = meta_region
+            relation = []
+            pdb.set_trace()
        
         x, y, w, l, rotation_angle = region
         z = 0
@@ -370,7 +375,8 @@ def convert_regions_to_meshes(meta_regions, W, L, H, relation):
         mesh.metadata['w'] = w
         mesh.metadata['l'] = l
         mesh.metadata['rotation_angle'] = rotation_angle
-        if len(relation) > 0 and relation[0] == "window" or relation[0] == "door":
+        
+        if len(relation) > 0 and (relation[0] == "window" or relation[0] == "door"):
             mesh.metadata['name'] = relation[0]
 
         meshes.append(mesh)

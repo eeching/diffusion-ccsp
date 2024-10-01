@@ -25,8 +25,9 @@ import numpy as np
 from tqdm import tqdm
 
 
-from envs.data_utils import render_world_from_graph, print_tensor, constraint_from_edge_attr, tidy_constraint_from_edge_attr, translate_cfree_evaluations, clustered_type_from_edge_attr
-from networks.denoise_fns import tidy_constraints, has_single_arity, ignored_constraints
+from envs.data_utils import render_world_from_graph, print_tensor, constraint_from_edge_attr, tidy_constraint_from_edge_attr, translate_cfree_evaluations, \
+    clustered_type_from_edge_attr, bedroom_constraint_from_edge_attr, bookshelf_constraint_from_edge_attr, tabletop_constraint_from_edge_attr
+from networks.denoise_fns import tidy_constraints, has_single_arity, ignored_constraints, bedroom_constraints, bookshelf_constraints, tabletop_constraints
 try:
     from apex import amp
     APEX_AVAILABLE = True
@@ -282,10 +283,10 @@ class GaussianDiffusion(nn.Module):
         m = batch.mask.to(device)
         gt_features = batch.x[:, self.dims[-1][1]:self.dims[-1][2]].to(device)
         shape = gt_features.shape
+        assert shape[1] == 4
 
         ## random noise
         pose_features = 0.5 * torch.randn(shape, device=device) # inject noises
-
         pose_features[m.bool()] = gt_features[m.bool()].clone()
 
         ## HMC sampler
@@ -358,9 +359,8 @@ class GaussianDiffusion(nn.Module):
 
                 if self.EBM and j % self.denoise_fn.ebm_per_steps == 0:
                     pose_features = sampler.sample_step(pose_features, batch, t)
-            
+                
                 pose_features[m.bool()] = gt_features[m.bool()].clone()
-
                 if return_history:
                     history.append(pose_features)
         
@@ -394,7 +394,6 @@ class GaussianDiffusion(nn.Module):
                 if return_history:
                     history.append(pose_features)
 
-
         if return_history:
             return pose_features, history
         return pose_features
@@ -402,9 +401,7 @@ class GaussianDiffusion(nn.Module):
     @torch.no_grad()
     def sample(self, batch, **kwargs):
         start = time.time()
-        pdb.set_trace()
         outputs = self.p_sample_loop(batch, **kwargs)
-        pdb.set_trace()
         passed = time.time() - start
         self.sample_loop_time.append(passed)
         if len(self.sample_loop_time) > 10:
@@ -492,8 +489,8 @@ class Trainer(object):
         rejection_sampling=False,
         tamp_pipeline=False,
         eval_only=False,
-        model_relation="all_composed_False",
-        evaluate_relation="all_composed_False", 
+        model_relation="all-composed",
+        evaluate_relation="all-composed", 
         **kwargs
     ):
         super().__init__()
@@ -527,7 +524,7 @@ class Trainer(object):
             k: [DataLoader(d, batch_size=b, shuffle=False, **dl_kwargs) for b in [100, 1]]
             for k, d in test_datasets.items()
         }
-        self.eval_kwargs = dict(tries=(10, 0))
+        self.eval_kwargs = dict(tries=(5, 0))
         self.num_test_samples = 0 if len(test_datasets) == 0 else len(list(test_datasets.values())[0])
 
         self.render_dir = render_dir
@@ -541,8 +538,14 @@ class Trainer(object):
             self.world_name = 'RandomSplitWorld'
         elif 'qualitative' in self.input_mode:
             self.world_name = 'RandomSplitQualitativeWorld'
-        elif 'tidy' in self.input_mode or self.input_mode in tidy_constraints:
+        elif 'tidy' in self.input_mode:
             self.world_name = 'RandomSplitSparseWorld'
+        elif 'bedroom' in self.input_mode:
+            self.world_name = 'RandomBedroomWorld'
+        elif 'bookshelf' in self.input_mode:
+            self.world_name = 'RandomShelfWorld'
+        elif 'table' in self.input_mode:
+            self.world_name = 'RandomTabletopWorld'
 
         self.opt = Adam(denoise_fn.parameters(), lr=train_lr)
         self.lr_scheduler = lr_scheduler.CosineAnnealingLR(self.opt, T_max=10000)
@@ -586,10 +589,13 @@ class Trainer(object):
         torch.save(data, str(self.results_folder / f'model-{milestone}.pt'))
 
     def load(self, milestone, run_id=None):
+
         if run_id is not None:
             data = torch.load(str(f'logs/{run_id}/model-{milestone}.pt'))
         else:
             data = torch.load(str(self.results_folder / f'model-{milestone}.pt'))
+
+        pdb.set_trace()
 
         self.step = data['step']
         state_dict = data['model']
@@ -647,6 +653,7 @@ class Trainer(object):
 
     def evaluate(self, milestone, tries=(5, 0), verbose=False, return_history=False,
                  save_log=False, run_all=True, run_only=False, resume_eval=False, render_dir=None, debug=False, **kwargs):
+       
         if 'robot' in self.input_mode or 'stability' in self.input_mode:
             sys.path.append(dirname(dirname(abspath("__file__"))))
             from demo_utils import render_robot_world_from_graph, render_stability_world_from_graph
@@ -677,8 +684,23 @@ class Trainer(object):
                 from networks.denoise_fns import clustered_types
                 for relation in clustered_types:
                     best_tries[relation] = dict()
-            else:
+            elif "tidy" in self.input_mode:
                 constraint_list = [c for c in tidy_constraints if c not in ignored_constraints]
+                for relation in constraint_list:
+                    best_tries[relation] = dict()
+            elif "bedroom" in self.input_mode:
+                from networks.denoise_fns import bedroom_constraints
+                constraint_list = bedroom_constraints
+                for relation in constraint_list:
+                    best_tries[relation] = dict()
+            elif "bookshelf" in self.input_mode:
+                from networks.denoise_fns import bookshelf_constraints
+                constraint_list = bookshelf_constraints
+                for relation in constraint_list:
+                    best_tries[relation] = dict()
+            elif "table" in self.input_mode:
+                from networks.denoise_fns import tabletop_constraints
+                constraint_list = tabletop_constraints
                 for relation in constraint_list:
                     best_tries[relation] = dict()
 
@@ -723,10 +745,9 @@ class Trainer(object):
                             all_features, history = result
                         else:
                             all_features, history = result, None
-
+                        
                         # not clamp 
                         all_features.clamp_(-1., 1.)
-                        
                         all_features = self.get_all_features(all_features, batch)
 
                         graph_indices = batch.x_extract.unique().int().numpy().tolist()
@@ -746,6 +767,12 @@ class Trainer(object):
                                 signal_type = "horizontally_aligned"
                             elif "clustered" in self.input_mode:
                                 signal_type = "2D_regular"
+                            elif "bedroom" in self.input_mode:
+                                signal_type = "against-right-wall"
+                            elif "bookshelf" in self.input_mode:
+                                signal_type = "left-wall-contact"
+                            elif "table" in self.input_mode:
+                                signal_type = "near-front-edge"
                             
                             if j not in best_tries[signal_type].keys():
                                 for key in best_tries.keys():
@@ -758,10 +785,23 @@ class Trainer(object):
 
                             # ## debug ## TODO: remove
                             # features = batch.x[torch.where(batch.x_extract == j)]
-                            try:
+
+                            if 'tidy' in self.input_mode or 'clustered' in self.input_mode:
                                 world_dims = (3, 2)
-                            except:
-                                pdb.set_trace()
+                            elif 'bedroom' in self.input_mode:
+                                world_dims = (3, 4)
+                            elif 'bookshelf' in self.input_mode:
+                                w, l = batch.original_x[torch.where(batch.x_extract == j)][0][1:3].detach().cpu().numpy()
+                                world_dims = (int(w), int(l))
+                            elif 'table' in self.input_mode:
+                                w, l = batch.original_x[torch.where(batch.x_extract == j)][0][1:3].detach().cpu().numpy()
+                                world_dims = (int(w), int(l))
+                                assert world_dims[0] == 3
+                                assert world_dims[1] == 2
+                            else:
+                                w, l = batch.original_x[torch.where(batch.x_extract == j)][0][1:3].detach().cpu().numpy()
+                                world_dims = (int(w), int(l))
+                           
                             if torch.isnan(features).any():
                                 continue
                             if m == 0 and j in succeeded_graph_indices:
@@ -771,48 +811,14 @@ class Trainer(object):
                             ## for robot collisions, use pybullet to check, and the above for generating png
                             output_name = f'denoised_t={milestone}_n={i}_i={j}_k={k}'
                             success = None
-                            if 'stability' in self.input_mode:
-                                prediction_json = join(self.render_dir, f'{output_name}.json')
-                                mmask = (batch.edge_extract == j) & (batch.edge_attr == 1)
-                                supports = batch.edge_index.T[torch.where(mmask)]
-                                offset = supports.min()
-                                supports -= offset
-                                kkwargs = dict(world_dims=world_dims, supports=supports.T)
-                                kkwargs.update(dict(render=self.visualize, mp4=self.visualize, png=self.visualize))
-                                success = render_stability_world_from_graph(features, prediction_json, **kkwargs)
-
-                            elif 'robot' in self.input_mode:
-                                prediction_json = join(self.render_dir, f'{output_name}_solution.json')
-                                success = render_robot_world_from_graph(features, prediction_json,
-                                                                        gif=composed_inference or len(test_dl) == 1,
-                                                                        save_trajectory=True,
-                                                                        render=True, record_video=True
-                                                                        )
 
                             ## may need to compose
-                            if success is None or 'stability' in self.input_mode or composed_inference:
+                            if success is None:
                                 png_name = join(self.render_dir, f'{output_name}.png')
-                                if 'stability' in self.input_mode:
-                                    png_name = png_name.replace('.png', '_before.png')
                                 render_kwargs = dict(world_dims=world_dims, world_name=self.world_name,
                                                      png_name=png_name, save=self.visualize, log=save_log, show=False)
 
-                                ## change features
-                                if composed_inference:
-                                    """
-                                    w, l, h, w0, l0, h0, x0, y0, model_id, scale, g1, g2, g3, g4, g5, grasp_id, x, y, z, sn, cs = f[:21] 
-                                    w, l, x, y, sn, cs
-                                    """
-                                    if success and verbose:
-                                        print('\n', basename(png_name))
-                                        print_tensor('3D_features', features)
-                                    features = torch.cat([features[:, :2], features[:, 16:18], features[:, 19:21]], dim=1)
-                                    if success and verbose:
-                                        print_tensor('2D_features', features)
-
-                                    render_kwargs.update(dict(
-                                        world_name='RandomSplitQualitativeWorld', show_grid=False, show=False
-                                    ))
+                               
                                 if 'qualitative' in self.input_mode:
                                     edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
                                     edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
@@ -846,8 +852,38 @@ class Trainer(object):
                                     edge_index -= offset
                                     constraints = clustered_type_from_edge_attr(edge_attr, edge_index, self.model.denoise_fn.model_name)
                                     render_kwargs.update(dict(constraints=constraints))
+
+                                if "bedroom" in self.input_mode:
+                                        
+                                    edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
+                                    edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
+                                    offset = edge_index.min() 
+    
+                                    edge_index -= offset
+                                    constraints = bedroom_constraint_from_edge_attr(edge_attr, edge_index)
+                                    render_kwargs.update(dict(constraints=constraints))
+
+                                if "bookshelf" in self.input_mode:
+
+                                    edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
+                                    edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
+                                    offset = edge_index.min() 
+
+                                    edge_index -= offset
+                                    constraints = bookshelf_constraint_from_edge_attr(edge_attr, edge_index)
+                                    render_kwargs.update(dict(constraints=constraints))
+
+                                if "table" in self.input_mode:
+
+                                    edge_index = batch.edge_index[:, torch.where(batch.edge_extract == j)[0]]
+                                    edge_attr = batch.edge_attr[torch.where(batch.edge_extract == j)]
+                                    offset = edge_index.min() 
+
+                                    edge_index -= offset
+                                    constraints = tabletop_constraint_from_edge_attr(edge_attr, edge_index)
+                                    render_kwargs.update(dict(constraints=constraints))
                                 
-                                evaluations, success_ratio = render_world_from_graph(features, **render_kwargs)
+                                evaluations = render_world_from_graph(features, **render_kwargs)
                                 
                                 if verbose:
                                     print(i, j, k, '\t', evaluations)
@@ -862,7 +898,7 @@ class Trainer(object):
                             """ log success """
                             if success:
                                 ## computing statistics
-                                success_list.append((j, k))
+                                success_list.append((j, k)) # j is the graph index, k is the number of tries
                                 for key in best_tries.keys():
                                     if best_tries[key][j][1] < 1:
                                         best_tries[key][j] = [k, 1]
@@ -881,6 +917,33 @@ class Trainer(object):
                                 else:
                                     evaluations = [e for e in evaluations if e[0] in qualitative_constraints]
                                 all_failure_modes[k][j] = evaluations
+                            
+                            elif 'bedroom' in self.input_mode:
+                                from networks.denoise_fns import bedroom_constraints
+                                constraint_list = [c for c in bedroom_constraints]
+                                evaluations = [e for e in evaluations if e[0] in constraint_list]
+                                all_failure_modes[k][j] = evaluations
+                                
+                                if return_history and self.visualize:
+                                    self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
+
+                            elif 'bookshelf' in self.input_mode:
+                                from networks.denoise_fns import bookshelf_constraints
+                                constraint_list = [c for c in bookshelf_constraints]
+                                evaluations = [e for e in evaluations if e[0] in constraint_list]
+                                all_failure_modes[k][j] = evaluations
+                                
+                                if return_history and self.visualize:
+                                    self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
+
+                            elif 'table' in self.input_mode:
+                                from networks.denoise_fns import tabletop_constraints
+                                constraint_list = [c for c in tabletop_constraints]
+                                evaluations = [e for e in evaluations if e[0] in constraint_list]
+                                all_failure_modes[k][j] = evaluations
+                                
+                                if return_history and self.visualize:
+                                    self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
 
                             elif 'tidy' in self.input_mode:
                                 # if len(evaluations) > 0 and len(evaluations[0]) == 2:
@@ -890,10 +953,6 @@ class Trainer(object):
                                 evaluations = [e for e in evaluations if e[0] in constraint_list]
                                 all_failure_modes[k][j] = evaluations
                                 
-                                for key in best_tries.keys():
-                                    if success_ratio[key] > best_tries[key][j][1]:
-                                        best_tries[key][j] = [k, success_ratio[key]]
-
                                 if return_history and self.visualize:  ##  and False
                                     self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
 
@@ -901,10 +960,6 @@ class Trainer(object):
 
                                 from networks.denoise_fn import clustered_types
                                 all_failure_modes[k][j] = evaluations
-                               
-                                for key in best_tries.keys():
-                                    if success_ratio[key] > best_tries[key][j][1]:
-                                        best_tries[key][j] = [k, success_ratio[key]]
 
                                 if return_history and self.visualize:  ##  and False
                                     self.render_success(milestone, i, j, k, batch, history, world_name=self.world_name, **kwargs)
@@ -1073,8 +1128,6 @@ class Trainer(object):
                 # print(f"{n}th data in {m}th data_loader has {len(graph_indices)} graphs")
                 # print(graph_indices)
                 # pdb.set_trace()
-                
-
 
                 for j in graph_indices: # graph indices corresponds to each test case
 

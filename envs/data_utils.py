@@ -161,7 +161,6 @@ def apply_grid_masks(grids, offsets):
         output.append(apply_grid_mask(g, offsets_copy))
     return torch.cat(output, dim=0)
 
-
 def world_from_pt(pt_path, world_name='ShapeSettingWorld'):
     """ node = [type, width, length]
         label = [grid, dx, dy]
@@ -170,7 +169,6 @@ def world_from_pt(pt_path, world_name='ShapeSettingWorld'):
     data = torch.load(pt_path)
     nodes = labels = torch.cat([data.x, data.y], dim=1).numpy()
     return world_from_graph(nodes, labels, world_name=world_name)
-
 
 def constraint_from_edge_attr(edge_attr, edge_index, composed_inference=False):
     from networks.denoise_fn import qualitative_constraints
@@ -209,7 +207,33 @@ def clustered_type_from_edge_attr(edge_attr, edge_index, model):
         clustered_relations.append(clustered_relation)
     return clustered_relations
 
+def bedroom_constraint_from_edge_attr(edge_attr, edge_index):
+    from networks.denoise_fns import bedroom_constraints
+    constraints = []
+    for i in range(len(edge_attr)):
+        typ = int(edge_attr[i].detach().cpu().numpy().item())
+        constraint = tuple([bedroom_constraints[typ]] + edge_index.T[i].detach().cpu().numpy().tolist()) # still use the index from the tidy constraints
+        constraints.append(constraint)
+    return constraints
 
+def bookshelf_constraint_from_edge_attr(edge_attr, edge_index):
+    from networks.denoise_fns import bookshelf_constraints
+    constraints = []
+    for i in range(len(edge_attr)):
+        typ = int(edge_attr[i].detach().cpu().numpy().item())
+        constraint = tuple([bookshelf_constraints[typ]] + edge_index.T[i].detach().cpu().numpy().tolist()) # still use the index from the tidy constraints
+        constraints.append(constraint)
+    return constraints
+
+def tabletop_constraint_from_edge_attr(edge_attr, edge_index):
+    from networks.denoise_fns import tabletop_constraints
+    constraints = []
+    for i in range(len(edge_attr)):
+        typ = int(edge_attr[i].detach().cpu().numpy().item())
+        constraint = tuple([tabletop_constraints[typ]] + edge_index.T[i].detach().cpu().numpy().tolist()) # still use the index from the tidy constraints
+        constraints.append(constraint)
+    return constraints
+    
 def world_from_graph(nodes, world_name='ShapeSettingWorld', **kwargs):
     """ input_mode = 'grid_offset_mp4'
             node = [type, width, length, grid, dx, dy]
@@ -240,7 +264,6 @@ def render_world(nodes, png_name='png_name', show=False, save=True, array=False,
     if save:
         world.render(show=show, show_grid=show_grid, img_name=png_name, array=array)
     return world
-
 
 def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_batch.png', array=False,
                             log=False, verbose=False, **kwargs):
@@ -277,7 +300,7 @@ def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_bat
                     pose = [x * w_tray/2, y * l_tray/2, 0]
                 else:
                     w, l, x, y, sn, cs = f
-                    roll = yaw_from_sn_cs(sn, cs)
+                    roll = yaw_from_sn_cs(sn, cs, world_dims)
                     geom = [w * w_tray, l * l_tray]
                     pose = [x * w_tray/2, y * l_tray/2, roll]
 
@@ -312,7 +335,7 @@ def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_bat
             else:
                 # w, l, h, w0, l0, h0, mobility_id, scale, x, y, z, sn, cs, x0, y0, g1, g2, g3, g4, g5, grasp_id = f[:21]
                 w, l, h, w0, l0, h0, x0, y0, mobility_id, scale, g1, g2, g3, g4, g5, grasp_id, x, y, z, sn, cs = f[:21]
-                yaw = yaw_from_sn_cs(sn, cs)
+                yaw = yaw_from_sn_cs(sn, cs, world_dims)
                 geom = [w*w0, l*l0, h*h0, mobility_id, scale]
                 pose = [x*w0/2, y*l0/2, z*h0, yaw] + [grasp_id]
 
@@ -325,7 +348,7 @@ def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_bat
     if verbose: print()
     nodes = []
     poses = []
-
+        
     for i in range(len(features)):
         typ = int(i != 0)
         node, pose = get_node(features[i], typ)
@@ -333,7 +356,6 @@ def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_bat
         nodes.append(node)
         poses.append(pose)
     nodes = np.asarray(nodes)
-
     world = render_world(nodes, png_name=png_name, array=array, **kwargs)
   
     evaluations = world.check_constraints_satisfied(verbose=False)
@@ -382,12 +404,32 @@ def render_world_from_graph(features, world_dims=(3, 2), png_name='diffusion_bat
         return world.images[-1], object_states, evaluations
     return evaluations
 
+def yaw_from_sn_cs(sn, cs, world_dims):
 
-def yaw_from_sn_cs(sn, cs):
+    def map_rotation_to_closest(x, targets):
+        for target in targets:
+            if abs(x - target) < 0.1:
+                return x
+        diffs = [abs(x - target) for target in targets]
+        return targets[np.argmin(diffs)]
+    
+    if sn == 0 and cs == 0: # handling the error
+        return 0
     total = np.sqrt(sn ** 2 + cs ** 2)
     sn /= total
     cs /= total
-    return np.arctan2(sn, cs)
+
+    angle = np.arctan2(sn, cs)
+
+    if world_dims == (3, 2): # this is the dining_table, only front and back
+        targets = [0, np.pi]
+        angle = map_rotation_to_closest(angle, targets)
+
+    elif world_dims == (3, 4): # this is the bedroom, it has four orientations
+        targets = [0, np.pi/2, np.pi, -np.pi/2]
+        angle = map_rotation_to_closest(angle, targets)
+
+    return angle
 
 
 def quat_from_yaw(yaw):
@@ -420,7 +462,6 @@ def compute_pairwise_collisions(world):
             data['collisions'] = []
     return world
 
-
 def compute_world_constraints(world, same_order=False, **kwargs):
     objects = copy.deepcopy(world['objects'])
     objects = {v['label']: v for k, v in objects.items()}  ##  if v['label'] not in ['bottom']
@@ -434,6 +475,24 @@ def compute_bedroom_constraints(world, same_order=False, **kwargs):
     objects = copy.deepcopy(world['objects'])
     objects = {v['label']: v for k, v in objects.items()}  ##  if v['label'] not in ['bottom']
     constraints = compute_bedroom_atomic_constraints(objects, **kwargs)
+    if not same_order:
+        constraints = randomize_unordered_constraints(constraints)
+    world['constraints'] += constraints
+    return world
+
+def compute_bookshelf_constraints(world, same_order=False, **kwargs):
+    objects = copy.deepcopy(world['objects'])
+    objects = {v['label']: v for k, v in objects.items()}  ##  if v['label'] not in ['bottom']
+    constraints = compute_bookshelf_atomic_constraints(objects, **kwargs)
+    if not same_order:
+        constraints = randomize_unordered_constraints(constraints)
+    world['constraints'] += constraints
+    return world
+
+def compute_tabletop_constraints(world, same_order=False, **kwargs):
+    objects = copy.deepcopy(world['objects'])
+    objects = {v['label']: v for k, v in objects.items()}  ##  if v['label'] not in ['bottom']
+    constraints = compute_tabletop_atomic_constraints(objects, **kwargs)
     if not same_order:
         constraints = randomize_unordered_constraints(constraints)
     world['constraints'] += constraints
@@ -467,12 +526,22 @@ def randomize_unordered_constraints(constraints):
             new_constraints.append(c)
     return new_constraints
 
+def rectangles_overlap(bbox1, bbox2):
+    min_x1, max_x1, min_y1, max_y1 = bbox1
+    min_x2, max_x2, min_y2, max_y2 = bbox2
+    if max_x1 <= min_x2 or max_x2 <= min_x1:
+        return False
+    if max_y1 <= min_y2 or max_y2 <= min_y1:
+        return False
+    return True
 
 def expand_unordered_constraints(constraints):
     new_constraints = []
     for c in constraints:
-        if c[0] in ['close-to', 'away-from', 'h-aligned', 'v-aligned', 'cfree', 'horizontally_aligned']:
+        if c[0] in ['close-to', 'away-from', 'h-aligned', 'v-aligned', 'cfree', 'horizontally_aligned', 'horizontally-aligned-bottom', 'horizontally-aligned-centroid', 'vertically-aligned-centroid', 'vertical-symmetry-on-table', 'horizontal-symmetry-on-table']:
             new_constraints.append(tuple([c[0], c[2], c[1]]))
+        if c[0] in ['vertical-line-symmetry', 'horizontal-line-symmetry']:
+            new_constraints.append(tuple([c[0], c[1], c[3], c[2]]))
         new_constraints.append(c)
     return new_constraints
 
@@ -703,7 +772,7 @@ def compute_qualitative_constraints(objects, rotations=None, debug=False, scale=
         summarize_constraints(constraints)
     return constraints
 
-def compute_bedroom_atomic_constraints(objects, rotations=None, debug=True, scale=1, test_only=False, model_relation=None, composed_relation=None, generating_data=True):
+def compute_bedroom_atomic_constraints(objects, rotations=None, debug=False, scale=1, test_only=False, model_relation=None, composed_relation=None, generating_data=True):
     """ 
     Given a dictionary of objects, compute the atomic constraints between them.
     """
@@ -761,7 +830,8 @@ def compute_bedroom_atomic_constraints(objects, rotations=None, debug=True, scal
 
     # Extract window information if present
     window = objects.get('tile_0', None)
-    assert window["name"] == "window"
+
+    # assert window["name"] == "window"
     if window:
         window_center_x, window_center_y = window['center'][:2] 
         
@@ -821,23 +891,23 @@ def compute_bedroom_atomic_constraints(objects, rotations=None, debug=True, scal
             expected_angle = np.pi / 2  # Facing positive x
             if rotation_angle_1 == expected_angle:
                 walls.append('left-wall')
-                constraints.append((f"against-left-wall", tiles.index(name1)))
+                constraints.append((f"against-left-wall", tiles.index(name1), 0))
         if abs(dist_right_wall) <= epsilon:
             expected_angle = -np.pi / 2  # Facing negative x
             if rotation_angle_1 == -np.pi / 2:
                 walls.append('right-wall')
-                constraints.append((f"against-right-wall", tiles.index(name1)))
+                constraints.append((f"against-right-wall", tiles.index(name1), 0))
         if abs(dist_front_wall) <= epsilon:
             expected_angle = np.pi  # Facing negative y
             if rotation_angle_1 == expected_angle:
                 walls.append('front-wall')
-                constraints.append((f"against-front-wall", tiles.index(name1)))
+                constraints.append((f"against-front-wall", tiles.index(name1), 0))
 
         if abs(dist_back_wall) <= epsilon:
             expected_angle = 0  # Facing positive y
             if rotation_angle_1 == 0 or rotation_angle_1 == 2 * np.pi:
                 walls.append('back-wall')
-                constraints.append((f"against-back-wall", tiles.index(name1)))
+                constraints.append((f"against-back-wall", tiles.index(name1), 0))
 
         object_walls[name1] = walls  # Store walls for binary constraints
 
@@ -849,35 +919,35 @@ def compute_bedroom_atomic_constraints(objects, rotations=None, debug=True, scal
             if wall == 'back-wall':
                 # Wall extends along x from 0 to W
                 if max_x1 < W / 2:
-                    constraints.append(("left-of-wall", tiles.index(name1)))
+                    constraints.append(("left-of-wall", tiles.index(name1), 0))
                 elif min_x1 > W / 2:
-                    constraints.append(("right-of-wall", tiles.index(name1)))
+                    constraints.append(("right-of-wall", tiles.index(name1), 0))
                 elif abs(x1) <= epsilon:
-                    constraints.append(("center-of-wall", tiles.index(name1)))
+                    constraints.append(("center-of-wall", tiles.index(name1), 0))
             elif wall == 'front-wall':
                 # Wall extends along x from 0 to W
                 if max_x1 < W / 2:
-                    constraints.append(("right-of-wall", tiles.index(name1)))
+                    constraints.append(("right-of-wall", tiles.index(name1), 0))
                 elif min_x1 > W / 2:
-                    constraints.append(("left-of-wall", tiles.index(name1)))
+                    constraints.append(("left-of-wall", tiles.index(name1), 0))
                 elif abs(x1) <= epsilon:
-                    constraints.append(("center-of-wall", tiles.index(name1)))
+                    constraints.append(("center-of-wall", tiles.index(name1), 0))
             elif wall == 'left-wall':
                 # Wall extends along y from 0 to L
                 if max_y1 < L / 2:
-                    constraints.append(("left-of-wall", tiles.index(name1)))
+                    constraints.append(("left-of-wall", tiles.index(name1), 0))
                 elif min_y1 > L / 2:
-                    constraints.append(("right-of-wall", tiles.index(name1)))
+                    constraints.append(("right-of-wall", tiles.index(name1), 0))
                 elif abs(y1) <= epsilon:
-                    constraints.append(("center-of-wall", tiles.index(name1)))
+                    constraints.append(("center-of-wall", tiles.index(name1), 0))
             elif wall == 'right-wall':
                 # Wall extends along y from 0 to L
                 if max_y1 < L / 2:
-                    constraints.append(("right-of-wall", tiles.index(name1)))
+                    constraints.append(("right-of-wall", tiles.index(name1), 0))
                 elif min_y1 > L / 2:
-                    constraints.append(("left-of-wall", tiles.index(name1)))
+                    constraints.append(("left-of-wall", tiles.index(name1), 0))
                 elif abs(y1) <= epsilon:
-                    constraints.append(("center-of-wall", tiles.index(name1)))
+                    constraints.append(("center-of-wall", tiles.index(name1), 0))
 
         
         # Check for object under window
@@ -894,7 +964,7 @@ def compute_bedroom_atomic_constraints(objects, rotations=None, debug=True, scal
 
         # Check if object is at the center of the room
         if abs(x1) <= epsilon and abs(y1) <= epsilon:
-            constraints.append(("at-center", tiles.index(name1)))
+            constraints.append(("at-center", tiles.index(name1), 0))
 
         # Check if object is at any corner
         corners = {
@@ -915,7 +985,7 @@ def compute_bedroom_atomic_constraints(objects, rotations=None, debug=True, scal
         rotation_sign = "rotated" if abs(rotation_angle_1) in [-np.pi/2, np.pi/2] else "not_rotated"
         for corner_name, (xc, yc) in corners[rotation_sign].items():
             if abs(x1 - xc) <= epsilon and abs(y1 - yc) <= epsilon:
-                constraints.append((f"at-{corner_name}", tiles.index(name1)))
+                constraints.append((f"at-{corner_name}", tiles.index(name1), 0))
                 break  # Object cannot be at more than one corner
 
     # Check binary constraints
@@ -1060,11 +1130,817 @@ def compute_bedroom_atomic_constraints(objects, rotations=None, debug=True, scal
                     if max_x2 <= min_x1 and min_x1 - max_x2 <= max_spacing:
                         if abs(y1 - y2) <= epsilon:
                             constraints.append(("in-front-of", tiles.index(name1), tiles.index(name2)))
-                
+
+    return constraints
+
+def compute_bookshelf_atomic_constraints(objects, rotations=None, debug=False, scale=1, test_only=False, model_relation=None, composed_relation=None, generating_data=True):
+
+    sides = ['east', 'west', 'north', 'south']
     if debug:
-        print("Constraints:")
-        for c in constraints:
-            print(c)
+        print('scale', scale)
+        pprint({k: {kk: round(vv, 2) if isinstance(vv, float) else vv 
+                for kk, vv in v.items() if kk in ['extents', 'center', 'rotation_angle']}
+                for k, v in objects.items() if k not in sides})
+        print()
+
+    # Get shelf dimensions
+    W, L, H = objects['bottom']["extents"]  # Width, Length (Depth), Height
+
+    names = list(objects.keys())
+    tiles = ['bottom'] + [n for n in names if 'tile_' in n]  # List of object names including 'bottom'
+
+    constraints = []  # List of atomic constraints
+
+    # Function to map rotation angle to the closest standard orientation
+    def map_rotation_to_closest(x):
+        targets = [-np.pi/2, 0, np.pi/2, np.pi]
+        for target in targets:
+            if abs(x - target) < 0.1:
+                return target
+        return x
+
+    # Function to get bounding box of an object
+    def get_bounding_box(obj):
+        x_center, y_center = obj['center'][:2]
+        width, length = obj['extents'][:2]
+        angle = obj['rotation_angle']
+        angle = map_rotation_to_closest(angle)
+        if angle in [0, np.pi]:
+            # Aligned along x and y axes
+            min_x = x_center - width / 2 + W/2
+            max_x = x_center + width / 2 + W/2
+            min_y = y_center - length / 2 + L/2
+            max_y = y_center + length / 2 + L/2
+        elif angle in [np.pi / 2, -np.pi / 2]:
+            # Width and length swapped
+            min_x = x_center - length / 2 + W/2
+            max_x = x_center + length / 2 + W/2
+            min_y = y_center - width / 2 + L/2
+            max_y = y_center + width / 2 + L/2
+        else:
+            raise ValueError(f'Invalid rotation angle: {angle}')
+        return min_x, max_x, min_y, max_y
+
+    epsilon = 0.1 * scale  # Tolerance for floating-point comparisons
+
+    # Step 1: Find unary constraints
+    for i in range(len(names)):
+        name1 = names[i]
+        m = objects[name1]
+        if name1 == 'bottom' or name1 in sides:
+            continue
+
+        x1, y1, z1 = m['center']
+        w1, l1, h1 = m['extents']
+        rotation_angle_1 = m['rotation_angle']  # rotation in (x, y) plane
+        rotation_angle_1 = map_rotation_to_closest(rotation_angle_1)
+        m['rotation_angle'] = rotation_angle_1  # Update rotation angle
+
+        # Get bounding box
+        min_x1, max_x1, min_y1, max_y1 = get_bounding_box(m)
+
+        # Check for left-wall-contact
+        if abs(min_x1 - 0) < epsilon:
+            constraints.append(('left-wall-contact', tiles.index(name1)) + (0,)*10)
+
+        # Check for right-wall-contact
+        if abs(max_x1 - W) < epsilon:
+            constraints.append(('right-wall-contact', tiles.index(name1)) + (0,)*10)
+
+        # Check for at-center
+        center_x = (min_x1 + max_x1) / 2
+        if abs(center_x - W / 2) < epsilon:
+            constraints.append(('at-center', tiles.index(name1)) + (0,)*10)
+
+        # Check for left-side
+        if max_x1 <= W / 2 - epsilon:
+            constraints.append(('left-side', tiles.index(name1)) + (0,)*10)
+
+        # Check for right-side
+        if min_x1 >= W / 2 + epsilon:
+            constraints.append(('right-side', tiles.index(name1)) + (0,)*10)
+
+    # Step 2: Find binary constraints
+    for i in range(len(names)):
+        name1 = names[i]
+        m = objects[name1]
+        if name1 == 'bottom' or name1 in sides:
+            continue
+
+        x1, y1, z1 = m['center']
+        w1, l1, h1 = m['extents']
+        rotation_angle_1 = m['rotation_angle']
+        rotation_angle_1 = map_rotation_to_closest(rotation_angle_1)
+        m['rotation_angle'] = rotation_angle_1  # Update rotation angle
+
+        # Get bounding box
+        min_x1, max_x1, _, _ = get_bounding_box(m)
+
+        for j in range(i + 1, len(names)):
+            name2 = names[j]
+            n = objects[name2]
+            if name2 == 'bottom' or name2 in sides:
+                continue
+
+            x2, y2, z2 = n['center']
+            w2, l2, h2 = n['extents']
+            rotation_angle_2 = n['rotation_angle']
+            rotation_angle_2 = map_rotation_to_closest(rotation_angle_2)
+            n['rotation_angle'] = rotation_angle_2  # Update rotation angle
+
+            # Get bounding box
+            min_x2, max_x2, _, _ = get_bounding_box(n)
+
+            max_spacing = min(min(w1, w1) * 0.5, 0.6)
+
+            # Check for left-of
+            if max_x1 <= min_x2 - epsilon and abs(min_x2 - max_x1) <= max_spacing:
+                constraints.append(('left-of', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                constraints.append(('right-of', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+            elif max_x2 <= min_x1 - epsilon and abs(min_x1 - max_x2) <= max_spacing:
+                constraints.append(('left-of', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+                constraints.append(('right-of', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+
+    # Step 3: Check n-ary relationships
+    # Collect object information
+    object_list = []
+    for name in names:
+        if name == 'bottom' or name in sides:
+            continue
+        obj = objects[name]
+        rotation_angle = obj['rotation_angle']
+        min_x, max_x, min_y, max_y = get_bounding_box(obj)
+        obj_info = {
+            'name': name,
+            'index': tiles.index(name),
+            'object': obj,
+            'min_x': min_x,
+            'max_x': max_x,
+            'center_x': (min_x + max_x) / 2,
+            'width': max_x - min_x,
+            'height': obj['extents'][1]  # Height is along the Z-axis
+        }
+        object_list.append(obj_info)
+
+    # Sort objects by center_x (from left to right)
+    object_list_sorted = sorted(object_list, key=lambda o: o['center_x'])
+    num_objects = len(object_list_sorted)
+
+    if num_objects >= 3:
+        # Check for contiguously-aligned
+        is_contiguous = True
+        for i in range(num_objects - 1):
+            obj_i = object_list_sorted[i]
+            obj_j = object_list_sorted[i + 1]
+            if abs(obj_j['min_x'] - obj_i['max_x'] - 0.025) > epsilon:
+                is_contiguous = False
+                break
+
+        if is_contiguous:
+            indices = [obj['index'] for obj in object_list_sorted]
+            indices += [0]*(11 - len(indices))
+            constraints.append(('contiguously-aligned',) + tuple(indices))
+        else:
+            # Check for linearly-aligned
+            spacings = [object_list_sorted[i + 1]['min_x'] - object_list_sorted[i]['max_x'] for i in range(num_objects - 1)]
+            avg_spacing = sum(spacings) / len(spacings)
+            spacing_diffs = [abs(s - avg_spacing) for s in spacings]
+            if max(spacing_diffs) <= epsilon:
+                indices = [obj['index'] for obj in object_list_sorted]
+                indices += [0]*(11 - len(indices))
+                constraints.append(('linearly-aligned',) + tuple(indices))
+
+        # Check for height-sorted-ascending
+        heights = [obj['height'] for obj in object_list_sorted]
+        if heights == sorted(heights):
+            indices = [obj['index'] for obj in object_list_sorted]
+            indices += [0]*(11 - len(indices))
+            constraints.append(('height-sorted-ascending',) + tuple(indices))
+        elif heights == sorted(heights, reverse=True):
+            indices = [obj['index'] for obj in object_list_sorted]
+            indices += [0]*(11 - len(indices))
+            constraints.append(('height-sorted-descending',) + tuple(indices))
+
+        # Check for width-sorted-ascending
+        widths = [obj['width'] for obj in object_list_sorted]
+        if widths == sorted(widths):
+            indices = [obj['index'] for obj in object_list_sorted]
+            indices += [0]*(11 - len(indices))
+            constraints.append(('width-sorted-ascending',) + tuple(indices))
+        elif widths == sorted(widths, reverse=True):
+            indices = [obj['index'] for obj in object_list_sorted]
+            indices += [0]*(11 - len(indices))
+            constraints.append(('width-sorted-descending',) + tuple(indices))
+
+    # Step 4: Ensure each constraint has 11 elements
+    # This was already handled when appending constraints above
+
+    return constraints   
+
+def compute_tabletop_atomic_constraints(objects, rotations=None, debug=False, scale=1, test_only=False, model_relation=None, composed_relation=None, generating_data=True): 
+    """ 
+    Given a dictionary of objects, compute the atomic constraints between them.
+    """
+    W, L = 3 * scale, 2 * scale  # Table dimensions
+    epsilon = 0.07 * scale  # Small threshold for numerical comparisons
+    table_edge_threshold = 0.13  # Threshold for determining if an object is near the table edge
+    sides = ['east', 'west', 'north', 'south']
+    # Function to map rotation angle to the closest standard orientation (0 or pi)
+    def map_rotation_to_closest(x):
+        targets = [0, np.pi]
+        for target in targets:
+            if abs(x - target) < 0.1:
+                return target
+        return 0
+
+    # Function to get bounding box of an object
+    def get_bounding_box(obj):
+        x_center, y_center = obj['center'][:2]
+        width, length = obj['extents'][:2]
+        angle = obj['rotation_angle']
+        angle = map_rotation_to_closest(angle) # default is 0
+        assert angle == 0 or angle == np.pi, f'Invalid rotation angle: {angle}'
+        
+        # Adjust coordinates so that (0, 0) is at the left-front corner
+        x_center += W / 2
+        y_center += L / 2
+        min_x = x_center - width / 2
+        max_x = x_center + width / 2
+        min_y = y_center - length / 2
+        max_y = y_center + length / 2
+       
+        return min_x, max_x, min_y, max_y
+
+    if debug:
+        print('scale', scale)
+        pprint({k: {kk: round(vv, 2) if isinstance(vv, float) else vv 
+                for kk, vv in v.items() if kk in ['extents', 'center', 'rotation_angle']}
+                for k, v in objects.items()})
+        print()
+
+    names = list(objects.keys())
+    tiles = ['bottom'] + [n for n in names if 'tile_' in n]  # List of object names including 'bottom'
+
+    constraints = []  # A list to store the atomic constraints
+
+    object_dict = {}
+
+    # Iterate over all objects to compute unary constraints and gather object properties
+    for i in range(len(names)):
+        m = objects[names[i]]
+        name1 = names[i]
+
+        if name1 == 'bottom' or name1 in sides:
+            continue
+
+        x1, y1, z1 = m['center']
+        w1, l1, h1 = m['extents']
+        rotation_angle_1 = m.get('rotation_angle', 0)  # Default rotation angle to 0 if not provided
+
+        rotation_angle_1 = map_rotation_to_closest(rotation_angle_1)
+        m['rotation_angle'] = rotation_angle_1  # Update rotation angle
+
+        if rotation_angle_1 == 0:
+            constraints.append(('facing-front', tiles.index(name1)) + (0,)*10)
+        elif rotation_angle_1 == np.pi:
+            constraints.append(('facing-back', tiles.index(name1)) + (0,)*10)
+
+        # Compute bounding box
+        min_x1, max_x1, min_y1, max_y1 = get_bounding_box(m)
+
+        # Distance to table edges
+        dist_left_edge = min_x1  # x = 0
+        dist_right_edge = W - max_x1  # x = W
+        dist_front_edge = min_y1  # y = 0
+        dist_back_edge = L - max_y1  # y = L
+
+        object_dict[name1] = {
+            'centroid': (x1, y1),
+            'extents': (w1, l1),
+            'rotation_angle': rotation_angle_1,
+            'min_x': min_x1,
+            'max_x': max_x1,
+            'min_y': min_y1,
+            'max_y': max_y1,
+            'dist_left_edge': dist_left_edge,
+            'dist_right_edge': dist_right_edge,
+            'dist_front_edge': dist_front_edge,
+            'dist_back_edge': dist_back_edge
+        }
+
+        # Unary constraints
+
+        # Determine if the object is near the edges
+        if dist_front_edge < table_edge_threshold:
+            constraints.append(('near-front-edge', tiles.index(name1)) + (0,)*10)
+        if dist_back_edge < table_edge_threshold:
+            constraints.append(('near-back-edge', tiles.index(name1)) + (0,)*10)
+        if dist_left_edge < table_edge_threshold:
+            constraints.append(('near-left-edge', tiles.index(name1)) + (0,)*10)
+        if dist_right_edge < table_edge_threshold:
+            constraints.append(('near-right-edge', tiles.index(name1)) + (0,)*10)
+        
+        # Determine if the object is in the front or back half
+        if min_y1 >= L / 2:
+            constraints.append(('back-half', tiles.index(name1)) + (0,)*10)
+        if max_y1 <= L / 2:
+            constraints.append(('front-half', tiles.index(name1)) + (0,)*10)
+        
+        # Determine if the object is in the left or right half
+        if min_x1 >= W / 2:
+            constraints.append(('right-half', tiles.index(name1)) + (0,)*10)
+        if max_x1 <= W / 2:
+            constraints.append(('left-half', tiles.index(name1)) + (0,)*10)
+
+
+        # Determine if the object is in the central column
+        if min_x1 >= W / 3 and max_x1 <= 2 * W / 3:
+            constraints.append(('central-column', tiles.index(name1)) + (0,)*10)
+        if min_y1 >= L / 3 and max_y1 <= 2 * L / 3:
+            constraints.append(('central-row', tiles.index(name1)) + (0,)*10)
+
+        # Determine if the object is along the central axis
+        if abs(x1) < epsilon:
+            constraints.append(('central-vertical-axis', tiles.index(name1)) + (0,)*10)
+        if abs(y1) < epsilon:
+            constraints.append(('central-horizontal-axis', tiles.index(name1)) + (0,)*10)
+        
+        # Determine if the object is centered
+        if abs(x1) < epsilon and abs(y1) < epsilon:
+            constraints.append(('centered-table', tiles.index(name1)) + (0,)*10)
+
+    names_list = list(object_dict.keys())
+    # Binary constraints
+    for i in range(len(names_list)):
+        name1 = names_list[i]
+        obj_prop1 = object_dict[name1]
+
+        x1, y1 = obj_prop1['centroid']
+        w1, l1 = obj_prop1['extents']
+        min_x1, max_x1, min_y1, max_y1 = obj_prop1['min_x'], obj_prop1['max_x'], obj_prop1['min_y'], obj_prop1['max_y']
+        rotation_angle1 = obj_prop1['rotation_angle']
+
+        for j in range(i+1, len(names_list)):
+            name2 = names_list[j]
+            obj_prop2 = object_dict[name2]
+
+            x2, y2 = obj_prop2['centroid']
+            w2, l2 = obj_prop2['extents']
+            min_x2, max_x2, min_y2, max_y2 = obj_prop2['min_x'], obj_prop2['max_x'], obj_prop2['min_y'], obj_prop2['max_y']
+            rotation_angle2 = obj_prop2['rotation_angle']
+
+            if rotation_angle1 == rotation_angle2:
+                x_distance = min(abs(max_x1 - min_x2), abs(max_x2 - min_x1))
+                y_distance = min(abs(max_y1 - min_y2), abs(max_y2 - min_y1))
+
+                # Check for horizontally-aligned-bottom
+                if rotation_angle1 == 0 and x_distance < 0.15 * W and abs(min_y1 - min_y2) < epsilon:
+                    constraints.append(('horizontally-aligned-bottom', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                    constraints.append(('horizontally-aligned-bottom', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+
+                if rotation_angle1 == np.pi and x_distance < 0.15 * W and abs(max_y1 - max_y2) < epsilon:
+                    constraints.append(('horizontally-aligned-bottom', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                    constraints.append(('horizontally-aligned-bottom', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+
+                # Check for horizontally-aligned-centroid
+                if x_distance < 0.15 * W and abs(y1 - y2) < epsilon:
+                        constraints.append(('horizontally-aligned-centroid', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                        constraints.append(('horizontally-aligned-centroid', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+
+                # Check for vertically-aligned-centroid
+                if y_distance < 0.15 * L and abs(x1 - x2) < epsilon:
+                    constraints.append(('vertically-aligned-centroid', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                    constraints.append(('vertically-aligned-centroid', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+
+                # Check for vertical-symmetry-on-table
+                if abs(x1) - abs(x2) < epsilon and abs(y1) - abs(y2) < epsilon:
+                    if abs(x1 + x2) < epsilon:
+                        constraints.append(('vertical-symmetry-on-table', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                        constraints.append(('vertical-symmetry-on-table', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+                    if abs(y1 + y2) < epsilon:
+                        constraints.append(('horizontal-symmetry-on-table', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                        constraints.append(('horizontal-symmetry-on-table', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+
+
+                # Check for left-of and right-of
+                if 0.05 * W <= abs(x_distance) <= 0.15 * W:
+                    # Check substantial y-overlap
+                    y_overlap_min = max(min_y1, min_y2)
+                    y_overlap_max = min(max_y1, max_y2)
+                    actual_overlap = y_overlap_max - y_overlap_min
+                    required_overlap = min(l1, l2) * 0.95
+                    if actual_overlap >= required_overlap:
+                        if min_x2 > max_x1:
+                            constraints.append(('left-of', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                            constraints.append(('right-of', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+                        else:
+                            constraints.append(('right-of', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                            constraints.append(('left-of', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+
+                # Check for front-of and back-of
+                if 0.05 * L <= abs(y_distance) <= 0.15 * L:
+                    # Check substantial x-overlap
+                    x_overlap_min = max(min_x1, min_x2)
+                    x_overlap_max = min(max_x1, max_x2)
+                    actual_overlap = x_overlap_max - x_overlap_min
+                    required_overlap = min(w1, w2) * 0.7
+                    if actual_overlap >= required_overlap:
+                        if min_y2 > max_y1:
+                            constraints.append(('front-of', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                            constraints.append(('back-of', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+                        else:
+                            constraints.append(('back-of', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                            constraints.append(('front-of', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+
+                # Check for on-top-of
+                if min_x1 >= min_x2 and max_x1 <= max_x2 and min_y1 >= min_y2 and max_y1 <= max_y2:
+                    constraints.append(('on-top-of', tiles.index(name2), tiles.index(name1)) + (0,)*9)
+                    # Check for centered
+                    if abs(x1 - x2) < epsilon and abs(y1 - y2) < epsilon:
+                        constraints.append(('centered', tiles.index(name2), tiles.index(name1)) + (0,)*9)  
+                if min_x2 >= min_x1 and max_x2 <= max_x1 and min_y2 >= min_y1 and max_y2 <= max_y1:
+                    constraints.append(('on-top-of', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+                    # Check for centered
+                    if abs(x1 - x2) < epsilon and abs(y1 - y2) < epsilon:
+                        constraints.append(('centered', tiles.index(name1), tiles.index(name2)) + (0,)*9)
+
+    # Ternary constraints
+    for i in range(len(names_list)):
+        name1 = names_list[i]
+        obj_prop1 = object_dict[name1]
+        x1, y1 = obj_prop1['centroid']
+        w1, l1 = obj_prop1['extents']
+        rotation_angle1 = obj_prop1['rotation_angle']
+        for j in range(i+1, len(names_list)):
+            name2 = names_list[j]
+            obj_prop2 = object_dict[name2]
+            x2, y2 = obj_prop2['centroid']
+            w2, l2 = obj_prop2['extents']
+            rotation_angle2 = obj_prop2['rotation_angle']
+            for k in range(j+1, len(names_list)):
+                name3 = names_list[k]
+                obj_prop3 = object_dict[name3]
+                x3, y3 = obj_prop3['centroid']
+                w3, l3 = obj_prop3['extents']
+                rotation_angle3 = obj_prop3['rotation_angle']
+
+                # Check for vertical-line-symmetry
+                if rotation_angle1 == rotation_angle2 == rotation_angle3:
+                    # Check that obj2 and obj3 are of the same size
+                    if abs(w2 - w3) < epsilon and abs(l2 - l3) < epsilon:
+                        # Check that obj2 and obj3 are mirror images across x = x1
+                        if abs(x2 - (2 * x1 - x3)) < epsilon and abs(y2 - y3) < epsilon and abs(y1 - y2) < epsilon:
+                            constraints.append(('vertical-line-symmetry', tiles.index(name1), tiles.index(name2), tiles.index(name3)) + (0,)*8)
+                            constraints.append(('vertical-line-symmetry', tiles.index(name1), tiles.index(name3), tiles.index(name2)) + (0,)*8)
+
+                    # Check for horizontal-line-symmetry
+                    if abs(w2 - w3) < epsilon and abs(l2 - l3) < epsilon:
+                        if abs(y2 - (2 * y1 - y3)) < epsilon and abs(x2 - x3) < epsilon and abs(x1 - x2) < epsilon:
+                            constraints.append(('horizontal-line-symmetry', tiles.index(name1), tiles.index(name2), tiles.index(name3)) + (0,)*8)
+                            constraints.append(('horizontal-line-symmetry', tiles.index(name1), tiles.index(name3), tiles.index(name2)) + (0,)*8)
+
+    # N-arity constraints
+    # Collect front-facing and back-facing objects
+    front_facing_objects = []
+    back_facing_objects = []
+
+    for name, obj_prop in object_dict.items():
+        rotation_angle = obj_prop['rotation_angle']
+        if rotation_angle == 0:
+            front_facing_objects.append((name, obj_prop))
+        elif rotation_angle == np.pi:
+            back_facing_objects.append((name, obj_prop))
+
+    # Implement N-ary constraints
+
+    # Check for aligned-in-horizontal-line-bottom
+    def check_aligned_horizontal_bottom(objects_list, facing):
+        # Objects aligned horizontally at their centroids with equal spacing
+
+        if len(objects_list) < 2:
+            return 
+        if facing  == "front":
+            y_edge = 'min_y'
+        else:
+            y_edge= 'max_y'
+
+        # Group objects by similar y_aligned values
+        objects_by_y = {}
+        for name, obj_prop in objects_list:
+            y_aligned = obj_prop[y_edge]
+            # Use a tolerance to group y_aligned that are close enough
+            grouped = False
+            for y_key in objects_by_y:
+                if abs(y_aligned - y_key) < epsilon:
+                    objects_by_y[y_key].append((name, obj_prop))
+                    grouped = True
+                    break
+            if not grouped:
+                objects_by_y[y_aligned] = [(name, obj_prop)]
+        # For each group, find the longest subsequence with equal spacing along x-axis
+        for y_key, group in objects_by_y.items():
+            if len(group) < 3:
+                continue  # Need at least 3 objects to detect equal spacing
+            # Sort group by x_centroid
+            group_sorted = sorted(group, key=lambda x: x[1]['centroid'][0])
+            x_mins = [obj_prop['min_x'] for _, obj_prop in group_sorted]
+            x_maxs = [obj_prop['max_x'] for _, obj_prop in group_sorted]
+            n = len(group_sorted)
+            # Calculate the spacings (gaps) between adjacent objects
+            spacings = [x_mins[i+1] - x_maxs[i] for i in range(n - 1)]
+            # Initialize variables to track the longest subsequence
+            max_length = 0
+            longest_subseq = []
+            i = 0
+            while i < n - 2: # start index
+                for j in range(i + 2, n): # end index
+                    subseq_spacings = spacings[i:j]
+                    avg_spacing = np.mean(subseq_spacings)
+                    if all(abs(s - avg_spacing) < epsilon for s in subseq_spacings):
+                        current_length = j - i + 1
+                        if current_length >= max_length:
+                            max_length = current_length
+                            longest_subseq = group_sorted[i:j+1]
+                    else:
+                        # Spacings not equal, break inner loop
+                        break
+                if n - i <= max_length:
+                    # No need to check further
+                    break
+                i += 1
+
+            # After processing, add the longest subsequence to constraints
+            if max_length >= 3:
+                indices = [tiles.index(name) for name, _ in longest_subseq]
+                constraints.append(('aligned-in-horizontal-line-bottom', *indices) + (0,) * (11 - len(indices)))
+
+    # Check for aligned-in-horizontal-line-centroid
+    def check_aligned_horizontal_centroid(objects_list):
+        # Objects aligned horizontally at their centroids with equal spacing
+        if len(objects_list) < 2:
+            return
+        # Group objects by similar y_centroid values
+        objects_by_y = {}
+        for name, obj_prop in objects_list:
+            y_centroid = obj_prop['centroid'][1]
+            # Use a tolerance to group y_centroids that are close enough
+            grouped = False
+            for y_key in objects_by_y:
+                if abs(y_centroid - y_key) < epsilon:
+                    objects_by_y[y_key].append((name, obj_prop))
+                    grouped = True
+                    break
+            if not grouped:
+                objects_by_y[y_centroid] = [(name, obj_prop)]
+        # For each group, find the longest subsequence with equal spacing along x-axis
+        for y_key, group in objects_by_y.items():
+            if len(group) < 3:
+                continue  # Need at least 3 objects to detect equal spacing
+            # Sort group by x_centroid
+            group_sorted = sorted(group, key=lambda x: x[1]['centroid'][0])
+            x_mins = [obj_prop['min_x'] for _, obj_prop in group_sorted]
+            x_maxs = [obj_prop['max_x'] for _, obj_prop in group_sorted]
+            n = len(group_sorted)
+            # Calculate the spacings (gaps) between adjacent objects
+            spacings = [x_mins[i+1] - x_maxs[i] for i in range(n - 1)]
+            # Initialize variables to track the longest subsequence
+            max_length = 0
+            longest_subseq = []
+            i = 0
+            while i < n - 2: # start index
+                for j in range(i + 2, n): # end index
+                    subseq_spacings = spacings[i:j]
+                    avg_spacing = np.mean(subseq_spacings)
+                    if all(abs(s - avg_spacing) < epsilon for s in subseq_spacings):
+                        current_length = j - i + 1
+                        if current_length >= max_length:
+                            max_length = current_length
+                            longest_subseq = group_sorted[i:j+1]
+                    else:
+                        # Spacings not equal, break inner loop
+                        break
+                if n - i <= max_length:
+                    # No need to check further
+                    break
+                i += 1
+
+            # After processing, add the longest subsequence to constraints
+            if max_length >= 3:
+                indices = [tiles.index(name) for name, _ in longest_subseq]
+                constraints.append(('aligned-in-horizontal-line-centroid', *indices) + (0,) * (11 - len(indices)))
+
+    # Check for aligned-in-vertical-line-centroid
+    def check_aligned_vertical_centroid(objects_list):
+        # Objects aligned vertically at their centroids with equal spacing
+        if len(objects_list) < 2:
+            return
+        # Group objects by similar x_centroid values
+        objects_by_x = {}
+        for name, obj_prop in objects_list:
+            x_centroid = obj_prop['centroid'][0]
+            # Use a tolerance to group x_centroids that are close enough
+            grouped = False
+            for x_key in objects_by_x:
+                if abs(x_centroid - x_key) < epsilon:
+                    objects_by_x[x_key].append((name, obj_prop))
+                    grouped = True
+                    break
+            if not grouped:
+                objects_by_x[x_centroid] = [(name, obj_prop)]
+        # For each group, find the longest subsequence with equal spacing along y-axis
+        for x_key, group in objects_by_x.items():
+            if len(group) < 3:
+                continue  # Need at least 3 objects to detect equal spacing
+            # Sort group by x_centroid
+            group_sorted = sorted(group, key=lambda x: x[1]['centroid'][1])
+            y_mins = [obj_prop['min_y'] for _, obj_prop in group_sorted]
+            y_maxs = [obj_prop['max_y'] for _, obj_prop in group_sorted]
+            n = len(group_sorted)
+            # Calculate the spacings (gaps) between adjacent objects
+            spacings = [y_mins[i+1] - y_maxs[i] for i in range(n - 1)]
+            # Initialize variables to track the longest subsequence
+            max_length = 0
+            longest_subseq = []
+            i = 0
+            while i < n - 2: # start index
+                for j in range(i + 2, n): # end index
+                    subseq_spacings = spacings[i:j]
+                    avg_spacing = np.mean(subseq_spacings)
+                    if all(abs(s - avg_spacing) < epsilon for s in subseq_spacings):
+                        current_length = j - i + 1
+                        if current_length >= max_length:
+                            max_length = current_length
+                            longest_subseq = group_sorted[i:j+1]
+                    else:
+                        # Spacings not equal, break inner loop
+                        break
+                if n - i <= max_length:
+                    # No need to check further
+                    break
+                i += 1
+
+            # After processing, add the longest subsequence to constraints
+            if max_length >= 3:
+                indices = [tiles.index(name) for name, _ in longest_subseq]
+                constraints.append(('aligned-in-vertical-line-centroid', *indices) + (0,) * (11 - len(indices)))
+
+    # Check for regular_grid
+    def check_regular_grid(objects_list):
+        """
+        Check if a subset of objects can form a regular grid.
+        The grid sizes considered are 2x2, 3x2, 4x2, and 3x3 corresponding to 4, 6, 8, and 9 objects.
+        Now, we allow a small tolerance when grouping objects by size.
+        """
+        # Allowed grid configurations and the required number of objects
+        allowed_grids = {
+            9: [(3, 3)],
+            8: [(4, 2)], 
+            6: [(3, 2)],
+            4: [(2, 2)]
+        }
+        def cluster_values(values, tolerance):
+            """
+            Clusters values that are within the specified tolerance.
+            Returns a list of cluster centers.
+            """
+            clusters = []
+            for v in sorted(values):
+                found_cluster = False
+                for idx, c in enumerate(clusters):
+                    if abs(v - c) < tolerance:
+                        # Update cluster center to mean value
+                        clusters[idx] = (clusters[idx] + v) / 2
+                        found_cluster = True
+                        break
+                if not found_cluster:
+                    clusters.append(v)
+            return clusters
+
+        def find_cluster_index(value, clusters, tolerance):
+            """
+            Finds the index of the cluster that the value belongs to.
+            """
+            for idx, c in enumerate(clusters):
+                if abs(value - c) < tolerance:
+                    return idx
+            return -1  # Should not happen if value is from the clusters
+        
+        size_tolerance = 0.05 # You can adjust this value
+
+        # Group objects by their sizes (width and length) with tolerance
+        size_groups = []
+        objects_remaining = list(objects_list)
+
+        while objects_remaining:
+            name_i, obj_prop_i = objects_remaining.pop(0)
+            group = [(name_i, obj_prop_i)]
+            w_i, l_i = obj_prop_i['extents'][0], obj_prop_i['extents'][1]
+            objects_to_remove = []
+            for name_j, obj_prop_j in objects_remaining:
+                w_j, l_j = obj_prop_j['extents'][0], obj_prop_j['extents'][1]
+                if abs(w_i - w_j) < size_tolerance and abs(l_i - l_j) < size_tolerance:
+                    group.append((name_j, obj_prop_j))
+                    objects_to_remove.append((name_j, obj_prop_j))
+            # Remove grouped objects from the remaining list
+            for obj in objects_to_remove:
+                objects_remaining.remove(obj)
+            size_groups.append(group)
+
+        # For each size group with enough objects, attempt to find a regular grid
+        for group in size_groups:
+            group_size = len(group)
+        
+            # Check for allowed grid sizes that this group could form
+            possible_grid_sizes = []
+            for num_objs_needed in sorted(allowed_grids.keys(), reverse=True):
+                if group_size >= num_objs_needed:
+                    possible_grid_sizes.extend(allowed_grids[num_objs_needed])
+        
+            if not possible_grid_sizes:
+                continue  # Not enough objects to form a grid
+        
+            # Now, attempt to find the largest grid possible
+            for n_cols, n_rows in possible_grid_sizes:
+                num_objs_needed = n_cols * n_rows
+                # We need at least this many objects
+                if group_size < num_objs_needed:
+                    continue  # Not enough objects for this grid size
+        
+                # Attempt to find a subset of objects forming a grid
+                # Generate all possible combinations of objects of the required size
+                from itertools import combinations
+                for subset in combinations(group, num_objs_needed):
+                    # Extract centroids
+                    x_centroids = [obj_prop['centroid'][0] for name, obj_prop in subset]
+                    y_centroids = [obj_prop['centroid'][1] for name, obj_prop in subset]
+        
+                    # Check if x_centroids and y_centroids can be grouped into n_cols and n_rows unique values within tolerance
+                    x_unique = cluster_values(x_centroids, epsilon)
+                    y_unique = cluster_values(y_centroids, epsilon)
+        
+                    if len(x_unique) != n_cols or len(y_unique) != n_rows:
+                        continue  # Centroids do not align into required columns and rows
+        
+                    # Check if spacings are consistent
+                    x_unique_sorted = np.sort(x_unique)
+                    y_unique_sorted = np.sort(y_unique)
+        
+                    x_spacings = np.diff(x_unique_sorted)
+                    y_spacings = np.diff(y_unique_sorted)
+        
+                    avg_x_spacing = np.mean(x_spacings)
+                    avg_y_spacing = np.mean(y_spacings)
+        
+                    if not all(abs(spacing - avg_x_spacing) < epsilon for spacing in x_spacings):
+                        continue
+                    if not all(abs(spacing - avg_y_spacing) < epsilon for spacing in y_spacings):
+                        continue
+        
+                    # Map objects to grid positions
+                    obj_positions = {}
+                    for name, obj_prop in subset:
+                        x_c = obj_prop['centroid'][0]
+                        y_c = obj_prop['centroid'][1]
+                        x_idx = find_cluster_index(x_c, x_unique, epsilon)
+                        y_idx = find_cluster_index(y_c, y_unique, epsilon)
+                        # Invert y index to start from lower-left corner
+                        y_idx_inv = (n_rows - 1) - y_idx
+                        obj_positions[(x_idx, y_idx_inv)] = name
+        
+                    # Order the objects from lower-left corner, row-wise
+                    ordered_objects = []
+                    for y in range(n_rows):
+                        for x in range(n_cols):
+                            pos = (x, y)
+                            if pos in obj_positions:
+                                ordered_objects.append(obj_positions[pos])
+                            else:
+                                break  # Missing object in grid
+                    
+                    if len(ordered_objects) != num_objs_needed:
+                        continue  # Grid incomplete
+                    
+                    # Add constraint
+                    indices = [tiles.index(name) for name in ordered_objects]
+                    constraints.append(('regular-grid', *indices) + (0,) * (11 - len(indices)))
+        
+                    # Since we want the largest possible grid, we can break here
+                    return
+        
+        # If no grid found, do nothing
+        return
+
+    # Call the revised function for both front-facing and back-facing objects
+    check_aligned_horizontal_bottom(front_facing_objects, "front")
+    check_aligned_horizontal_bottom(back_facing_objects, "back")
+   
+    check_aligned_horizontal_centroid(front_facing_objects)
+    check_aligned_horizontal_centroid(back_facing_objects)
+
+    check_aligned_vertical_centroid(front_facing_objects)
+    check_aligned_vertical_centroid(back_facing_objects)
+   
+    check_regular_grid(front_facing_objects)
 
     return constraints
 
@@ -1501,7 +2377,6 @@ def compute_clustered_atomic_constraints(objects, W, L, H, relation, rotations=N
 
     return X_0, Y_0, X_1, Y_1, total_area
     
-
 def summarize_constraints(lst):
     data = defaultdict(list)
     for c in lst:
@@ -1510,7 +2385,6 @@ def summarize_constraints(lst):
     for k, v in data.items():
         print(f'{k} ({len(v)})\t{v}')
     print('-'*50)
-
 
 def translate_cfree_evaluations(evaluations):
     """ usedto visualize unsatisfied constraints in each time step """

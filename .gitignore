@@ -8,6 +8,7 @@ renders/
 renders-old/
 logs/
 wandb/
+wandb-old/
 temp/
 demos/
 networks/**/*.jpg
